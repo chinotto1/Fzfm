@@ -39,7 +39,10 @@ enum {
     F_FATTACK,
     F_FDECAY,
     F_FSUSTAIN,
-    F_FRELEASE
+    F_FRELEASE,
+    F_DRAW,
+    F_NORM,
+    F_SMOOTH
 };
 
 typedef struct {
@@ -48,7 +51,7 @@ typedef struct {
     int field;
 } FzRowDef;
 
-static const char *k_tabs[FZ_TAB_COUNT] = {"SAMPLE", "LOOP", "MIX", "AMP", "FILTER", "MOD", "WAVE", "MAP", "RENDER"};
+static const char *k_tabs[FZ_TAB_COUNT] = {"SAMPLE", "LOOP", "MIX", "AMP", "FILTER", "MOD", "WAVE", "MAP", "RENDER", "DRAW"};
 
 static const FzRowDef k_sample[] = {{"START", 1, F_START}, {"END", 1, F_END},     {"GAIN", 1, F_GAIN},
                                     {"REVERSE", 0, F_REVERSE}, {"TUNE", 1, F_TUNE}, {"NUDGE", 0, F_NUDGE}};
@@ -72,6 +75,11 @@ static const FzRowDef k_map[] = {{"ROOT", 1, F_ROOT}, {"SEND", 0, F_SEND}, {"GAI
 static const FzRowDef k_mix[] = {{"MIX WRITE", 0, F_NONE}};
 static const FzRowDef k_wave[] = {{"HARMONIC", 0, F_HARM}};
 static const FzRowDef k_render[] = {{"BAKE", 0, F_NONE}};
+static const FzRowDef k_draw[] = {{"POINT", 0, F_DRAW}, {"NORMALIZE", 0, F_NORM}, {"SMOOTH", 0, F_SMOOTH}};
+
+static const int k_sample_tabs[] = {FZ_TAB_SAMPLE, FZ_TAB_LOOP, FZ_TAB_MIX, FZ_TAB_AMP, FZ_TAB_FILTER,
+                                    FZ_TAB_MOD,    FZ_TAB_WAVE, FZ_TAB_MAP, FZ_TAB_RENDER};
+static const int k_cycle_tabs[] = {FZ_TAB_WAVE, FZ_TAB_DRAW, FZ_TAB_AMP, FZ_TAB_FILTER, FZ_TAB_MOD, FZ_TAB_MAP};
 
 static const FzRowDef *rows_for(int tab, int *count)
 {
@@ -103,10 +111,36 @@ static const FzRowDef *rows_for(int tab, int *count)
     case FZ_TAB_RENDER:
         *count = 1;
         return k_render;
+    case FZ_TAB_DRAW:
+        *count = 3;
+        return k_draw;
     default:
         *count = 1;
         return k_mix;
     }
+}
+
+int fz_edit_tab_on_cycle(int tab)
+{
+    int i;
+    for (i = 0; i < (int)(sizeof k_cycle_tabs / sizeof k_cycle_tabs[0]); i++) {
+        if (k_cycle_tabs[i] == tab)
+            return 1;
+    }
+    return 0;
+}
+
+int fz_edit_next_tab(int cycle, int tab)
+{
+    const int *tabs = cycle ? k_cycle_tabs : k_sample_tabs;
+    int n = cycle ? (int)(sizeof k_cycle_tabs / sizeof k_cycle_tabs[0])
+                  : (int)(sizeof k_sample_tabs / sizeof k_sample_tabs[0]);
+    int i;
+    for (i = 0; i < n; i++) {
+        if (tabs[i] == tab)
+            return tabs[(i + 1) % n];
+    }
+    return tabs[0];
 }
 
 const char *fz_edit_tab_name(int tab)
@@ -185,6 +219,22 @@ static int shown_sustain(const FzEnvelope *env)
     return 20000;
 }
 
+static int draw_sample(const FzSession *session, const FzProject *project)
+{
+    const FzRegion *region = shown_region(session, project);
+    const FzAsset *asset;
+    int pt;
+    if (!region)
+        return 0;
+    asset = fz_asset((FzProject *)project, region->asset);
+    if (!asset || !asset->pcm || asset->frames == 0)
+        return 0;
+    pt = session && session->draw_pt > 0 ? session->draw_pt : 0;
+    if ((uint32_t)pt >= asset->frames)
+        pt = (int)asset->frames - 1;
+    return asset->pcm[pt];
+}
+
 void fz_edit_row_value(const FzSession *session, const FzProject *project, int row, char *dst, uint32_t cap)
 {
     int n = 0;
@@ -248,6 +298,9 @@ void fz_edit_row_value(const FzSession *session, const FzProject *project, int r
     case F_LRETRIG:
         snprintf(dst, cap, "%s", track && track->lfo.retrigger ? "ON" : "OFF");
         break;
+    case F_DRAW:
+        snprintf(dst, cap, "%d", draw_sample(session, project));
+        break;
     default:
         break;
     }
@@ -268,6 +321,8 @@ void fz_edit_header(const FzSession *session, const FzProject *project, char *ds
         label = "ENV";
     else if (session->edit_tab == FZ_TAB_MOD)
         label = "LFO";
+    else if (session->edit_tab == FZ_TAB_DRAW)
+        label = "DRAW";
     else
         label = fz_edit_tab_name(session->edit_tab);
     if (session->scope_all)
@@ -606,6 +661,50 @@ static FzStatus edit_harmonic(FzSession *session, FzProject *project, int knob, 
     return install_cycle(project, region, table, FZ_ADDITIVE_POINTS);
 }
 
+static FzStatus edit_draw(FzSession *session, FzProject *project, int knob, int detents)
+{
+    FzInstrument *inst;
+    FzRegion *region;
+    FzAsset *asset;
+    int16_t table[FZ_ADDITIVE_POINTS];
+    int field, pt, sample, frames;
+    if (!project || project->selected_track < 0 || project->selected_track >= FZ_MAX_TRACKS)
+        return FZ_ERR_BAD_ID;
+    inst = fz_instrument(project, project->track[project->selected_track].instrument);
+    if (!inst || inst->region_count < 1)
+        return FZ_ERR_BAD_ID;
+    region = fz_region(project, inst->region[0]);
+    asset = region ? fz_asset(project, region->asset) : 0;
+    if (!region || !asset || !asset->pcm || asset->frames < 2 || !asset->cycle)
+        return FZ_ERR_STATE;
+    if (asset->frames > FZ_ADDITIVE_POINTS) {
+        snprintf(project->last_error, sizeof project->last_error, "TOO LONG");
+        return FZ_ERR_RANGE;
+    }
+    frames = (int)asset->frames;
+    if (session->draw_pt < 0)
+        session->draw_pt = 0;
+    if (session->draw_pt >= frames)
+        session->draw_pt = frames - 1;
+    field = field_of(session);
+    if (field == F_DRAW && knob == 1) {
+        session->draw_pt = clamp_i(session->draw_pt + detents * 8, 0, frames - 1);
+        return FZ_OK;
+    }
+    memcpy(table, asset->pcm, (size_t)frames * sizeof(int16_t));
+    pt = session->draw_pt;
+    if (field == F_DRAW && knob == 2) {
+        sample = clamp_i((int)table[pt] + detents * 1024, -32767, 32767);
+        fz_draw_set(table, (uint32_t)frames, (uint32_t)pt, (int16_t)sample);
+    } else if (field == F_NORM && knob == 1 && detents > 0)
+        fz_draw_normalize(table, (uint32_t)frames);
+    else if (field == F_SMOOTH && knob == 1 && detents > 0)
+        fz_draw_smooth(table, (uint32_t)frames);
+    else
+        return FZ_OK;
+    return install_cycle(project, region, table, (uint32_t)frames);
+}
+
 FzStatus fz_edit_knob(FzSession *session, FzProject *project, int knob, int detents)
 {
     int field, n, i;
@@ -628,6 +727,8 @@ FzStatus fz_edit_knob(FzSession *session, FzProject *project, int knob, int dete
         return FZ_OK;
     if (session->edit_tab == FZ_TAB_MOD && knob == 2)
         return edit_lfo_target(project, detents);
+    if (session->edit_tab == FZ_TAB_DRAW)
+        return edit_draw(session, project, knob, detents);
     field = field_of(session);
     if (field == F_HARM)
         return edit_harmonic(session, project, knob, detents);

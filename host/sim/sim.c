@@ -29,11 +29,13 @@ static FzFxRack rack;
 static FzHistory history;
 static uint16_t lcd[FZ_LCD_W * FZ_LCD_H];
 static int16_t mixbuf[1024 * 2];
-static char status[160];
+static char status[192];
 static char hint[24];
 static int key_down[SIM_KEYS];
 static int voice[SIM_KEYS];
+static int held_note[SIM_KEYS];
 static int step_voice;
+static int step_note;
 static uint32_t clock_us;
 static int booted;
 
@@ -59,13 +61,38 @@ static int note_of(int index)
     return note;
 }
 
+static int selected_cycle(void)
+{
+    FzInstrument *inst;
+    FzRegion *region;
+    FzAsset *asset;
+    if (project.selected_track < 0 || project.selected_track >= FZ_MAX_TRACKS)
+        return 0;
+    if (!project.track[project.selected_track].alive)
+        return 0;
+    inst = fz_instrument(&project, project.track[project.selected_track].instrument);
+    if (!inst || inst->region_count < 1)
+        return 0;
+    region = fz_region(&project, inst->region[0]);
+    asset = region ? fz_asset(&project, region->asset) : 0;
+    return asset && asset->cycle;
+}
+
+static void sync_kind(void)
+{
+    session.cycle_inst = selected_cycle();
+    if (session.screen == FZ_SCR_EDIT && session.cycle_inst && !fz_edit_tab_on_cycle(session.edit_tab))
+        session.edit_tab = FZ_TAB_WAVE;
+}
+
 static void refresh(void)
 {
     const char *msg = project.last_error[0] ? project.last_error : "";
-    char wave[24];
+    char wave[32];
     char bpm[32];
     int partial;
     unsigned whole, tenth;
+    sync_kind();
     fz_screen_draw(lcd, &project, &session, &seq, &capture);
     wave[0] = 0;
     partial = session.partial;
@@ -87,6 +114,25 @@ static void refresh(void)
         FzInstrument *inst = fz_instrument(&project, project.track[project.selected_track].instrument);
         int level = inst ? (int)inst->additive.level[partial] : 0;
         snprintf(wave, sizeof wave, "WAVE H%d %d ", partial + 1, level);
+    }
+    if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_DRAW) {
+        int sample = 0;
+        FzInstrument *inst = 0;
+        FzRegion *region = 0;
+        FzAsset *asset = 0;
+        int pt = session.draw_pt < 0 ? 0 : session.draw_pt;
+        if (project.selected_track >= 0 && project.selected_track < FZ_MAX_TRACKS)
+            inst = fz_instrument(&project, project.track[project.selected_track].instrument);
+        if (inst && inst->region_count > 0)
+            region = fz_region(&project, inst->region[0]);
+        if (region)
+            asset = fz_asset(&project, region->asset);
+        if (asset && asset->pcm && asset->frames > 0) {
+            if ((uint32_t)pt >= asset->frames)
+                pt = (int)asset->frames - 1;
+            sample = asset->pcm[pt];
+        }
+        snprintf(wave, sizeof wave, "DRAW P%d %d ", pt, sample);
     }
     whole = seq.bpm_milli / 1000u;
     tenth = (seq.bpm_milli % 1000u) / 100u;
@@ -138,6 +184,7 @@ static void note_on(int index)
         return;
     v = fz_performance_note(&engine, &project, note, 110, 1);
     voice[index] = v;
+    held_note[index] = v >= 0 ? note : -1;
     if (seq.recording || seq.armed) {
         FzHistEvent ev;
         memset(&ev, 0, sizeof ev);
@@ -151,9 +198,11 @@ static void note_on(int index)
 
 static void note_off(int index)
 {
-    int note = note_of(index);
-    if (voice[index] >= 0)
-        fz_engine_note_off(&engine, voice[index]);
+    int played = held_note[index];
+    int note = played >= 0 ? played : note_of(index);
+    if (played >= 0)
+        fz_engine_note_off(&engine, played);
+    held_note[index] = -1;
     voice[index] = -1;
     if (seq.recording || seq.armed) {
         FzHistEvent ev;
@@ -181,6 +230,7 @@ static void drain(void)
 {
     FzAction action;
     fz_session_bind_input(&session, &input);
+    sync_kind();
     while (fz_input_pop(&input, &action)) {
         FzCommand cmd;
         fz_session_handle(&session, &action, &cmd);
@@ -219,8 +269,10 @@ void sim_boot(void)
     for (i = 0; i < SIM_KEYS; i++) {
         key_down[i] = 0;
         voice[i] = -1;
+        held_note[i] = -1;
     }
     step_voice = -1;
+    step_note = -1;
     hint[0] = 0;
     clock_us = 0;
     booted = 1;
@@ -304,9 +356,10 @@ static void fire_steps(uint32_t t0, uint32_t t1)
         if (ev->tick >= t0 && ev->tick < t1 && fz_seq_step_fires(ev, t0 + (uint32_t)i))
             started = 1;
     }
-    if (ended && step_voice >= 0) {
-        fz_engine_note_off(&engine, step_voice);
+    if (ended && step_note >= 0) {
+        fz_engine_note_off(&engine, step_note);
         step_voice = -1;
+        step_note = -1;
     }
     if (!started)
         return;
@@ -314,8 +367,10 @@ static void fire_steps(uint32_t t0, uint32_t t1)
         FzSeqEvent *ev = &seq.ev[i];
         if (!ev->used || ev->pattern != (uint16_t)pattern)
             continue;
-        if (ev->tick >= t0 && ev->tick < t1 && fz_seq_step_fires(ev, t0 + (uint32_t)i))
+        if (ev->tick >= t0 && ev->tick < t1 && fz_seq_step_fires(ev, t0 + (uint32_t)i)) {
             step_voice = fz_performance_note(&engine, &project, ev->note, ev->velocity ? ev->velocity : 100, 1);
+            step_note = ev->note;
+        }
     }
 }
 

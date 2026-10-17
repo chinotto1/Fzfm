@@ -18,8 +18,12 @@ enum {
     FZ_TAB_MOD,
     FZ_TAB_WAVE,
     FZ_TAB_MAP,
-    FZ_TAB_RENDER
+    FZ_TAB_RENDER,
+    FZ_TAB_DRAW
 };
+
+int fz_edit_tab_on_cycle(int tab);
+int fz_edit_next_tab(int cycle, int tab);
 
 const char *fz_edit_tab_name(int tab);
 int fz_edit_row_count(int tab);

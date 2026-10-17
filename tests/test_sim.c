@@ -31,6 +31,17 @@ void test_sim(void)
     peak = sim_render(buf, 64);
     EXPECT(peak > 100);
     sim_key(7, 0, 30000);
+    peak = sim_render(buf, 128);
+    EXPECT(peak == 0);
+
+    sim_key(7, 1, 1000);
+    sim_key(10, 1, 2000);
+    sim_key(7, 0, 3000);
+    peak = sim_render(buf, 64);
+    EXPECT(peak > 100);
+    sim_key(10, 0, 4000);
+    peak = sim_render(buf, 64);
+    EXPECT(peak == 0);
 
     sim_button(6, 1, 40000);
     sim_button(6, 0, 48000);
@@ -55,6 +66,11 @@ void test_sim(void)
     sim_boot();
     sim_button(6, 1, 1000);
     sim_button(6, 0, 4000);
+    sim_button(6, 1, 5000);
+    sim_button(6, 0, 6000);
+    sim_button(6, 1, 7000);
+    sim_button(6, 0, 8000);
+    EXPECT(strstr(sim_status(), "ENV") != 0);
     sim_button(1, 1, 10000);
     sim_button(1, 0, 14000);
     EXPECT(strstr(sim_status(), "NUMERIC") != 0);
@@ -99,6 +115,19 @@ void test_sim(void)
     peak = sim_render(buf, 64);
     EXPECT(peak > 100);
     sim_key(7, 0, 210000);
+
+    sim_boot();
+    sim_button(6, 1, 1000);
+    sim_button(6, 0, 4000);
+    EXPECT(strstr(sim_status(), "WAVE") != 0);
+    EXPECT(strstr(sim_status(), "LOOP") == 0);
+    sim_button(6, 1, 10000);
+    sim_button(6, 0, 14000);
+    EXPECT(strstr(sim_status(), "DRAW P0") != 0);
+    sim_encoder(4, 1);
+    EXPECT(strstr(sim_status(), "DRAW P0 1024") != 0);
+    sim_encoder(3, 1);
+    EXPECT(strstr(sim_status(), "DRAW P8") != 0);
 
     sim_boot();
     sim_button(4, 1, 1000);

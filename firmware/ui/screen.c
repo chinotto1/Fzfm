@@ -133,8 +133,70 @@ static void draw_edit(uint16_t *px, const FzProject *project, const FzSession *s
         draw_lfo_targets(px, project, fg, hi);
     text(px, 4, 200, "K1 ROW", fg);
     text(px, 80, 200, fz_edit_knob_label(session->edit_tab, session->row[session->edit_tab], 1), fg);
-    text(px, 4, 216, session->edit_tab == FZ_TAB_MOD ? "K3 TARGET" : "K3 -", fg);
+    text(px, 4, 216,
+         session->edit_tab == FZ_TAB_MOD ? "K3 TARGET" : session->edit_tab == FZ_TAB_DRAW ? "K3 LEVEL" : "K3 -", fg);
     text(px, 80, 216, "K4 -", fg);
+}
+
+static const FzAsset *cycle_asset(const FzProject *project)
+{
+    const FzInstrument *inst;
+    const FzRegion *region;
+    const FzAsset *asset;
+    FzId id;
+    if (!project || project->selected_track < 0 || project->selected_track >= FZ_MAX_TRACKS)
+        return 0;
+    if (!project->track[project->selected_track].alive)
+        return 0;
+    id = project->track[project->selected_track].instrument;
+    if (id.index >= FZ_MAX_INSTRUMENTS)
+        return 0;
+    inst = &project->instrument[id.index];
+    if (!inst->alive || inst->generation != id.generation || inst->region_count < 1)
+        return 0;
+    id = inst->region[0];
+    if (id.index >= FZ_MAX_REGIONS)
+        return 0;
+    region = &project->region[id.index];
+    if (!region->alive || region->generation != id.generation)
+        return 0;
+    id = region->asset;
+    if (id.index >= FZ_MAX_ASSETS)
+        return 0;
+    asset = &project->asset[id.index];
+    if (!asset->alive || asset->generation != id.generation || !asset->cycle || !asset->pcm || asset->frames < 2)
+        return 0;
+    return asset;
+}
+
+static void draw_cycle_plot(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t head)
+{
+    const FzAsset *asset = cycle_asset(project);
+    int points, i, cursor, sample, y, top, h;
+    if (!asset)
+        return;
+    points = (int)asset->frames;
+    if (points > 4096)
+        points = 4096;
+    for (i = 0; i < 224; i++) {
+        sample = asset->pcm[i * points / 224];
+        y = 150 - sample * 28 / 32768;
+        if (y < 118)
+            y = 118;
+        if (y > 182)
+            y = 182;
+        top = y < 150 ? y : 150;
+        h = y < 150 ? 150 - y : y - 150;
+        if (h < 1)
+            h = 1;
+        rect(px, 8 + i, top, 1, h, fg);
+    }
+    cursor = session ? session->draw_pt : 0;
+    if (cursor < 0)
+        cursor = 0;
+    if (cursor >= points)
+        cursor = points - 1;
+    rect(px, 8 + cursor * 224 / points, 118, 1, 64, head);
 }
 
 static int playhead_step(const FzProject *project, const FzSeq *seq, int pattern)
@@ -248,6 +310,8 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
         draw_edit(rgb565, project, session, fg, hi);
         if (session->edit_tab == FZ_TAB_WAVE)
             draw_harmonics(rgb565, project, session, fg, on);
+        else if (session->edit_tab == FZ_TAB_DRAW)
+            draw_cycle_plot(rgb565, project, session, fg, head);
     }
     else if (screen == FZ_SCR_STEP && session)
         draw_steps(rgb565, project, session, seq, fg, on, hi, head);

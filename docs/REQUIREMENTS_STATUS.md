@@ -27,7 +27,7 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | R17 | partial | Hold EDIT plus a category key names `CATEGORY n` |
 | R18 | partial | Mix, cross, truncate, reverse write, cut cycle, eight-stage envelopes, eight loop sections. The voice reader uses section 0 only. Crossfade is `fz_loop_sample` |
 | R19 | partial | 48-harmonic recipe, cycle playback, and the WAVE tab on the panel. The recipe is not in `FZB1` yet |
-| R20 | partial | Sine and naive square presets, cut cycle, draw normalize/smooth. No point editor |
+| R20 | partial | Sine and naive square presets, cut cycle, and a DRAW page for cycle instruments. Sample instruments keep loop and sample pages |
 | R21 | partial | HOME values are the track. `fz_performance_render` filters from them |
 | R22 | partial | FZ INSPIRED trapezoidal lowpass. Stability is host-tested. Fidelity is unmeasured. See `docs/FILTER_MODEL.md` |
 | R23 | partial | Shared volume/pan, four sends, mute, solo, region trims. No return fader |
@@ -88,14 +88,14 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | T46 | Pending device. Flash scripts refuse |
 | T47 | Pending device |
 | T48 | No third-party source is vendored. Lockfile and `THIRD_PARTY_NOTICES.md` list what was read |
-| T49 | `make sim` then `web/sim/index.html?selftest=1`. Octave, BPM 120, a sounding key, the EDIT screen, ENV, an LFO target, and a non-blank 240×240 frame. Headless Chrome, not the device |
+| T49 | `make sim` then `web/sim/index.html?selftest=1`. Octave, BPM 120, a sounding key that stops on release, the EDIT screen, DRAW, ENV, an LFO target, and a non-blank 240×240 frame. Headless Chrome, not the device |
 
 ## Commands for this revision
 
 Host only.
 
-- `make test` — 10748 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
-- The same suite at `-O2` without sanitizers — 10748 passed, 0 failed
+- `make test` — 10772 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
+- The same suite at `-O2` without sanitizers — 10772 passed, 0 failed
 - `make sim` — wasm32 panel at `web/sim/sim.wasm`. Needs clang with `wasm-ld`
 - `make render` — A4 zero-crossings 439, +12 semitones 879, both WAV files 36,000 Hz mono int16
 - `scripts/package_firmware.sh` and `scripts/flash.sh` — exit 2

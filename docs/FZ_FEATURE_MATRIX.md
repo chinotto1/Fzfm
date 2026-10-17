@@ -60,7 +60,7 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 | Additive | 48 levels, zero phase, peak scale, recipe `FZH1` | Instrument recipe. WAVE tab: K2 selects partial, K3 sets level 0–256 and rebuilds the cycle | `test_main`, panel test | Not in the `FZB1` bundle yet |
 | Preset wave | `fz_preset_sine`, `fz_preset_square` (±12000, not band-limited), `fz_edit_preset` | New cycle asset | preset test | WAVE tab row does not call it |
 | Cut cycle | `fz_edit_cut_cycle` copies a span and leaves the source bytes | | cut test | |
-| Draw | `fz_draw_set`, `fz_draw_normalize`, `fz_draw_smooth` | A table the caller owns | normalize and smooth tests | No point-edit screen |
+| Draw | `fz_draw_set`, `fz_draw_normalize`, `fz_draw_smooth`. DRAW tab on a cycle instrument plots the cycle. K2 steps the point by 8, K3 adds 1024 to that sample. NORMALIZE and SMOOTH are rows | The playing cycle, up to 1024 points | normalize reaches 28000; the panel status follows the point | A drawn cycle is replaced if a harmonic level is edited afterwards |
 | Choke | `choke` 0 means none. A new voice with the same nonzero group stops the older one | Region, MAP row | two notes with choke 3 are quieter than two without | |
 | Send trim | `send_trim[4]`, 0 silent, 127 follow the track. MAP row edits trim 0 | Region | send math | |
 | Bake / unsend | `docs/adr/0003-bake-routing.md` | Region or one pattern | fx/bake tests | RENDER tab row does not call it. Pattern `baked_asset` is stored and is not substituted for the live region |

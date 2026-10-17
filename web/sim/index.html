@@ -38,7 +38,7 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. The status line shows the BPM. PLAY moves the playhead. ENV opens amplitude and filter envelopes. LFO opens the modulator; K3 selects its target (off, cutoff, level, pitch, pan). EDIT cycles the tabs; WAVE is the additive synth (K2 picks harmonic 1–48, K3 sets its level 0–256).</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens amplitude and filter envelopes. LFO opens the modulator; K3 selects its target (off, cutoff, level, pitch, pan). A cycle instrument opens on WAVE. EDIT then reaches DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages.</p>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
     <div class="panel">
@@ -198,6 +198,7 @@ async function selftest() {
   const peak = api.sim_render(api.sim_mix(), 64);
   document.querySelector('[data-key="7"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 2 }));
   if (peak < 100) fail("silent key");
+  if (api.sim_render(api.sim_mix(), 128) > 0) fail("no gate");
   document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 3 }));
   document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 3 }));
   if (!document.getElementById("status").textContent.includes("EDIT")) fail("edit screen");
@@ -229,6 +230,9 @@ async function selftest() {
     document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 6 }));
   }
   if (!document.getElementById("status").textContent.includes("WAVE H1")) fail("wave tab");
+  document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 9 }));
+  document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 9 }));
+  if (!document.getElementById("status").textContent.includes("DRAW")) fail("draw");
   document.querySelector('[data-button="4"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 7 }));
   document.querySelector('[data-button="4"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 7 }));
   if (!document.getElementById("status").textContent.includes("ENV")) fail("env");

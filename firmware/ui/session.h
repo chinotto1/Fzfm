@@ -19,7 +19,7 @@
 #include "sequence/seq.h"
 #include "ui/input.h"
 
-#define FZ_TAB_COUNT 9
+#define FZ_TAB_COUNT 10
 #define FZ_NAME_CATEGORIES 9
 
 typedef enum {
@@ -89,6 +89,8 @@ typedef struct {
     int pick_have;
     int step_note;
     int partial; /* 0..47, WAVE harmonic cursor */
+    int draw_pt; /* cycle drawing cursor */
+    int cycle_inst; /* 1: the selected instrument is a single cycle, not a sample */
 } FzSession;
 
 void fz_session_init(FzSession *session);

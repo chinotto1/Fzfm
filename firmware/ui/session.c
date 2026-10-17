@@ -177,8 +177,10 @@ void fz_session_handle(FzSession *session, const FzAction *action, FzCommand *ou
     if (action->button == FZ_BTN_EDIT && action->kind == FZ_ACT_TAP) {
         if (session->screen != FZ_SCR_EDIT) {
             session->screen = FZ_SCR_EDIT;
+            if (session->cycle_inst && !fz_edit_tab_on_cycle(session->edit_tab))
+                session->edit_tab = FZ_TAB_WAVE;
         } else {
-            session->edit_tab = (session->edit_tab + 1) % FZ_TAB_COUNT;
+            session->edit_tab = fz_edit_next_tab(session->cycle_inst, session->edit_tab);
             session->gesture = 0;
         }
         emit(out, FZ_CMD_EDIT_TAB, session->edit_tab, action->at_us);

@@ -13,7 +13,7 @@ Source: `firmware/src/panel.c` at melodee `84e2d97`, cross-checked against feluc
 | HOME | button | Playable overview. Another HOME leaves an editor and does not stop playback | `fz_session_handle` returns to HOME. A dialog cancels first. Playback is a separate flag |
 | ALGORITHM | encoder | Select track, clamped at the ends | `fz_home_select_track` |
 | KNOB 1–4 on HOME | encoders | Cutoff, resonance, volume, pan of the selected track | `fz_home_turn`. Volume and pan are the mixer fields. Cutoff and resonance feed `fz_performance_render` |
-| EDIT tap / hold | button | Tap enters the editor and then cycles tabs. Hold opens naming and must not also change tabs | Host router does this. Tabs are SAMPLE, LOOP, MIX, AMP, FILTER, MOD, WAVE, MAP, RENDER |
+| EDIT tap / hold | button | Tap enters the editor and then cycles tabs. Hold opens naming and must not also change tabs | Host router does this. A sample instrument cycles SAMPLE, LOOP, MIX, AMP, FILTER, MOD, WAVE, MAP, RENDER. A cycle instrument opens on WAVE and cycles WAVE, DRAW, AMP, FILTER, MOD, MAP. DRAW is the point editor: K2 picks the point, K3 sets its level |
 | ENV | button | Open the amplitude and filter envelopes | Screen `FZ_SCR_EDIT`, tab AMP. Rows are attack, decay, sustain, release, then the filter envelope and its amount |
 | LFO | button | Open the track modulator and choose a target | Screen `FZ_SCR_EDIT`, tab MOD. K3 steps the target: off, cutoff, level, pitch, pan |
 | OCT+ tap / hold | button | Context confirm, undo, octave, or page. See ADR 0002 | `fz_session_handle` |

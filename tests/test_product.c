@@ -178,6 +178,20 @@ static void test_oct_plus_router(void)
     EXPECT(session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_MOD);
     tap(&input, &session, FZ_BTN_ENV, 620, &cmd);
     EXPECT(session.edit_tab == FZ_TAB_AMP);
+
+    fz_session_init(&session);
+    session.cycle_inst = 1;
+    session.screen = FZ_SCR_HOME;
+    tap(&input, &session, FZ_BTN_EDIT, 700, &cmd);
+    EXPECT(session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_WAVE);
+    tap(&input, &session, FZ_BTN_EDIT, 710, &cmd);
+    EXPECT(session.edit_tab == FZ_TAB_DRAW);
+    tap(&input, &session, FZ_BTN_EDIT, 720, &cmd);
+    EXPECT(session.edit_tab == FZ_TAB_AMP);
+    session.cycle_inst = 0;
+    session.edit_tab = FZ_TAB_SAMPLE;
+    tap(&input, &session, FZ_BTN_EDIT, 730, &cmd);
+    EXPECT(session.edit_tab == FZ_TAB_LOOP);
 }
 
 static void test_edit_scope_and_undo(void)
@@ -1218,9 +1232,43 @@ static void test_lfo_targets(void)
     EXPECT(c[1] != 0);
 }
 
+static void test_cycle_draw(void)
+{
+    static FzProject project;
+    static int16_t store[4000];
+    FzSession session;
+    FzId inst, track, asset, region;
+    int16_t table[32];
+    FzAsset *got;
+    int i;
+    fz_project_init(&project, store, 4000);
+    EXPECT(fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    for (i = 0; i < 32; i++)
+        table[i] = (int16_t)(i == 0 ? 100 : 0);
+    EXPECT(fz_project_add_pcm(&project, table, 32, FZ_ENGINE_RATE_HZ, 1, &asset) == FZ_OK);
+    EXPECT(fz_project_add_region(&project, inst, asset, 60, 0, &region) == FZ_OK);
+    fz_session_init(&session);
+    session.screen = FZ_SCR_EDIT;
+    session.edit_tab = FZ_TAB_DRAW;
+    session.row[FZ_TAB_DRAW] = 0;
+    EXPECT(fz_edit_knob(&session, &project, 2, 1) == FZ_OK);
+    got = fz_asset(&project, asset);
+    EXPECT(got != 0 && got->pcm[0] == 1124);
+    session.row[FZ_TAB_DRAW] = 1;
+    EXPECT(fz_edit_knob(&session, &project, 1, 1) == FZ_OK);
+    got = fz_asset(&project, asset);
+    EXPECT(got->pcm[0] == 28000);
+    session.cycle_inst = 0;
+    EXPECT(fz_edit_next_tab(0, FZ_TAB_SAMPLE) == FZ_TAB_LOOP);
+    EXPECT(fz_edit_next_tab(1, FZ_TAB_WAVE) == FZ_TAB_DRAW);
+    EXPECT(fz_edit_tab_on_cycle(FZ_TAB_LOOP) == 0);
+    EXPECT(fz_edit_tab_on_cycle(FZ_TAB_DRAW) == 1);
+}
+
 void test_product(void)
 {
     test_oct_plus_router();
+    test_cycle_draw();
     test_edit_scope_and_undo();
     test_lfo_targets();
     test_mangle_loop_env();
