@@ -11,10 +11,14 @@ The FM-1 is a JieLi AC79-class board (pi32v2). The engine renders at 36 kHz. USB
 - Multi-sample capture (16 slots, threshold, pre-trigger, undo last, OCT+ to the performance state) into a caller-provided RAM store.
 - Octave-anchor zone mapping, including the lower-root tie.
 - 48-harmonic additive recipes and a versioned byte format.
-- Tap/hold arbitration, a retrospective event ring, and tempo candidates.
-- A 240×240 HOME frame.
+- Tap/hold arbitration. OCT+ confirms and undoes. SELECT does not click.
+- Editor tabs, ALL versus ONE, numeric entry, and category naming.
+- A trapezoidal lowpass named FZ INSPIRED, per-voice envelopes, a section-0 loop, and a track LFO. An FZ-1 measurement has not been made.
+- Four send effects, bake/unsend, a sparse sequencer, an in-memory journal, and an `FZB1` bundle.
+- `FZTEST` and WAV cycle import. `web/importer/index.html` auditions those files locally.
+- A 240×240 HOME frame, a retrospective event ring, and tempo candidates.
 
-Cutoff and resonance are stored and do not filter yet. There is no USB device stack, no sequencer transport, no effect, no flash journal, and no website. `docs/REQUIREMENTS_STATUS.md` is the list that matters.
+`docs/REQUIREMENTS_STATUS.md` is the list that matters. There is no USB device stack and no flash image.
 
 ## Commands that exist
 
@@ -31,7 +35,7 @@ Generated WAVs land in `build/fixtures/` (`a4_cycle.wav`, `a4_plus_octave.wav`) 
 
 ## Layout
 
-`firmware/` is the portable C core. `host/render/` writes fixtures. `tests/test_main.c` is the host suite. `docs/` holds the audit, the memory notes, and the requirement table. Pinned reference commits are in `third_party/sources.lock`. Those repositories are not vendored.
+`firmware/` is the portable C core. `host/render/` writes fixtures. `tests/test_main.c` and `tests/test_product.c` are the host suite. `docs/` holds the audit, the feature matrix, and the requirement table. `web/importer/` is the optional local page. Pinned reference commits are in `third_party/sources.lock`. Those repositories are not vendored.
 
 ## Device status
 
