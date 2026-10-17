@@ -22,17 +22,36 @@ static int find_free(FzEngine *e)
     return -1;
 }
 
+static int count_alive(const FzEngine *e)
+{
+    int i, n = 0;
+    for (i = 0; i < FZ_MAX_VOICES; i++) {
+        if (e->voice[i].alive)
+            n++;
+    }
+    return n;
+}
+
 static int oldest(FzEngine *e)
 {
-    int i, best = 0;
+    int i, best = -1;
     uint16_t best_age = 0xFFFFu;
     for (i = 0; i < FZ_MAX_VOICES; i++) {
+        if (!e->voice[i].alive)
+            continue;
         if (e->voice[i].age < best_age) {
             best_age = e->voice[i].age;
             best = i;
         }
     }
     return best;
+}
+
+static void stop_voice(FzEngine *e, int slot)
+{
+    e->voice[slot].alive = 0;
+    e->voice[slot].reader.active = 0;
+    e->stolen++;
 }
 
 int fz_engine_note_on_pcm(FzEngine *e, const int16_t *pcm, uint32_t frames, uint32_t native_rate,
@@ -58,10 +77,18 @@ int fz_engine_note_on_pcm(FzEngine *e, const int16_t *pcm, uint32_t frames, uint
     if (pan > 127)
         pan = 127;
 
+    while (count_alive(e) >= FZ_POLYPHONY) {
+        int old = oldest(e);
+        if (old < 0)
+            break;
+        stop_voice(e, old);
+    }
     slot = find_free(e);
     if (slot < 0) {
         slot = oldest(e);
-        e->stolen++;
+        if (slot < 0)
+            return -1;
+        stop_voice(e, slot);
     }
     v = &e->voice[slot];
     memset(v, 0, sizeof *v);

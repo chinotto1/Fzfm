@@ -16,6 +16,8 @@
 struct FzFxRack;
 
 #define FZ_MAX_VOICES 16
+/* Eight notes sound together. The next note replaces the oldest. */
+#define FZ_POLYPHONY 8
 
 typedef struct {
     FzReader reader;

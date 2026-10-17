@@ -225,4 +225,22 @@ void test_sim(void)
     sim_key(7, 0, 60000);
     peak = sim_render(buf, 256);
     EXPECT(peak > 100);
+
+    sim_boot();
+    for (i = 0; i < 8; i++)
+        sim_key(i, 1, 1000u + (uint32_t)i * 1000u);
+    EXPECT(sim_voices() == 8);
+    sim_key(7, 0, 20000);
+    EXPECT(sim_voices() == 7);
+    peak = sim_render(buf, 64);
+    EXPECT(peak > 100);
+    sim_key(7, 1, 21000);
+    EXPECT(sim_voices() == 8);
+    sim_key(8, 1, 22000);
+    EXPECT(sim_voices() == 8);
+    for (i = 1; i <= 8; i++)
+        sim_key(i, 0, 30000u + (uint32_t)i * 1000u);
+    EXPECT(sim_voices() == 0);
+    peak = sim_render(buf, 64);
+    EXPECT(peak == 0);
 }

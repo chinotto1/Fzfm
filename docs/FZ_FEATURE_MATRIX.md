@@ -41,7 +41,7 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 | Eight stages | `FzEnvelope` levels and frame counts, sustain index | Per region | 8-stage run reaches the last level then rests at 0 | |
 | ADSR macro | `fz_env_adsr` fills four stages. The ENV button opens AMP rows for attack, decay, sustain level, release, then the filter envelope and its amount. The page draws both envelopes. AMP is not in the EDIT cycle | ALL edits each region | edit scope | Sustain is the envelope level, separate from region gain |
 | Keyboard scaling | `fz_env_scale_time` shortens non-sustain stages above the center note | | scale test | Level scaling and velocity-to-envelope are not separate curves |
-| Note-off | A voice with an envelope releases. A gated voice without one stops | | filter/playback | |
+| Note-off | A voice with an envelope releases. A gated voice without one stops. Eight notes stay up together; the ninth replaces the oldest. Releasing one note leaves the others | | filter/playback; eight cycles survive a ninth note-on | |
 
 ## FILTER / MOD
 

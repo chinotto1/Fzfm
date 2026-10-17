@@ -16,6 +16,8 @@ void sim_key(int index, int down, uint32_t time_us);
 /* Interleaved stereo int16 at 36 kHz. Returns the peak absolute sample.
  * sim_mix() is a 1024-frame buffer the page can pass to sim_render. */
 int sim_render(int16_t *stereo, int frames);
+/* Notes whose voices are still sounding. */
+int sim_voices(void);
 int16_t *sim_mix(void);
 uint16_t *sim_lcd(void);
 char *sim_status(void);

@@ -28,7 +28,7 @@ Source: `firmware/src/panel.c` at melodee `84e2d97`, cross-checked against feluc
 | ARP | button | Open the arpeggiator. A second tap switches to its second page. HOME leaves the page and the pattern keeps running | Screen `FZ_SCR_ARP`. Page 1: K1 mode (off, up, down, up-down, random, order), K2 rate, K3 octaves 1–4, K4 gate. Page 2: K1 swing, K2 probability, K3 hold, K4 order (note or play). The clock follows the sequencer BPM and runs while the sequencer is stopped. Mode off keeps ordinary notes |
 | SCL | button | No new job in the specification | Id exists. No action |
 | PRESETS | encoder | Outside the sampler contract | Unbound |
-| Note keys | 27 keys, F3–G5 in the board comment | Play, except inside a picker | `fz_performance_note` on HOME, EDIT, MIXER, FX, and ARP. When the arpeggiator mode is not off, those keys feed one arpeggio voice instead of sounding together. Numeric, naming, pick, confirm, STEP, PATTERNS, SONG, and capture do not record those keys into the history ring |
+| Note keys | 27 keys, F3–G5 in the board comment | Play, except inside a picker. Eight notes sound together; a ninth replaces the oldest | `fz_performance_note` on HOME, EDIT, MIXER, FX, and ARP. Releasing one key stops that note and leaves the others. When the arpeggiator mode is not off, those keys feed the arpeggio instead of sounding together. On the panel, a mouse click latches a key and a second click releases it. Letter keys play while held. Numeric, naming, pick, confirm, STEP, PATTERNS, SONG, and capture do not record those keys into the history ring |
 | Master pot | ADC | Separate from the four HOME knobs | Unread |
 
 ## Hold rule

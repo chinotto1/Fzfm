@@ -459,6 +459,18 @@ static void advance_transport(uint32_t frames)
     drive_arp(frames);
 }
 
+int sim_voices(void)
+{
+    int i, n = 0;
+    if (!booted)
+        sim_boot();
+    for (i = 0; i < FZ_MAX_VOICES; i++) {
+        if (engine.voice[i].alive)
+            n++;
+    }
+    return n;
+}
+
 int sim_render(int16_t *stereo, int frames)
 {
     int peak = 0;

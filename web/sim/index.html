@@ -29,16 +29,17 @@
   .enc { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 4px; }
   .enc span { flex: 1; text-align: center; font-size: 12px; }
   .enc button { width: 32px; padding: 6px 0; }
-  .keys { display: flex; gap: 3px; margin-top: 12px; }
-  .keys button { flex: 1; height: 92px; padding: 4px 0; font-size: 11px; }
+  .keys { display: flex; gap: 3px; margin-top: 12px; touch-action: none; }
+  .keys button { flex: 1; height: 92px; padding: 4px 0; font-size: 11px; touch-action: none; }
   .keys button.black { background: #10131a; height: 58px; align-self: flex-start; }
+  .keys button.on { background: #3d6eae; }
   #result { font-weight: 600; }
 </style>
 </head>
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C.</p>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
     <div class="panel">
@@ -66,6 +67,14 @@ const OCT = [3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5];
 let api = null;
 let audio = null;
 let phase = 0;
+const owners = Array.from({ length: 27 }, () => new Set());
+const order = [];
+const LETTERS = {
+  KeyZ: 0, KeyX: 2, KeyC: 4, KeyV: 6,
+  KeyA: 7, KeyW: 8, KeyS: 9, KeyE: 10, KeyD: 11, KeyF: 12, KeyT: 13,
+  KeyG: 14, KeyY: 15, KeyH: 16, KeyU: 17, KeyJ: 18, KeyK: 19,
+  KeyO: 20, KeyL: 21, KeyP: 22, Semicolon: 23
+};
 
 function nowUs() { return (performance.now() * 1000) | 0; }
 function mem() { return api.memory.buffer; }
@@ -94,6 +103,40 @@ function paint() {
 function press(id, down) { api.sim_button(id, down ? 1 : 0, nowUs()); paint(); }
 function turn(id, detents) { api.sim_encoder(id, detents); paint(); }
 function key(index, down) { api.sim_key(index, down ? 1 : 0, nowUs()); paint(); }
+function paintKey(index) {
+  const el = document.querySelector('[data-key="' + index + '"]');
+  if (el) el.classList.toggle("on", owners[index].size > 0);
+}
+function dropOldest() {
+  while (order.length >= 8) {
+    const index = order.shift();
+    owners[index].clear();
+    key(index, false);
+    paintKey(index);
+  }
+}
+function engage(index, owner, down) {
+  if (!api || index < 0 || index > 26) return;
+  const set = owners[index];
+  const was = set.size > 0;
+  if (down) set.add(owner);
+  else set.delete(owner);
+  const now = set.size > 0;
+  if (now && !was) {
+    dropOldest();
+    order.push(index);
+    key(index, true);
+  } else if (!now && was) {
+    const at = order.indexOf(index);
+    if (at >= 0) order.splice(at, 1);
+    key(index, false);
+  }
+  paintKey(index);
+}
+function canPlayKeys() {
+  const s = document.getElementById("status").textContent;
+  return s.includes("HOME") || s.includes("EDIT") || s.includes("MIXER") || s.includes("FX") || s.includes("ARP");
+}
 
 function bindHold(el, fnDown, fnUp) {
   el.addEventListener("pointerdown", (e) => {
@@ -137,10 +180,39 @@ function build() {
     b.textContent = name + OCT[i];
     b.className = name.includes("#") ? "black" : "";
     b.dataset.key = String(i);
-    bindHold(b, () => key(i, true), () => key(i, false));
+    b.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      ensureAudio();
+      if (e.pointerType === "mouse") {
+        engage(i, "mouse", !owners[i].has("mouse"));
+        return;
+      }
+      try { b.setPointerCapture(e.pointerId); } catch (err) {}
+      engage(i, "p" + e.pointerId, true);
+    });
+    const lift = (e) => {
+      if (e.pointerType === "mouse") return;
+      engage(i, "p" + e.pointerId, false);
+    };
+    b.addEventListener("pointerup", lift);
+    b.addEventListener("pointercancel", lift);
     keys.appendChild(b);
   });
 }
+
+window.addEventListener("keydown", (e) => {
+  const index = LETTERS[e.code];
+  if (index === undefined || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!canPlayKeys()) return;
+  e.preventDefault();
+  ensureAudio();
+  engage(index, "k" + e.code, true);
+});
+window.addEventListener("keyup", (e) => {
+  const index = LETTERS[e.code];
+  if (index === undefined) return;
+  engage(index, "k" + e.code, false);
+});
 
 function ensureAudio() {
   if (location.search.includes("selftest=1")) return;
@@ -250,6 +322,20 @@ async function selftest() {
   if (document.getElementById("status").textContent.includes("UP")) fail("arp starts on");
   document.querySelectorAll("#encoders .enc")[2].querySelectorAll("button")[1].click();
   if (!document.getElementById("status").textContent.includes("UP")) fail("arp mode");
+  api.sim_boot();
+  function mouseKey(index) {
+    const el = document.querySelector('[data-key="' + index + '"]');
+    el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 30 + index, pointerType: "mouse", button: 0 }));
+    el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 30 + index, pointerType: "mouse", button: 0 }));
+  }
+  mouseKey(7);
+  if (api.sim_voices() !== 1) fail("voice " + api.sim_voices());
+  mouseKey(11);
+  if (api.sim_voices() !== 2) fail("poly " + api.sim_voices());
+  mouseKey(7);
+  if (api.sim_voices() !== 1) fail("toggle " + api.sim_voices());
+  for (let n = 0; n < 8; n++) mouseKey(12 + (n % 8));
+  if (api.sim_voices() !== 8) fail("eight " + api.sim_voices());
   document.title = "PASS";
   document.getElementById("result").textContent = "PASS";
 }

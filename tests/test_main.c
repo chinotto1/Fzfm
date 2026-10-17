@@ -624,6 +624,46 @@ static void test_home_and_mix(void)
     fz_engine_render(&engine, mix_a, 8);
 }
 
+static int alive_note(const FzEngine *e, int note)
+{
+    int i;
+    for (i = 0; i < FZ_MAX_VOICES; i++) {
+        if (e->voice[i].alive && e->voice[i].note == note)
+            return 1;
+    }
+    return 0;
+}
+
+static void test_polyphony(void)
+{
+    FzEngine engine;
+    int16_t pcm[32];
+    int16_t mix[8];
+    int i, n;
+    for (i = 0; i < 32; i++)
+        pcm[i] = 8000;
+    fz_engine_init(&engine);
+    for (i = 0; i < FZ_POLYPHONY; i++)
+        EXPECT(fz_engine_note_on_pcm(&engine, pcm, 32, FZ_ENGINE_RATE_HZ, 60, 60 + i, 0, 110, 110, 64, 0, 1, 1) >= 0);
+    for (i = 0; i < FZ_POLYPHONY; i++)
+        EXPECT(alive_note(&engine, 60 + i) == 1);
+    EXPECT(fz_engine_note_on_pcm(&engine, pcm, 32, FZ_ENGINE_RATE_HZ, 60, 60 + FZ_POLYPHONY, 0, 110, 110, 64, 0, 1, 1) >= 0);
+    EXPECT(alive_note(&engine, 60) == 0);
+    EXPECT(alive_note(&engine, 61) == 1);
+    EXPECT(alive_note(&engine, 60 + FZ_POLYPHONY) == 1);
+    n = 0;
+    for (i = 0; i < FZ_MAX_VOICES; i++) {
+        if (engine.voice[i].alive)
+            n++;
+    }
+    EXPECT(n == FZ_POLYPHONY);
+    fz_engine_note_off(&engine, 61);
+    EXPECT(alive_note(&engine, 61) == 0);
+    EXPECT(alive_note(&engine, 62) == 1);
+    fz_engine_render(&engine, mix, 4);
+    EXPECT(mix[0] != 0);
+}
+
 static void test_gated_notes(void)
 {
     FzEngine engine;
@@ -656,6 +696,7 @@ int main(void)
     test_additive();
     test_home_and_mix();
     test_gated_notes();
+    test_polyphony();
     test_product();
     test_sim();
     printf("%d passed, %d failed\n", g_passed, g_failed);
