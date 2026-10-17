@@ -21,14 +21,28 @@
   .panel { display: flex; flex-direction: column; gap: 10px; min-width: 280px; flex: 1; }
   .status { min-height: 2.6em; padding: 8px; background: #1c2030; border-radius: 6px; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  button, .enc {
+  button {
     background: #2a3144; color: inherit; border: 1px solid #46506a;
     border-radius: 6px; padding: 8px 4px; font: inherit; cursor: pointer;
   }
-  button:active, .enc button:active { background: #3d6eae; }
-  .enc { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 4px; }
-  .enc span { flex: 1; text-align: center; font-size: 12px; }
-  .enc button { width: 32px; padding: 6px 0; }
+  button:active { background: #3d6eae; }
+  #encoders { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 8px; }
+  .enc { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 54px; }
+  .enc span { font-size: 11px; letter-spacing: 0.04em; color: #c9c7bd; }
+  .knob {
+    width: 54px; height: 54px; border-radius: 50%; position: relative;
+    touch-action: none; cursor: grab; user-select: none;
+    background: radial-gradient(circle at 50% 40%, #7b8aa3 0%, #2e384c 64%, #171c28 100%);
+    border: 1px solid #8b97ad;
+    box-shadow: inset 0 0 0 7px rgba(10, 14, 22, 0.38), inset 0 7px 8px rgba(255,255,255,0.07), 0 2px 3px rgba(0,0,0,.45);
+  }
+  .knob:active { cursor: grabbing; }
+  .knob:focus-visible { outline: 2px solid #f0b428; outline-offset: 3px; }
+  .knob .rotor { position: absolute; inset: 0; }
+  .knob .mark {
+    position: absolute; left: 50%; top: 6px; width: 4px; height: 16px; margin-left: -2px;
+    border-radius: 2px; background: #f0b428;
+  }
   .keys { display: flex; gap: 3px; margin-top: 12px; touch-action: none; }
   .keys button { flex: 1; height: 92px; padding: 4px 0; font-size: 11px; touch-action: none; }
   .keys button.black { background: #10131a; height: 58px; align-self: flex-start; }
@@ -39,13 +53,13 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash. Hold REC to sample. The page listens through the microphone. SAMPLE and MULTI are both on the screen, and K1 switches between them before the first slot is kept. A pitched sample shows eight octave squares, and a kit shows sixteen. A gold bar marks the slot that is listening, and a kept slot turns green. K2 sets how loud a sound must be. Tap REC to start or end a take. OCT+ keeps what you recorded and returns to playing. HOME leaves if nothing was recorded.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. Drag or scroll a knob to turn it. SELECT does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash. Hold REC to sample. The page listens through the microphone. SAMPLE and MULTI are both on the screen, and K1 switches between them before the first slot is kept. A pitched sample shows eight octave squares, and a kit shows sixteen. A gold bar marks the slot that is listening, and a kept slot turns green. K2 sets how loud a sound must be. Tap REC to start or end a take. OCT+ keeps what you recorded and returns to playing. HOME leaves if nothing was recorded.</p>
   <input id="file" type="file" accept=".fzb" hidden>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
     <div class="panel">
       <div class="status" id="status">loading</div>
-      <div class="grid" id="encoders"></div>
+      <div id="encoders"></div>
       <div class="grid" id="buttons"></div>
     </div>
   </div>
@@ -197,6 +211,65 @@ function clearLatches() {
 }
 function press(id, down) { api.sim_button(id, down ? 1 : 0, nowUs()); paint(); }
 function turn(id, detents) { api.sim_encoder(id, detents); paint(); }
+function bindRotary(knob, id) {
+  const rotor = knob.querySelector(".rotor");
+  const step = 24;
+  let angle = 0;
+  let carry = 0;
+  let wheelCarry = 0;
+  let drag = null;
+  function show() { rotor.style.transform = "rotate(" + angle + "deg)"; }
+  function apply(delta) {
+    if (!delta) return;
+    angle += delta;
+    carry += delta;
+    show();
+    let detents = 0;
+    while (carry >= step) { carry -= step; detents++; }
+    while (carry <= -step) { carry += step; detents--; }
+    if (detents) turn(id, detents);
+  }
+  show();
+  knob.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    try { knob.setPointerCapture(e.pointerId); } catch (err) {}
+    const box = knob.getBoundingClientRect();
+    drag = { x: e.clientX, y: e.clientY, cx: box.left + box.width / 2, cy: box.top + box.height / 2 };
+    ensureAudio();
+  });
+  knob.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const vx = drag.x - drag.cx;
+    const vy = drag.y - drag.cy;
+    const radius = Math.hypot(vx, vy);
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    let deg;
+    if (radius < 8) deg = -dy * 1.5;
+    else deg = ((dx * -vy + dy * vx) / (radius * radius)) * (180 / Math.PI);
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    apply(deg);
+  });
+  const stop = () => { drag = null; };
+  knob.addEventListener("pointerup", stop);
+  knob.addEventListener("pointercancel", stop);
+  knob.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    let dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 16;
+    else if (e.deltaMode === 2) dy *= 48;
+    wheelCarry += dy;
+    ensureAudio();
+    while (wheelCarry <= -80) { wheelCarry += 80; apply(step); }
+    while (wheelCarry >= 80) { wheelCarry -= 80; apply(-step); }
+  }, { passive: false });
+  knob.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowRight") { e.preventDefault(); ensureAudio(); apply(step); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowLeft") { e.preventDefault(); ensureAudio(); apply(-step); }
+  });
+}
 function key(index, down) { api.sim_key(index, down ? 1 : 0, nowUs()); paint(); }
 function paintKey(index) {
   const el = document.querySelector('[data-key="' + index + '"]');
@@ -261,15 +334,22 @@ function build() {
   ENCODERS.forEach(([label, id]) => {
     const box = document.createElement("div");
     box.className = "enc";
-    const minus = document.createElement("button");
-    minus.textContent = "−";
-    const plus = document.createElement("button");
-    plus.textContent = "+";
+    const knob = document.createElement("div");
+    knob.className = "knob";
+    knob.tabIndex = 0;
+    knob.dataset.encoder = String(id);
+    knob.setAttribute("role", "slider");
+    knob.setAttribute("aria-label", label);
+    const rotor = document.createElement("div");
+    rotor.className = "rotor";
+    const mark = document.createElement("div");
+    mark.className = "mark";
+    rotor.appendChild(mark);
+    knob.appendChild(rotor);
     const name = document.createElement("span");
     name.textContent = label;
-    minus.addEventListener("click", () => { ensureAudio(); turn(id, -1); });
-    plus.addEventListener("click", () => { ensureAudio(); turn(id, 1); });
-    box.append(minus, name, plus);
+    box.append(knob, name);
+    bindRotary(knob, id);
     enc.appendChild(box);
   });
   const keys = document.getElementById("keys");
@@ -427,15 +507,22 @@ async function selftest() {
   document.querySelector('[data-button="5"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 8 }));
   document.querySelector('[data-button="5"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 8 }));
   if (!document.getElementById("status").textContent.includes("LFO OFF")) fail("lfo");
-  document.querySelectorAll("#encoders .enc")[4].querySelectorAll("button")[1].click();
+  if (document.querySelector("#encoders button")) fail("encoder buttons");
+  if (document.querySelectorAll("#encoders .knob").length !== 6) fail("knobs");
+  function wheelKnob(id, dir) {
+    const knob = document.querySelector('#encoders .knob[data-encoder="' + id + '"]');
+    if (!knob) fail("knob " + id);
+    knob.dispatchEvent(new WheelEvent("wheel", { deltaY: dir > 0 ? -80 : 80, bubbles: true, cancelable: true }));
+  }
+  wheelKnob(4, 1);
   if (!document.getElementById("status").textContent.includes("LFO CUTOFF")) fail("lfo target");
-  document.querySelectorAll("#encoders .enc")[5].querySelectorAll("button")[1].click();
+  wheelKnob(5, 1);
   if (!document.getElementById("status").textContent.includes("SQR")) fail("lfo shape");
   document.querySelector('[data-button="10"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 10 }));
   document.querySelector('[data-button="10"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 10 }));
   if (!document.getElementById("status").textContent.includes("ARP")) fail("arp");
   if (document.getElementById("status").textContent.includes("UP")) fail("arp starts on");
-  document.querySelectorAll("#encoders .enc")[2].querySelectorAll("button")[1].click();
+  wheelKnob(2, 1);
   if (!document.getElementById("status").textContent.includes("UP")) fail("arp mode");
   api.sim_boot();
   function mouseKey(index) {
@@ -479,7 +566,7 @@ async function selftest() {
   const empty = 0x2ad4;
   const bar = 0xf5a5;
   if (slotColor(1, empty) !== 5720 || slotColor(1, bar) !== 104) fail("sample squares");
-  document.querySelectorAll("#encoders .enc")[2].querySelectorAll("button")[1].click();
+  wheelKnob(2, 1);
   if (!document.getElementById("status").textContent.includes("MULTI")) fail("multi kind");
   if (slotColor(2, empty) !== 11544 || slotColor(2, bar) !== 104) fail("kit squares");
   document.title = "PASS";
