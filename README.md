@@ -21,6 +21,12 @@ The FM-1 is a JieLi AC79-class board (pi32v2). The engine renders at 36 kHz. USB
 
 `docs/REQUIREMENTS_STATUS.md` is the list that matters. There is no USB device stack and no flash image.
 
+## Open the panel
+
+https://htmlpreview.github.io/?https://github.com/chinotto1/Fzfm/blob/cursor/host-sampler-slice-83c0/web/sim/index.html
+
+That address serves the committed page. Sound starts after the first click. SELECT turns. OCT+ is the click.
+
 ## Commands that exist
 
 ```sh
