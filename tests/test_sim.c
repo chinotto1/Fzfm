@@ -6,6 +6,32 @@
 
 #include <string.h>
 
+static void count_slot_pixels(int rows, int *hi_n, int *on_n, int *head_n)
+{
+    uint16_t *frame = sim_lcd();
+    uint16_t hi = FZ_RGB(40, 90, 160);
+    uint16_t on = FZ_RGB(80, 200, 120);
+    uint16_t head = FZ_RGB(240, 180, 40);
+    int i, y, x, n;
+    *hi_n = *on_n = *head_n = 0;
+    n = rows * 8;
+    for (i = 0; i < n; i++) {
+        int x0 = 4 + (i % 8) * 29;
+        int y0 = 56 + (i / 8) * 36;
+        for (y = y0; y < y0 + 28; y++) {
+            for (x = x0; x < x0 + 26; x++) {
+                uint16_t p = frame[y * FZ_LCD_W + x];
+                if (p == hi)
+                    (*hi_n)++;
+                else if (p == on)
+                    (*on_n)++;
+                else if (p == head)
+                    (*head_n)++;
+            }
+        }
+    }
+}
+
 void test_sim(void)
 {
     int16_t buf[512];
@@ -286,11 +312,32 @@ void test_sim(void)
     sim_button(13, 0, 10000 + 700000);
     EXPECT(strstr(sim_status(), "CAPTURE") != 0);
     EXPECT(strstr(sim_status(), "SAMPLING SAMPLE") != 0);
+    EXPECT(strstr(sim_status(), "C 2") != 0);
     EXPECT(strstr(sim_status(), "WAIT") != 0);
+    {
+        int hi_n, on_n, head_n;
+        count_slot_pixels(1, &hi_n, &on_n, &head_n);
+        EXPECT(hi_n == 5720);
+        EXPECT(on_n == 0);
+        EXPECT(head_n == 104);
+    }
     sim_encoder(2, 1);
     EXPECT(strstr(sim_status(), "SAMPLING MULTI") != 0);
+    {
+        int hi_n, on_n, head_n;
+        count_slot_pixels(2, &hi_n, &on_n, &head_n);
+        EXPECT(hi_n == 11544);
+        EXPECT(on_n == 0);
+        EXPECT(head_n == 104);
+    }
     sim_encoder(2, -1);
     EXPECT(strstr(sim_status(), "SAMPLING SAMPLE") != 0);
+    {
+        int hi_n, on_n, head_n;
+        count_slot_pixels(1, &hi_n, &on_n, &head_n);
+        EXPECT(hi_n == 5720);
+        EXPECT(head_n == 104);
+    }
     {
         int16_t *dst = sim_capture_buf();
         int cap = sim_capture_cap();
@@ -307,6 +354,14 @@ void test_sim(void)
         }
     }
     EXPECT(strstr(sim_status(), "WAIT 2") != 0);
+    EXPECT(strstr(sim_status(), "C 3") != 0);
+    {
+        int hi_n, on_n, head_n;
+        count_slot_pixels(1, &hi_n, &on_n, &head_n);
+        EXPECT(on_n == 728);
+        EXPECT(head_n == 104);
+        EXPECT(hi_n == 4992);
+    }
     sim_button(1, 1, 2000000);
     sim_button(1, 0, 2004000);
     EXPECT(strstr(sim_status(), "HOME") != 0);

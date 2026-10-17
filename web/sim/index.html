@@ -39,7 +39,7 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash. Hold REC to sample. The page listens through the microphone. K1 chooses a pitched sample or a multi-sample kit, and K2 sets how loud a sound must be. Tap REC to start or end a take. OCT+ keeps what you recorded and returns to playing. HOME leaves if nothing was recorded.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash. Hold REC to sample. The page listens through the microphone. SAMPLE and MULTI are both on the screen, and K1 switches between them before the first slot is kept. A pitched sample shows eight octave squares, and a kit shows sixteen. A gold bar marks the slot that is listening, and a kept slot turns green. K2 sets how loud a sound must be. Tap REC to start or end a take. OCT+ keeps what you recorded and returns to playing. HOME leaves if nothing was recorded.</p>
   <input id="file" type="file" accept=".fzb" hidden>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
@@ -462,6 +462,26 @@ async function selftest() {
   paint();
   if (!document.getElementById("status").textContent.includes("SAMPLING")) fail("sampling");
   if (!document.getElementById("status").textContent.includes("CAPTURE")) fail("capture");
+  if (!document.getElementById("status").textContent.includes("SAMPLE")) fail("sample kind");
+  if (!document.getElementById("status").textContent.includes("C 2")) fail("sample root");
+  function slotColor(rows, color) {
+    const lcd = new Uint16Array(mem(), api.sim_lcd(), 240 * 240);
+    let n = 0;
+    for (let i = 0; i < rows * 8; i++) {
+      const x0 = 4 + (i % 8) * 29;
+      const y0 = 56 + Math.floor(i / 8) * 36;
+      for (let y = y0; y < y0 + 28; y++)
+        for (let x = x0; x < x0 + 26; x++)
+          if (lcd[y * 240 + x] === color) n++;
+    }
+    return n;
+  }
+  const empty = 0x2ad4;
+  const bar = 0xf5a5;
+  if (slotColor(1, empty) !== 5720 || slotColor(1, bar) !== 104) fail("sample squares");
+  document.querySelectorAll("#encoders .enc")[2].querySelectorAll("button")[1].click();
+  if (!document.getElementById("status").textContent.includes("MULTI")) fail("multi kind");
+  if (slotColor(2, empty) !== 11544 || slotColor(2, bar) !== 104) fail("kit squares");
   document.title = "PASS";
   document.getElementById("result").textContent = "PASS";
 }

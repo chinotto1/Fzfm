@@ -437,6 +437,50 @@ static void test_capture(void)
         }
     }
     (void)before;
+
+    fz_project_init(&project, store, 20000);
+    EXPECT(fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    fz_capture_init(&cap, &project, inst, track, take, 4000);
+    fz_capture_set_thresholds(&cap, -36, -42, 2, 2, 1);
+    cap.tail_keep = 0;
+    fz_capture_arm(&cap);
+    EXPECT(fz_capture_slot_limit(&cap) == 8);
+    EXPECT(fz_capture_next_note(&cap) == 36);
+    EXPECT(fz_sample_anchor_note(2, 0) == 60);
+    EXPECT(fz_sample_anchor_note(7, 0) == 120);
+    EXPECT(fz_sample_anchor_note(7, 11) == 127);
+    {
+        char name[12];
+        fz_note_name(name, (int)sizeof name, 60);
+        EXPECT(strcmp(name, "C 4") == 0);
+        fz_note_name(name, (int)sizeof name, 37);
+        EXPECT(strcmp(name, "CS 2") == 0);
+    }
+    for (i = 0; i < 8; i++)
+        hit(&cap, 5000, 5, 2);
+    EXPECT(cap.slot == 8);
+    EXPECT(cap.state == FZ_CAP_FINISHED);
+    EXPECT(fz_instrument(&project, inst)->region_count == 8);
+    for (i = 0; i < 8; i++) {
+        FzRegion *r = fz_region(&project, fz_instrument(&project, inst)->region[i]);
+        EXPECT(r && r->root == (uint8_t)(36 + i * 12));
+    }
+    hit(&cap, 5000, 5, 2);
+    EXPECT(fz_instrument(&project, inst)->region_count == 8);
+
+    fz_project_init(&project, store, 20000);
+    EXPECT(fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    fz_instrument(&project, inst)->anchor_pitch_class = 2;
+    fz_capture_init(&cap, &project, inst, track, take, 4000);
+    fz_capture_set_thresholds(&cap, -36, -42, 2, 2, 1);
+    cap.tail_keep = 0;
+    fz_capture_arm(&cap);
+    EXPECT(fz_capture_next_note(&cap) == 38);
+    hit(&cap, 5000, 5, 2);
+    EXPECT(fz_region(&project, fz_instrument(&project, inst)->region[0])->root == 38);
+    fz_capture_set_root(&cap, 72);
+    hit(&cap, 5000, 5, 2);
+    EXPECT(fz_region(&project, fz_instrument(&project, inst)->region[1])->root == 72);
 }
 
 static void test_input_history_tempo(void)

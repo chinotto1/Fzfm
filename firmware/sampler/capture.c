@@ -21,6 +21,72 @@ int16_t fz_pcm_mono_sum(int16_t left, int16_t right)
     return (int16_t)(((int32_t)left + (int32_t)right) / 2);
 }
 
+uint8_t fz_sample_anchor_note(int slot, int pitch_class)
+{
+    int note;
+    if (slot < 0)
+        slot = 0;
+    if (slot >= FZ_SAMPLE_ANCHORS)
+        slot = FZ_SAMPLE_ANCHORS - 1;
+    if (pitch_class < 0)
+        pitch_class = 0;
+    if (pitch_class > 11)
+        pitch_class %= 12;
+    note = 36 + slot * 12 + pitch_class;
+    if (note > 127)
+        note = 127;
+    return (uint8_t)note;
+}
+
+void fz_note_name(char *dst, int cap, int note)
+{
+    static const char *pc[12] = {"C", "CS", "D", "DS", "E", "F", "FS", "G", "GS", "A", "AS", "B"};
+    int oct;
+    if (!dst || cap <= 0)
+        return;
+    if (note < 0)
+        note = 0;
+    if (note > 127)
+        note = 127;
+    oct = note / 12 - 1;
+    snprintf(dst, (size_t)cap, "%s %d", pc[note % 12], oct);
+}
+
+int fz_capture_slot_limit(const FzCapture *c)
+{
+    FzInstrument *inst;
+    if (!c || !c->project)
+        return FZ_MULTI_SLOTS;
+    inst = fz_instrument(c->project, c->instrument);
+    if (inst && inst->kind == FZ_INST_SAMPLE)
+        return FZ_SAMPLE_ANCHORS;
+    return FZ_MULTI_SLOTS;
+}
+
+int fz_capture_next_note(const FzCapture *c)
+{
+    FzInstrument *inst = 0;
+    int slot;
+    int limit;
+    if (!c)
+        return 60;
+    if (c->root_set)
+        return c->next_root;
+    slot = c->slot < 0 ? 0 : c->slot;
+    limit = fz_capture_slot_limit(c);
+    if (slot >= limit)
+        slot = limit - 1;
+    if (c->project)
+        inst = fz_instrument(c->project, c->instrument);
+    if (inst && inst->kind == FZ_INST_MULTI) {
+        int n = (int)inst->base_note + slot;
+        if (n > 127)
+            n = 127;
+        return n;
+    }
+    return fz_sample_anchor_note(slot, inst ? inst->anchor_pitch_class : 0);
+}
+
 static void trace(FzCapture *c, FzCapState state)
 {
     c->state = state;
@@ -117,7 +183,7 @@ void fz_capture_arm(FzCapture *c)
     c->silence_run = 0;
     c->volatile_take = 0;
     c->take_pinned = 0;
-    if (c->slot >= FZ_MULTI_SLOTS) {
+    if (c->slot >= fz_capture_slot_limit(c)) {
         trace(c, FZ_CAP_FINISHED);
         c->auto_arm = 0;
         snprintf(c->message, sizeof c->message, "FINISHED");
@@ -214,7 +280,7 @@ static FzStatus commit_take(FzCapture *c)
     else if (inst->kind == FZ_INST_MULTI)
         root = (uint8_t)(inst->base_note + c->slot);
     else
-        root = (uint8_t)((60 + inst->anchor_pitch_class) & 127);
+        root = fz_sample_anchor_note(c->slot, inst->anchor_pitch_class);
     st = fz_project_add_region(c->project, c->instrument, asset, root, c->slot, &region);
     if (st != FZ_OK) {
         FzAsset *failed = fz_asset(c->project, asset);
@@ -244,7 +310,7 @@ static void advance_slot(FzCapture *c)
     c->take_frames = 0;
     c->pre_n = 0;
     c->silence_run = 0;
-    if (!c->auto_arm || c->slot >= FZ_MULTI_SLOTS) {
+    if (!c->auto_arm || c->slot >= fz_capture_slot_limit(c)) {
         c->auto_arm = 0;
         trace(c, FZ_CAP_FINISHED);
         snprintf(c->message, sizeof c->message, "FINISHED");
@@ -334,7 +400,7 @@ void fz_capture_undo_last(FzCapture *c)
 
 void fz_capture_skip(FzCapture *c)
 {
-    if (!c || c->slot >= FZ_MULTI_SLOTS)
+    if (!c || c->slot >= fz_capture_slot_limit(c))
         return;
     c->take_frames = 0;
     advance_slot(c);

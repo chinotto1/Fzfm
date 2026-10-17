@@ -123,12 +123,20 @@ static void refresh(void)
                  fz_arp_rate_name(arp.rate));
     else if (session.screen == FZ_SCR_CAPTURE) {
         char msg[16];
+        char note[12];
         int mi;
         const char *src = capture.message[0] ? capture.message : "READY";
+        const char *kind = "SAMPLE";
+        FzInstrument *cap_inst = fz_instrument(&project, capture.instrument);
         for (mi = 0; mi < 15 && src[mi]; mi++)
             msg[mi] = src[mi];
         msg[mi] = 0;
-        snprintf(wave, sizeof wave, "SAMPLING %s %s ", session.row[0] ? "MULTI" : "SAMPLE", msg);
+        if (cap_inst && cap_inst->kind == FZ_INST_MULTI)
+            kind = "MULTI";
+        else if (!cap_inst && session.row[0])
+            kind = "MULTI";
+        fz_note_name(note, (int)sizeof note, fz_capture_next_note(&capture));
+        snprintf(wave, sizeof wave, "SAMPLING %s %s %s ", kind, note, msg);
     }
     else if (session.screen == FZ_SCR_SAVE) {
         int evn = 0;

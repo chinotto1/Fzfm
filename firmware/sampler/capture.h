@@ -12,6 +12,12 @@
 
 #define FZ_PRE_MAX 2048
 #define FZ_CAP_TRACE 32
+/* Pitched capture shows eight octave anchors. Slot 0 is C2 (MIDI 36) plus the
+ * instrument pitch class; each later slot is twelve semitones higher. A kit
+ * still uses FZ_MULTI_SLOTS consecutive notes from its base. Display names use
+ * scientific pitch: octave is MIDI/12 - 1, so MIDI 60 is C 4 and MIDI 36 is C 2.
+ * Sharp classes are spelled with S (CS, DS, FS, GS, AS). The panel font has no sharp. */
+#define FZ_SAMPLE_ANCHORS 8
 
 typedef enum {
     FZ_CAP_CONFIGURE = 0,
@@ -68,6 +74,14 @@ typedef struct {
 
 int16_t fz_amp_from_dbfs(int dbfs);
 int16_t fz_pcm_mono_sum(int16_t left, int16_t right);
+/* Octave anchor for a pitched sample. Pitch class 0 is C. Notes above 127 clamp. */
+uint8_t fz_sample_anchor_note(int slot, int pitch_class);
+/* Writes "C 4" or "CS 2" into dst. */
+void fz_note_name(char *dst, int cap, int note);
+/* 8 for a SAMPLE instrument, 16 for a kit or an unbound capture. */
+int fz_capture_slot_limit(const FzCapture *c);
+/* Root the next take will store, unless the slot run is already finished. */
+int fz_capture_next_note(const FzCapture *c);
 
 void fz_capture_init(FzCapture *c, FzProject *project, FzId instrument, FzId track, int16_t *take,
                      uint32_t take_cap);

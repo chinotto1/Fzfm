@@ -12,8 +12,8 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | R02 | partial | 44.1 kHz and 48 kHz audio can be converted to 36 kHz mono in process memory. No USB stack and no iPad |
 | R03 | partial | Engine and assets are 36 kHz / 16-bit. SRC is explicit. The codec clock is unmeasured |
 | R04 | done (host) | Pitch ratio, one-shot duration, and A4 cycle in `tests/test_main.c`. Fixtures from `make render` |
-| R05 | partial | 16-slot capture, thresholds, pre-trigger, undo last, storage-full message `SAMPLE STORAGE FULL`. Hold REC opens it on the panel. The browser uses the microphone. No USB audio |
-| R06 | partial | Closest-root zones, lower-root tie, manual range preserved. Pick-range screen state exists. No pixels |
+| R05 | partial | 16-slot capture, thresholds, pre-trigger, undo last, storage-full message `SAMPLE STORAGE FULL`. Hold REC opens it on the panel and draws the sixteen kit slots as squares. The browser uses the microphone. No USB audio |
+| R06 | partial | Closest-root zones, lower-root tie, manual range preserved. Pitched capture stores eight octave anchors from C2 and draws them as squares. Names use MIDI/12 - 1, so MIDI 60 is C 4. Pick-range screen state exists |
 | R07 | done (host) | `fz_project_new_instrument` creates the instrument, a track, and an empty pattern, or leaves nothing |
 | R08 | done (host) | OCT+ tap finishes capture to HOME, keeps the octave, and does not create an instrument. Hold undoes the last slot and stays in capture |
 | R09 | partial | Free take arms on REC, starts on the first note, and infers tempo only for an empty unclocked project |
@@ -88,14 +88,14 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | T46 | Pending device. Flash scripts refuse |
 | T47 | Pending device |
 | T48 | No third-party source is vendored. Lockfile and `THIRD_PARTY_NOTICES.md` list what was read |
-| T49 | `make sim` then `web/sim/index.html?selftest=1`. Octave, BPM 120, a sounding key that stops on release, the EDIT screen, DRAW, ENV outside that cycle, an LFO target and shape, the ARP page starting off, two latched notes sounding together, eight voices, the SAVE project menu, sampling opened by holding REC, and a non-blank 240×240 frame. Headless Chrome, not the device |
+| T49 | `make sim` then `web/sim/index.html?selftest=1`. Octave, BPM 120, a sounding key that stops on release, the EDIT screen, DRAW, ENV outside that cycle, an LFO target and shape, the ARP page starting off, two latched notes sounding together, eight voices, the SAVE project menu, sampling opened by holding REC with eight sample squares and sixteen kit squares, and a non-blank 240×240 frame. Headless Chrome, not the device |
 
 ## Commands for this revision
 
 Host only.
 
-- `make test` — 11019 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
-- The same suite at `-O2` without sanitizers — 11019 passed, 0 failed
+- `make test` — 11056 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
+- The same suite at `-O2` without sanitizers — 11056 passed, 0 failed
 - `make sim` — wasm32 panel at `web/sim/sim.wasm`. Needs clang with `wasm-ld`
 - `make render` — A4 zero-crossings 439, +12 semitones 879, both WAV files 36,000 Hz mono int16
 - `scripts/package_firmware.sh` and `scripts/flash.sh` — exit 2
