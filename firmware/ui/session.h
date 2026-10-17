@@ -9,6 +9,7 @@
  *   EDIT: tap confirms the row; hold undoes.
  * ENV opens the envelope page. LFO opens the modulator. Neither is in the EDIT cycle.
  * K3 selects the LFO target. K4 selects its shape.
+ * ARP opens the arpeggiator. A second tap switches to its second page.
  * A logical SEL tap/hold still maps to confirm/undo for host tests.
  */
 #ifndef FZ_SESSION_H
@@ -16,6 +17,7 @@
 
 #include "core/project.h"
 #include "sampler/capture.h"
+#include "sequence/arp.h"
 #include "sequence/history.h"
 #include "sequence/seq.h"
 #include "ui/input.h"
@@ -36,7 +38,8 @@ typedef enum {
     FZ_SCR_NAMING,
     FZ_SCR_CONFIRM,
     FZ_SCR_PICK_NOTE,
-    FZ_SCR_PICK_RANGE
+    FZ_SCR_PICK_RANGE,
+    FZ_SCR_ARP
 } FzScreen;
 
 typedef enum {
@@ -92,6 +95,8 @@ typedef struct {
     int partial; /* 0..47, WAVE harmonic cursor */
     int draw_pt; /* cycle drawing cursor */
     int cycle_inst; /* 1: the selected instrument is a single cycle, not a sample */
+    int arp_page; /* 0 = mode/rate/oct/gate, 1 = swing/prob/hold/order */
+    FzArp *arp;
 } FzSession;
 
 void fz_session_init(FzSession *session);

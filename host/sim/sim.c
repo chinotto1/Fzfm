@@ -6,6 +6,7 @@
 #include "dsp/additive.h"
 #include "dsp/fx.h"
 #include "dsp/mangle.h"
+#include "sequence/arp.h"
 #include "sequence/history.h"
 #include "ui/edit.h"
 #include "ui/input.h"
@@ -23,6 +24,8 @@ static int16_t take[4096];
 static FzSession session;
 static FzInput input;
 static FzSeq seq;
+static FzArp arp;
+static int arp_sounding;
 static FzCapture capture;
 static FzEngine engine;
 static FzFxRack rack;
@@ -89,6 +92,7 @@ static void sync_kind(void)
 static void refresh(void)
 {
     const char *msg = project.last_error[0] ? project.last_error : "";
+    session.arp = &arp;
     char wave[32];
     char bpm[32];
     int partial;
@@ -101,7 +105,10 @@ static void refresh(void)
         partial = 0;
     if (partial >= FZ_HARMONICS)
         partial = FZ_HARMONICS - 1;
-    if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_AMP)
+    if (session.screen == FZ_SCR_ARP)
+        snprintf(wave, sizeof wave, "ARP%s %s %s ", session.arp_page ? "2" : "", fz_arp_mode_name(arp.mode),
+                 fz_arp_rate_name(arp.rate));
+    else if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_AMP)
         snprintf(wave, sizeof wave, "ENV ");
     else if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_MOD) {
         int dest = 0;
@@ -158,8 +165,42 @@ static void refresh(void)
              : session.screen == FZ_SCR_CONFIRM  ? "CONFIRM"
              : session.screen == FZ_SCR_PICK_NOTE ? "NOTE"
              : session.screen == FZ_SCR_PICK_RANGE ? "RANGE"
+             : session.screen == FZ_SCR_ARP      ? "ARP"
                                                  : "?",
              session.octave, bpm, seq.playing ? "PLAY " : "", seq.recording ? "REC " : "", wave, hint, msg);
+}
+
+static void release_direct_keys(void)
+{
+    int i;
+    for (i = 0; i < SIM_KEYS; i++) {
+        if (voice[i] >= 0 && held_note[i] >= 0)
+            fz_engine_note_off(&engine, held_note[i]);
+        voice[i] = -1;
+    }
+}
+
+static void drive_arp(uint32_t frames)
+{
+    FzArpEvent ev[32];
+    int n, i;
+    n = fz_arp_advance(&arp, frames, seq.bpm_milli, ev, 32);
+    for (i = 0; i < n; i++) {
+        if (!ev[i].on) {
+            if (arp_sounding >= 0) {
+                fz_engine_note_off(&engine, arp_sounding);
+                arp_sounding = -1;
+            }
+        } else {
+            int v;
+            if (arp_sounding >= 0) {
+                fz_engine_note_off(&engine, arp_sounding);
+                arp_sounding = -1;
+            }
+            v = fz_performance_note(&engine, &project, ev[i].note, 110, 1);
+            arp_sounding = v >= 0 ? ev[i].note : -1;
+        }
+    }
 }
 
 static void note_on(int index)
@@ -186,9 +227,14 @@ static void note_on(int index)
     }
     if (!fz_session_wants_play(&session))
         return;
-    v = fz_performance_note(&engine, &project, note, 110, 1);
-    voice[index] = v;
-    held_note[index] = v >= 0 ? note : -1;
+    fz_arp_key(&arp, note, 1);
+    if (arp.mode == FZ_ARP_OFF) {
+        v = fz_performance_note(&engine, &project, note, 110, 1);
+        voice[index] = v;
+    } else {
+        voice[index] = -1;
+    }
+    held_note[index] = note;
     if (seq.recording || seq.armed) {
         FzHistEvent ev;
         memset(&ev, 0, sizeof ev);
@@ -204,8 +250,11 @@ static void note_off(int index)
 {
     int played = held_note[index];
     int note = played >= 0 ? played : note_of(index);
-    if (played >= 0)
-        fz_engine_note_off(&engine, played);
+    if (played >= 0) {
+        fz_arp_key(&arp, played, 0);
+        if (arp.mode == FZ_ARP_OFF)
+            fz_engine_note_off(&engine, played);
+    }
     held_note[index] = -1;
     voice[index] = -1;
     if (seq.recording || seq.armed) {
@@ -266,6 +315,8 @@ void sim_boot(void)
     fz_input_init(&input);
     fz_seq_init(&seq);
     fz_seq_set_tempo(&seq, 120000);
+    fz_arp_init(&arp);
+    arp_sounding = -1;
     fz_capture_init(&capture, &project, inst, track, take, 4096);
     fz_engine_init(&engine);
     fz_fx_init(&rack);
@@ -321,8 +372,12 @@ void sim_encoder(int encoder, int detents)
         refresh();
         return;
     }
-    if (encoder >= 2 && encoder <= 5)
+    if (encoder >= 2 && encoder <= 5) {
+        int was = arp.mode;
         fz_session_knob(&session, &project, encoder - 2, detents);
+        if (was == FZ_ARP_OFF && arp.mode != FZ_ARP_OFF)
+            release_direct_keys();
+    }
     refresh();
 }
 
@@ -401,6 +456,7 @@ static void advance_transport(uint32_t frames)
             page = 7;
         session.page = page;
     }
+    drive_arp(frames);
 }
 
 int sim_render(int16_t *stereo, int frames)

@@ -25,9 +25,10 @@ Source: `firmware/src/panel.c` at melodee `84e2d97`, cross-checked against feluc
 | SEQ | button | STEP, then PATTERNS, then SONG | Those three screens, in that order |
 | PLAY | button | Start/stop. Screen changes do not stop it | `fz_session_apply` toggles `fz_seq_play` |
 | SAVE | button | Commit when it is safe to write | Emits `FZ_CMD_SAVE`. There is no flash commit |
-| SCL, ARP | buttons | No new jobs in the specification | Ids exist. No actions |
+| ARP | button | Open the arpeggiator. A second tap switches to its second page. HOME leaves the page and the pattern keeps running | Screen `FZ_SCR_ARP`. Page 1: K1 mode (off, up, down, up-down, random, order), K2 rate, K3 octaves 1–4, K4 gate. Page 2: K1 swing, K2 probability, K3 hold, K4 order (note or play). The clock follows the sequencer BPM and runs while the sequencer is stopped. Mode off keeps ordinary notes |
+| SCL | button | No new job in the specification | Id exists. No action |
 | PRESETS | encoder | Outside the sampler contract | Unbound |
-| Note keys | 27 keys, F3–G5 in the board comment | Play, except inside a picker | `fz_performance_note` on HOME, EDIT, MIXER, and FX. Numeric, naming, pick, confirm, STEP, PATTERNS, SONG, and capture do not record those keys into the history ring |
+| Note keys | 27 keys, F3–G5 in the board comment | Play, except inside a picker | `fz_performance_note` on HOME, EDIT, MIXER, FX, and ARP. When the arpeggiator mode is not off, those keys feed one arpeggio voice instead of sounding together. Numeric, naming, pick, confirm, STEP, PATTERNS, SONG, and capture do not record those keys into the history ring |
 | Master pot | ADC | Separate from the four HOME knobs | Unread |
 
 ## Hold rule

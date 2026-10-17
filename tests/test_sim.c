@@ -185,4 +185,44 @@ void test_sim(void)
     EXPECT(strstr(sim_status(), "SAW") != 0);
     sim_encoder(5, 1);
     EXPECT(strstr(sim_status(), "SH") != 0);
+
+    sim_boot();
+    sim_button(10, 1, 1000);
+    sim_button(10, 0, 4000);
+    EXPECT(strstr(sim_status(), "ARP") != 0);
+    EXPECT(strstr(sim_status(), "OFF") != 0);
+    EXPECT(strstr(sim_status(), "1/16") != 0);
+    EXPECT(strstr(sim_status(), "UP") == 0);
+    sim_encoder(2, 1);
+    EXPECT(strstr(sim_status(), "UP") != 0);
+    EXPECT(strstr(sim_status(), "OFF") == 0);
+    sim_key(0, 1, 20000);
+    sim_key(7, 1, 21000);
+    peak = sim_render(buf, 256);
+    EXPECT(peak > 100);
+    {
+        uint16_t *frame = sim_lcd();
+        uint16_t head = FZ_RGB(240, 180, 40);
+        uint16_t bar = FZ_RGB(80, 200, 120);
+        int drawn = 0, y, x;
+        for (y = 40; y < 120; y++)
+            for (x = 4; x < 80; x++)
+                if (frame[y * FZ_LCD_W + x] == head || frame[y * FZ_LCD_W + x] == bar)
+                    drawn++;
+        EXPECT(drawn > 20);
+    }
+    sim_key(0, 0, 30000);
+    sim_key(7, 0, 31000);
+    peak = sim_render(buf, 256);
+    EXPECT(peak == 0);
+    sim_button(10, 1, 40000);
+    sim_button(10, 0, 44000);
+    EXPECT(strstr(sim_status(), "ARP2") != 0);
+    sim_encoder(4, 1);
+    sim_key(7, 1, 50000);
+    peak = sim_render(buf, 256);
+    EXPECT(peak > 100);
+    sim_key(7, 0, 60000);
+    peak = sim_render(buf, 256);
+    EXPECT(peak > 100);
 }

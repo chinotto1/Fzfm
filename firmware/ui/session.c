@@ -30,7 +30,7 @@ int fz_session_wants_play(const FzSession *session)
     if (!session)
         return 0;
     return session->screen == FZ_SCR_HOME || session->screen == FZ_SCR_EDIT || session->screen == FZ_SCR_MIXER ||
-           session->screen == FZ_SCR_FX;
+           session->screen == FZ_SCR_FX || session->screen == FZ_SCR_ARP;
 }
 
 void fz_session_bind_input(FzSession *session, FzInput *input)
@@ -219,6 +219,17 @@ void fz_session_handle(FzSession *session, const FzAction *action, FzCommand *ou
         else
             session->fx_slot = (session->fx_slot + 1) % 4;
         emit(out, FZ_CMD_PAGE, session->fx_slot, action->at_us);
+        return;
+    }
+    if (action->button == FZ_BTN_ARP && action->kind == FZ_ACT_TAP) {
+        if (session->screen != FZ_SCR_ARP) {
+            session->screen = FZ_SCR_ARP;
+            session->arp_page = 0;
+        } else {
+            session->arp_page ^= 1;
+        }
+        session->gesture = 0;
+        emit(out, FZ_CMD_PAGE, session->arp_page, action->at_us);
         return;
     }
     if (action->button == FZ_BTN_ENV && action->kind == FZ_ACT_TAP) {
@@ -453,6 +464,8 @@ void fz_session_knob(FzSession *session, FzProject *project, int knob, int deten
         mixer_turn(project, session->send_slot, knob, detents);
     else if (session->screen == FZ_SCR_EDIT)
         fz_edit_knob(session, project, knob, detents);
+    else if (session->screen == FZ_SCR_ARP)
+        fz_arp_turn(session->arp, session->arp_page, knob, detents);
     else if (session->screen == FZ_SCR_SONG && project && knob == 1 && session->row[0] >= 0 &&
              session->row[0] < FZ_SONG_ROWS) {
         /* Repeats are edited on the sequencer song, not from this knob path. */

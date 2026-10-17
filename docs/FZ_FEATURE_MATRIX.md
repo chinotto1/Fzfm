@@ -70,6 +70,7 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 | Operation | Here | Test | Difference |
 |---|---|---|---|
 | Sparse steps | 512 events, 16th = 24 ticks, PPQ 96, bar = 384. The panel playhead is `tick % pattern length` and the panel loops that length | advance lands on 96, 288, 384 | No probability seed, no recorded knob lanes |
+| Arpeggiator | ARP opens the page. A second tap opens swing, probability, hold, and order. Modes are off, up, down, up-down, random, and order. Rate, 1–4 octaves, and gate are on the first page. The clock is the sequencer BPM and it runs while the sequencer is stopped. Hold keeps the chord after the keys come up. One voice; mode off keeps direct notes. The page draws the current cycle | order, octaves, up-down, swing, probability, hold, and the panel: a chord sounds and goes quiet on release | Not the extra SLOOP chord modes. The knob layout follows the public SLOOP guide. That source was not copied |
 | Chain and queue | Inclusive range in one call. A queued pattern launches at the next bar and does not advance again on that same bar | chain and queue tests | No two-key gesture capture from the matrix |
 | Song | Rows of per-track pattern, mute, repeats | one bar advances to the next row | No insert/reorder UI |
 | Free take | REC arms, first note starts, close infers tempo only when the project has no music and no external clock | 2 s phrase near 120 BPM; existing music stays at 100 | |

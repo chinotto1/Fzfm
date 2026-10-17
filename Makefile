@@ -23,6 +23,7 @@ SRCS := \
 	firmware/sequence/history.c \
 	firmware/sequence/tempo.c \
 	firmware/sequence/seq.c \
+	firmware/sequence/arp.c \
 	firmware/dsp/filter.c \
 	firmware/dsp/envelope.c \
 	firmware/dsp/loopprog.c \

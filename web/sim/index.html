@@ -38,7 +38,7 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page.</p>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
     <div class="panel">
@@ -244,6 +244,12 @@ async function selftest() {
   if (!document.getElementById("status").textContent.includes("LFO CUTOFF")) fail("lfo target");
   document.querySelectorAll("#encoders .enc")[5].querySelectorAll("button")[1].click();
   if (!document.getElementById("status").textContent.includes("SQR")) fail("lfo shape");
+  document.querySelector('[data-button="10"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 10 }));
+  document.querySelector('[data-button="10"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 10 }));
+  if (!document.getElementById("status").textContent.includes("ARP")) fail("arp");
+  if (document.getElementById("status").textContent.includes("UP")) fail("arp starts on");
+  document.querySelectorAll("#encoders .enc")[2].querySelectorAll("button")[1].click();
+  if (!document.getElementById("status").textContent.includes("UP")) fail("arp mode");
   document.title = "PASS";
   document.getElementById("result").textContent = "PASS";
 }

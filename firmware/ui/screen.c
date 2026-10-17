@@ -75,7 +75,7 @@ static void tempo_text(char *dst, int cap, const FzProject *project, const FzSeq
 static const char *screen_name(FzScreen screen)
 {
     static const char *names[] = {"HOME", "CAPTURE", "EDIT",  "STEP", "PATTERNS", "SONG", "MIXER",
-                                  "FX",   "NUMERIC", "NAME",  "CONFIRM", "NOTE", "RANGE"};
+                                  "FX",   "NUMERIC", "NAME",  "CONFIRM", "NOTE", "RANGE", "ARP"};
     if ((int)screen < 0 || (int)screen >= (int)(sizeof names / sizeof names[0]))
         return "";
     return names[screen];
@@ -449,6 +449,70 @@ static void draw_steps(uint16_t *px, const FzProject *project, const FzSession *
     }
 }
 
+static void draw_arp(uint16_t *px, const FzSession *session, uint16_t fg, uint16_t on, uint16_t head)
+{
+    const FzArp *arp = session ? session->arp : 0;
+    int notes[32];
+    int cursor = -1;
+    int n = 0;
+    int page = session && session->arp_page ? 1 : 0;
+    char line[40];
+    int i;
+    if (arp)
+        n = fz_arp_pattern(arp, notes, 32, &cursor);
+    snprintf(line, sizeof line, page ? "ARP 2" : "ARP");
+    text(px, 4, 28, line, fg);
+    if (n <= 0) {
+        text(px, 4, 64, "HOLD KEYS", fg);
+    } else {
+        int slot = 220 / n;
+        int x0;
+        if (slot < 4)
+            slot = 4;
+        if (slot > 18)
+            slot = 18;
+        x0 = 8;
+        for (i = 0; i < n; i++) {
+            int h = (notes[i] - 36) * 52 / 48;
+            int x = x0 + i * slot;
+            if (h < 3)
+                h = 3;
+            if (h > 56)
+                h = 56;
+            rect(px, x, 108 - h, slot - 2, h, i == cursor ? head : on);
+        }
+    }
+    if (!arp)
+        return;
+    if (!page) {
+        snprintf(line, sizeof line, "MODE %s", fz_arp_mode_name(arp->mode));
+        text(px, 4, 124, line, fg);
+        snprintf(line, sizeof line, "RATE %s", fz_arp_rate_name(arp->rate));
+        text(px, 4, 142, line, fg);
+        snprintf(line, sizeof line, "OCT %d", arp->octaves);
+        text(px, 4, 160, line, fg);
+        snprintf(line, sizeof line, "GATE %d", arp->gate);
+        text(px, 4, 178, line, fg);
+        text(px, 4, 204, "K1 MODE", fg);
+        text(px, 120, 204, "K2 RATE", fg);
+        text(px, 4, 220, "K3 OCT", fg);
+        text(px, 120, 220, "K4 GATE", fg);
+    } else {
+        snprintf(line, sizeof line, "SWING %d", arp->swing);
+        text(px, 4, 124, line, fg);
+        snprintf(line, sizeof line, "PROB %d", arp->prob);
+        text(px, 4, 142, line, fg);
+        snprintf(line, sizeof line, "HOLD %s", arp->hold ? "ON" : "OFF");
+        text(px, 4, 160, line, fg);
+        snprintf(line, sizeof line, "ORDER %s", arp->order_play ? "PLAY" : "NOTE");
+        text(px, 4, 178, line, fg);
+        text(px, 4, 204, "K1 SWING", fg);
+        text(px, 120, 204, "K2 PROB", fg);
+        text(px, 4, 220, "K3 HOLD", fg);
+        text(px, 120, 220, "K4 ORDER", fg);
+    }
+}
+
 static void draw_harmonics(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t on)
 {
     const FzInstrument *inst = 0;
@@ -543,6 +607,8 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
             text(rgb565, 4, 120, line, fg);
             text(rgb565, 4, 150, t->mute ? "MUTE" : "HEARD", fg);
         }
+    } else if (screen == FZ_SCR_ARP && session) {
+        draw_arp(rgb565, session, fg, on, head);
     } else if (screen == FZ_SCR_FX && session) {
         snprintf(line, sizeof line, "SLOT %d", session->fx_slot + 1);
         text(rgb565, 4, 40, line, fg);

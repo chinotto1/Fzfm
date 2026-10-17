@@ -13,6 +13,7 @@
 #include "dsp/mangle.h"
 #include "import/import.h"
 #include "sampler/capture.h"
+#include "sequence/arp.h"
 #include "sequence/history.h"
 #include "sequence/seq.h"
 #include "storage/bundle.h"
@@ -1322,10 +1323,195 @@ static void test_cycle_draw(void)
     EXPECT(strcmp(fz_edit_row_name(FZ_TAB_AMP, 8), "FLT AMT") == 0);
 }
 
+static void test_arp(void)
+{
+    FzArp arp;
+    FzArpEvent ev[16];
+    int notes[8];
+    int n, i, cursor;
+    FzSession session;
+    FzInput input;
+    FzCommand cmd;
+
+    fz_arp_init(&arp);
+    EXPECT(arp.mode == FZ_ARP_OFF);
+    EXPECT(arp.rate == FZ_ARP_1_16);
+    EXPECT(arp.gate == 80);
+    EXPECT(arp.prob == 100);
+    fz_arp_key(&arp, 64, 1);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(arp.mode == FZ_ARP_UP);
+    n = fz_arp_advance(&arp, 0, 120000, ev, 16);
+    EXPECT(n == 1 && ev[0].on == 1 && ev[0].note == 60);
+    cursor = -2;
+    n = fz_arp_pattern(&arp, notes, 8, &cursor);
+    EXPECT(n == 2 && notes[0] == 60 && notes[1] == 64 && cursor == 0);
+    n = fz_arp_advance(&arp, 4500, 120000, ev, 16);
+    EXPECT(n == 2);
+    EXPECT(ev[0].on == 0 && ev[0].note == 60);
+    EXPECT(ev[1].on == 1 && ev[1].note == 64);
+
+    fz_arp_init(&arp);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_key(&arp, 64, 1);
+    fz_arp_key(&arp, 67, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(arp.mode == FZ_ARP_DN);
+    n = fz_arp_advance(&arp, 0, 120000, ev, 16);
+    EXPECT(n == 1 && ev[0].on == 1 && ev[0].note == 67);
+
+    fz_arp_init(&arp);
+    fz_arp_key(&arp, 64, 1);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_turn(&arp, 0, 2, 1);
+    EXPECT(arp.octaves == 2);
+    n = fz_arp_pattern(&arp, notes, 8, 0);
+    EXPECT(n == 4);
+    EXPECT(notes[0] == 60 && notes[1] == 64 && notes[2] == 72 && notes[3] == 76);
+
+    fz_arp_init(&arp);
+    fz_arp_key(&arp, 67, 1);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_key(&arp, 64, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(strcmp(fz_arp_mode_name(arp.mode), "UPDN") == 0);
+    n = fz_arp_pattern(&arp, notes, 8, 0);
+    EXPECT(n == 4);
+    EXPECT(notes[0] == 60 && notes[1] == 64 && notes[2] == 67 && notes[3] == 64);
+    EXPECT(fz_arp_advance(&arp, 0, 120000, ev, 16) == 1);
+    EXPECT(ev[0].note == 60 && ev[0].on == 1);
+    EXPECT(fz_arp_advance(&arp, 4500, 120000, ev, 16) == 2);
+    EXPECT(ev[1].note == 64 && ev[1].on == 1);
+    EXPECT(fz_arp_advance(&arp, 4500, 120000, ev, 16) == 2);
+    EXPECT(ev[1].note == 67 && ev[1].on == 1);
+    EXPECT(fz_arp_advance(&arp, 4500, 120000, ev, 16) == 2);
+    EXPECT(ev[1].note == 64 && ev[1].on == 1);
+    EXPECT(fz_arp_advance(&arp, 4500, 120000, ev, 16) == 2);
+    EXPECT(ev[1].note == 60 && ev[1].on == 1);
+
+    fz_arp_init(&arp);
+    fz_arp_turn(&arp, 1, 3, 1);
+    EXPECT(arp.order_play == 1);
+    fz_arp_key(&arp, 64, 1);
+    fz_arp_key(&arp, 60, 1);
+    for (i = 0; i < 5; i++)
+        fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(arp.mode == FZ_ARP_ORD);
+    n = fz_arp_advance(&arp, 0, 120000, ev, 16);
+    EXPECT(n == 1 && ev[0].on == 1 && ev[0].note == 64);
+    fz_arp_init(&arp);
+    fz_arp_key(&arp, 64, 1);
+    fz_arp_key(&arp, 60, 1);
+    for (i = 0; i < 5; i++)
+        fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(arp.order_play == 0);
+    n = fz_arp_advance(&arp, 0, 120000, ev, 16);
+    EXPECT(n == 1 && ev[0].on == 1 && ev[0].note == 60);
+
+    fz_arp_init(&arp);
+    fz_arp_turn(&arp, 1, 2, 1);
+    EXPECT(arp.hold == 1);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(fz_arp_advance(&arp, 0, 120000, ev, 16) == 1);
+    fz_arp_key(&arp, 60, 0);
+    n = fz_arp_advance(&arp, 4500, 120000, ev, 16);
+    EXPECT(n == 2 && ev[1].on == 1 && ev[1].note == 60);
+    fz_arp_key(&arp, 64, 1);
+    n = fz_arp_advance(&arp, 0, 120000, ev, 16);
+    {
+        int saw = 0;
+        for (i = 0; i < n; i++) {
+            if (ev[i].on)
+                saw = ev[i].note;
+        }
+        EXPECT(saw == 64);
+    }
+
+    fz_arp_init(&arp);
+    fz_arp_turn(&arp, 1, 1, -20);
+    EXPECT(arp.prob == 0);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    n = fz_arp_advance(&arp, 4500, 120000, ev, 16);
+    EXPECT(n == 0);
+    EXPECT(arp.tick == 24);
+
+    fz_arp_init(&arp);
+    fz_arp_turn(&arp, 1, 0, 20);
+    EXPECT(arp.swing == 100);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_key(&arp, 64, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(fz_arp_advance(&arp, 0, 120000, ev, 16) == 1);
+    EXPECT(ev[0].note == 60 && ev[0].on == 1);
+    n = fz_arp_advance(&arp, 4500, 120000, ev, 16);
+    EXPECT(n == 1 && ev[0].on == 0 && ev[0].note == 60);
+    n = fz_arp_advance(&arp, 2250, 120000, ev, 16);
+    EXPECT(n == 1 && ev[0].on == 1 && ev[0].note == 64);
+
+    fz_arp_init(&arp);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(fz_arp_advance(&arp, 0, 120000, ev, 16) == 1);
+    fz_arp_turn(&arp, 0, 0, -1);
+    EXPECT(arp.mode == FZ_ARP_OFF);
+    n = fz_arp_advance(&arp, 0, 120000, ev, 16);
+    EXPECT(n == 1 && ev[0].on == 0 && ev[0].note == 60);
+    EXPECT(fz_arp_advance(&arp, 4500, 120000, ev, 16) == 0);
+
+    fz_arp_init(&arp);
+    fz_arp_key(&arp, 60, 1);
+    fz_arp_key(&arp, 64, 1);
+    fz_arp_turn(&arp, 0, 0, 1);
+    EXPECT(fz_arp_advance(&arp, 0, 120000, ev, 16) == 1);
+    EXPECT(ev[0].note == 60);
+    fz_arp_key(&arp, 60, 0);
+    n = fz_arp_advance(&arp, 0, 120000, ev, 16);
+    EXPECT(n == 2);
+    EXPECT(ev[0].on == 0 && ev[0].note == 60);
+    EXPECT(ev[1].on == 1 && ev[1].note == 64);
+
+    EXPECT(strcmp(fz_arp_rate_name(FZ_ARP_1_8T), "1/8T") == 0);
+    EXPECT(strcmp(fz_arp_mode_name(99), "OFF") == 0);
+    EXPECT(fz_arp_advance(0, 1, 120000, ev, 16) == 0);
+    fz_arp_turn(0, 0, 0, 1);
+
+    fz_session_init(&session);
+    fz_input_init(&input);
+    fz_arp_init(&arp);
+    session.arp = &arp;
+    tap(&input, &session, FZ_BTN_ARP, 1000, &cmd);
+    EXPECT(session.screen == FZ_SCR_ARP);
+    EXPECT(session.arp_page == 0);
+    EXPECT(cmd.kind == FZ_CMD_PAGE && cmd.value == 0);
+    tap(&input, &session, FZ_BTN_ARP, 5000, &cmd);
+    EXPECT(session.arp_page == 1);
+    EXPECT(cmd.kind == FZ_CMD_PAGE && cmd.value == 1);
+    fz_session_knob(&session, 0, 0, 1);
+    EXPECT(arp.mode == FZ_ARP_OFF);
+    EXPECT(arp.swing == 5);
+    tap(&input, &session, FZ_BTN_ARP, 9000, &cmd);
+    EXPECT(session.arp_page == 0);
+    fz_session_knob(&session, 0, 0, 1);
+    EXPECT(arp.mode == FZ_ARP_UP);
+    tap(&input, &session, FZ_BTN_ARP, 13000, &cmd);
+    fz_session_knob(&session, 0, 2, 1);
+    EXPECT(arp.hold == 1);
+    tap(&input, &session, FZ_BTN_HOME, 20000, &cmd);
+    EXPECT(session.screen == FZ_SCR_HOME);
+    EXPECT(arp.mode == FZ_ARP_UP);
+}
+
 void test_product(void)
 {
     test_oct_plus_router();
     test_cycle_draw();
+    test_arp();
     test_edit_scope_and_undo();
     test_lfo_targets();
     test_mangle_loop_env();
