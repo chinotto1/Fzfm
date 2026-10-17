@@ -3,6 +3,7 @@
 #include "sim.h"
 
 #include "audio/play.h"
+#include "dsp/additive.h"
 #include "dsp/fx.h"
 #include "dsp/mangle.h"
 #include "sequence/history.h"
@@ -61,8 +62,24 @@ static int note_of(int index)
 static void refresh(void)
 {
     const char *msg = project.last_error[0] ? project.last_error : "";
+    char wave[24];
+    int partial;
     fz_screen_draw(lcd, &project, &session, &seq, &capture);
-    snprintf(status, sizeof status, "%s | OCT %d | %s%s%s%s",
+    wave[0] = 0;
+    partial = session.partial;
+    if (partial < 0)
+        partial = 0;
+    if (partial >= FZ_HARMONICS)
+        partial = FZ_HARMONICS - 1;
+    if (session.screen == FZ_SCR_EDIT)
+        snprintf(wave, sizeof wave, "%s ", fz_edit_tab_name(session.edit_tab));
+    if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_WAVE && project.selected_track >= 0 &&
+        project.selected_track < FZ_MAX_TRACKS) {
+        FzInstrument *inst = fz_instrument(&project, project.track[project.selected_track].instrument);
+        int level = inst ? (int)inst->additive.level[partial] : 0;
+        snprintf(wave, sizeof wave, "WAVE H%d %d ", partial + 1, level);
+    }
+    snprintf(status, sizeof status, "%s | OCT %d | %s%s%s%s%s",
              session.screen == FZ_SCR_HOME       ? "HOME"
              : session.screen == FZ_SCR_CAPTURE  ? "CAPTURE"
              : session.screen == FZ_SCR_EDIT     ? "EDIT"
@@ -77,7 +94,7 @@ static void refresh(void)
              : session.screen == FZ_SCR_PICK_NOTE ? "NOTE"
              : session.screen == FZ_SCR_PICK_RANGE ? "RANGE"
                                                  : "?",
-             session.octave, seq.playing ? "PLAY " : "", seq.recording ? "REC " : "", hint, msg);
+             session.octave, seq.playing ? "PLAY " : "", seq.recording ? "REC " : "", wave, hint, msg);
 }
 
 static void note_on(int index)
@@ -159,8 +176,9 @@ static void drain(void)
 
 void sim_boot(void)
 {
-    int16_t wave[600];
+    int16_t wave[FZ_ADDITIVE_POINTS];
     FzId inst, track, asset, region;
+    FzInstrument *made;
     int i;
     memset(&project, 0, sizeof project);
     memset(&session, 0, sizeof session);
@@ -169,8 +187,11 @@ void sim_boot(void)
     memset(&rack, 0, sizeof rack);
     fz_project_init(&project, pcm, SIM_PCM);
     fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track);
-    fz_preset_sine(wave, 600);
-    fz_project_add_pcm(&project, wave, 600, FZ_ENGINE_RATE_HZ, 1, &asset);
+    made = fz_instrument(&project, inst);
+    fz_additive_clear(&made->additive);
+    made->additive.level[0] = 256;
+    fz_additive_render(&made->additive, wave, FZ_ADDITIVE_POINTS);
+    fz_project_add_pcm(&project, wave, FZ_ADDITIVE_POINTS, FZ_ENGINE_RATE_HZ, 1, &asset);
     fz_project_add_region(&project, inst, asset, 60, 0, &region);
     fz_session_init(&session);
     fz_input_init(&input);
@@ -283,18 +304,41 @@ static void fire_steps(uint32_t t0, uint32_t t1)
     }
 }
 
+static void advance_transport(uint32_t frames)
+{
+    int pattern;
+    uint32_t t0, t1, len;
+    t0 = seq.tick;
+    fz_seq_advance(&seq, &project, frames);
+    t1 = seq.tick;
+    pattern = seq.current[0] >= 0 ? seq.current[0] : 0;
+    len = fz_seq_pattern_ticks(&project, pattern);
+    if (seq.playing && len > 0 && t1 >= len && t0 < len) {
+        fire_steps(t0, len);
+        seq.tick = t1 - len;
+        fire_steps(0, seq.tick);
+    } else {
+        fire_steps(t0, t1);
+    }
+    if (seq.playing && session.screen == FZ_SCR_STEP && len > 0) {
+        int step = (int)((seq.tick % len) / (uint32_t)FZ_STEP_TICKS);
+        int page = step / 16;
+        if (page > 7)
+            page = 7;
+        session.page = page;
+    }
+}
+
 int sim_render(int16_t *stereo, int frames)
 {
-    uint32_t t0;
     int peak = 0;
     int i;
     if (!booted)
         sim_boot();
     if (!stereo || frames <= 0)
         return 0;
-    t0 = seq.tick;
-    fz_seq_advance(&seq, &project, (uint32_t)frames);
-    fire_steps(t0, seq.tick);
+    advance_transport((uint32_t)frames);
+    refresh();
     fz_performance_render_sends(&engine, &project, &rack, stereo, frames);
     for (i = 0; i < frames * 2; i++) {
         int a = stereo[i] < 0 ? -stereo[i] : stereo[i];
@@ -314,6 +358,13 @@ uint16_t *sim_lcd(void)
     if (!booted)
         sim_boot();
     return lcd;
+}
+
+uint32_t sim_tick(void)
+{
+    if (!booted)
+        sim_boot();
+    return seq.tick;
 }
 
 char *sim_status(void)

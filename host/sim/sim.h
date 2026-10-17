@@ -19,5 +19,6 @@ int sim_render(int16_t *stereo, int frames);
 int16_t *sim_mix(void);
 uint16_t *sim_lcd(void);
 char *sim_status(void);
+uint32_t sim_tick(void);
 
 #endif

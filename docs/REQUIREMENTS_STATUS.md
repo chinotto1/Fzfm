@@ -26,7 +26,7 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | R16 | partial | Numeric keypad (6 digits, out-of-range stays on the keypad) and note/range pick |
 | R17 | partial | Hold EDIT plus a category key names `CATEGORY n` |
 | R18 | partial | Mix, cross, truncate, reverse write, cut cycle, eight-stage envelopes, eight loop sections. The voice reader uses section 0 only. Crossfade is `fz_loop_sample` |
-| R19 | partial | 48-harmonic recipe and cycle playback. No list UI |
+| R19 | partial | 48-harmonic recipe, cycle playback, and the WAVE tab on the panel. The recipe is not in `FZB1` yet |
 | R20 | partial | Sine and naive square presets, cut cycle, draw normalize/smooth. No point editor |
 | R21 | partial | HOME values are the track. `fz_performance_render` filters from them |
 | R22 | partial | FZ INSPIRED trapezoidal lowpass. Stability is host-tested. Fidelity is unmeasured. See `docs/FILTER_MODEL.md` |
@@ -94,8 +94,8 @@ No target image was compiled. No device was tested. Nothing was flashed.
 
 Host only.
 
-- `make test` — 10711 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
-- The same suite at `-O2` without sanitizers — 10711 passed, 0 failed
+- `make test` — 10719 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
+- The same suite at `-O2` without sanitizers — 10719 passed, 0 failed
 - `make sim` — wasm32 panel at `web/sim/sim.wasm`. Needs clang with `wasm-ld`
 - `make render` — A4 zero-crossings 439, +12 semitones 879, both WAV files 36,000 Hz mono int16
 - `scripts/package_firmware.sh` and `scripts/flash.sh` — exit 2

@@ -460,6 +460,17 @@ FzStatus fz_project_add_pcm(FzProject *p, const int16_t *pcm, uint32_t frames, u
     return FZ_OK;
 }
 
+FzStatus fz_project_overwrite_pcm(FzProject *p, FzId asset, const int16_t *pcm, uint32_t frames)
+{
+    FzAsset *a = fz_asset(p, asset);
+    if (!p || !a || !pcm || frames == 0 || a->frames != frames || !a->pcm)
+        return FZ_ERR_ARGS;
+    memmove((int16_t *)(uintptr_t)a->pcm, pcm, frames * (uint32_t)sizeof(int16_t));
+    a->checksum = fz_pcm_checksum(a->pcm, frames);
+    a->cycle = 1;
+    return FZ_OK;
+}
+
 FzStatus fz_project_add_region(FzProject *p, FzId inst, FzId asset, uint8_t root, int slot, FzId *out_region)
 {
     FzInstrument *it = fz_instrument(p, inst);

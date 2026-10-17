@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 the fm1-fz-sampler contributors */
 #include "edit.h"
 
+#include "dsp/additive.h"
 #include "dsp/mangle.h"
 
 #include <stdio.h>
@@ -33,7 +34,8 @@ enum {
     F_LDEPTH,
     F_LDEST,
     F_LSHAPE,
-    F_LRETRIG
+    F_LRETRIG,
+    F_HARM
 };
 
 typedef struct {
@@ -57,7 +59,7 @@ static const FzRowDef k_mod[] = {{"RATE", 1, F_LRATE}, {"DEPTH", 1, F_LDEPTH}, {
                                  {"SHAPE", 0, F_LSHAPE}, {"RETRIG", 0, F_LRETRIG}};
 static const FzRowDef k_map[] = {{"ROOT", 1, F_ROOT}, {"SEND", 0, F_SEND}, {"GAIN", 1, F_GAIN}, {"CHOKE", 0, F_CHOKE}};
 static const FzRowDef k_mix[] = {{"MIX WRITE", 0, F_NONE}};
-static const FzRowDef k_wave[] = {{"PRESET", 0, F_NONE}};
+static const FzRowDef k_wave[] = {{"HARMONIC", 0, F_HARM}};
 static const FzRowDef k_render[] = {{"BAKE", 0, F_NONE}};
 
 static const FzRowDef *rows_for(int tab, int *count)
@@ -396,6 +398,50 @@ static FzStatus edit_lfo(FzSession *session, FzProject *project, int detents, in
     return FZ_OK;
 }
 
+static FzStatus install_cycle(FzProject *project, FzRegion *region, const int16_t *pcm, uint32_t frames)
+{
+    FzId asset;
+    if (fz_project_overwrite_pcm(project, region->asset, pcm, frames) == FZ_OK)
+        return FZ_OK;
+    if (fz_project_add_pcm(project, pcm, frames, FZ_ENGINE_RATE_HZ, 1, &asset) != FZ_OK)
+        return FZ_ERR_SAMPLE_STORAGE;
+    region->asset = asset;
+    region->start_frame = 0;
+    region->end_frame = 0;
+    return FZ_OK;
+}
+
+static FzStatus edit_harmonic(FzSession *session, FzProject *project, int knob, int detents)
+{
+    FzInstrument *inst;
+    FzRegion *region;
+    int16_t table[FZ_ADDITIVE_POINTS];
+    int partial, level;
+    if (!project || project->selected_track < 0 || project->selected_track >= FZ_MAX_TRACKS)
+        return FZ_ERR_BAD_ID;
+    inst = fz_instrument(project, project->track[project->selected_track].instrument);
+    if (!inst || inst->region_count < 1)
+        return FZ_ERR_BAD_ID;
+    if (session->partial < 0)
+        session->partial = 0;
+    if (session->partial >= FZ_HARMONICS)
+        session->partial = FZ_HARMONICS - 1;
+    if (knob == 1) {
+        session->partial = clamp_i(session->partial + detents, 0, FZ_HARMONICS - 1);
+        return FZ_OK;
+    }
+    partial = session->partial;
+    level = (int)inst->additive.level[partial] + detents * 8;
+    inst->additive.level[partial] = (uint16_t)clamp_i(level, 0, 256);
+    inst->additive.points = FZ_ADDITIVE_POINTS;
+    if (fz_additive_render(&inst->additive, table, FZ_ADDITIVE_POINTS) != FZ_OK)
+        return FZ_ERR_ARGS;
+    region = fz_region(project, inst->region[0]);
+    if (!region)
+        return FZ_ERR_BAD_ID;
+    return install_cycle(project, region, table, FZ_ADDITIVE_POINTS);
+}
+
 FzStatus fz_edit_knob(FzSession *session, FzProject *project, int knob, int detents)
 {
     int field, n, i;
@@ -414,9 +460,13 @@ FzStatus fz_edit_knob(FzSession *session, FzProject *project, int knob, int dete
         session->row[session->edit_tab] = row;
         return FZ_OK;
     }
-    if (knob != 1 || detents == 0)
+    if (knob < 1 || knob > 2 || detents == 0)
         return FZ_OK;
     field = field_of(session);
+    if (field == F_HARM)
+        return edit_harmonic(session, project, knob, detents);
+    if (knob != 1)
+        return FZ_OK;
     if (field == F_NONE)
         return FZ_OK;
     if (field == F_LRATE || field == F_LDEPTH || field == F_LDEST || field == F_LSHAPE || field == F_LRETRIG)

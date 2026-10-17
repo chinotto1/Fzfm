@@ -87,6 +87,7 @@ typedef struct {
     int pick_high;
     int pick_have;
     int step_note;
+    int partial; /* 0..47, WAVE harmonic cursor */
 } FzSession;
 
 void fz_session_init(FzSession *session);

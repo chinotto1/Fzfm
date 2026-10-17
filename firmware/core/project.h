@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "types.h"
+#include "dsp/additive.h"
 #include "dsp/envelope.h"
 #include "dsp/loopprog.h"
 
@@ -75,6 +76,7 @@ typedef struct {
     int region_count;
     uint8_t base_note;
     int8_t anchor_pitch_class; /* 0 = C ... 11 = B */
+    FzAdditiveRecipe additive; /* 48 partials. Playback is the rendered cycle. */
 } FzInstrument;
 
 typedef struct {
@@ -161,9 +163,11 @@ FzRegion *fz_region(FzProject *p, FzId id);
 FzAsset *fz_asset(FzProject *p, FzId id);
 FzId fz_track_id(const FzProject *p, int index);
 
-/* PCM is copied into the project store. The asset is immutable after return. */
+/* PCM is copied into the project store. */
 FzStatus fz_project_add_pcm(FzProject *p, const int16_t *pcm, uint32_t frames, uint32_t native_rate,
                             int cycle, FzId *out_asset);
+/* Replace a cycle table of the same length. The asset id stays put. */
+FzStatus fz_project_overwrite_pcm(FzProject *p, FzId asset, const int16_t *pcm, uint32_t frames);
 int fz_project_asset_refs(const FzProject *p, FzId asset);
 
 FzStatus fz_project_add_region(FzProject *p, FzId inst, FzId asset, uint8_t root, int slot, FzId *out_region);

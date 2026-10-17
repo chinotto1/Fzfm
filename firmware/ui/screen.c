@@ -96,13 +96,38 @@ static void draw_edit(uint16_t *px, const FzProject *project, const FzSession *s
     text(px, 80, 216, "K4 -", fg);
 }
 
-static void draw_steps(uint16_t *px, const FzSession *session, const FzSeq *seq, uint16_t fg, uint16_t on, uint16_t hi)
+static int playhead_step(const FzProject *project, const FzSeq *seq, int pattern)
 {
-    int i, pattern, base;
-    char line[40];
+    uint32_t len, tick;
+    if (!seq)
+        return 0;
+    len = fz_seq_pattern_ticks(project, pattern);
+    tick = seq->tick;
+    if (len > 0)
+        tick %= len;
+    return (int)(tick / (uint32_t)FZ_STEP_TICKS);
+}
+
+static void draw_playhead_strip(uint16_t *px, int step, int y, uint16_t head, uint16_t dim)
+{
+    int i;
+    if (step < 0)
+        step = 0;
+    for (i = 0; i < 16; i++) {
+        int x = 4 + i * 14;
+        rect(px, x, y, 12, 6, i == (step % 16) ? head : dim);
+    }
+}
+
+static void draw_steps(uint16_t *px, const FzProject *project, const FzSession *session, const FzSeq *seq, uint16_t fg,
+                       uint16_t on, uint16_t hi, uint16_t head)
+{
+    int i, pattern, base, play;
+    char line[64];
     pattern = seq && seq->current[0] >= 0 ? seq->current[0] : 0;
     base = session->page * 16;
-    snprintf(line, sizeof line, "PAT %d  PAGE %d", pattern + 1, session->page + 1);
+    play = playhead_step(project, seq, pattern);
+    snprintf(line, sizeof line, "PAT %d PAGE %d HEAD %d", pattern + 1, session->page + 1, play + 1);
     text(px, 4, 28, line, fg);
     text(px, 4, 44, "WHITE KEYS", fg);
     for (i = 0; i < 16; i++) {
@@ -110,6 +135,38 @@ static void draw_steps(uint16_t *px, const FzSession *session, const FzSeq *seq,
         int y = 64 + (i / 8) * 36;
         int lit = step_on(seq, pattern, base + i);
         rect(px, x, y, 26, 28, lit ? on : hi);
+        if (base + i == play)
+            rect(px, x, y, 26, 4, head);
+    }
+}
+
+static void draw_harmonics(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t on)
+{
+    const FzInstrument *inst = 0;
+    int partial, level, i;
+    char line[40];
+    if (project && project->selected_track >= 0 && project->selected_track < FZ_MAX_TRACKS) {
+        FzId id = project->track[project->selected_track].instrument;
+        if (id.index < FZ_MAX_INSTRUMENTS && project->instrument[id.index].alive &&
+            project->instrument[id.index].generation == id.generation)
+            inst = &project->instrument[id.index];
+    }
+    partial = session->partial;
+    if (partial < 0)
+        partial = 0;
+    if (partial >= FZ_HARMONICS)
+        partial = FZ_HARMONICS - 1;
+    level = inst ? (int)inst->additive.level[partial] : 0;
+    snprintf(line, sizeof line, "H%d %d", partial + 1, level);
+    text(px, 4, 80, line, fg);
+    text(px, 4, 96, "K2 PARTIAL", fg);
+    text(px, 120, 96, "K3 LEVEL", fg);
+    for (i = 0; i < FZ_HARMONICS; i++) {
+        int h = inst ? (int)inst->additive.level[i] * 36 / 256 : 0;
+        int x = 4 + i * 4;
+        if (h < 1)
+            h = 1;
+        rect(px, x, 160 - h, 3, h, i == partial ? fg : on);
     }
 }
 
@@ -120,6 +177,7 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
     const uint16_t fg = FZ_RGB(230, 230, 220);
     const uint16_t hi = FZ_RGB(40, 90, 160);
     const uint16_t on = FZ_RGB(80, 200, 120);
+    const uint16_t head = FZ_RGB(240, 180, 40);
     char line[40];
     FzScreen screen = session ? session->screen : FZ_SCR_HOME;
 
@@ -138,12 +196,20 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
         snprintf(line, sizeof line, "OCT %d", session->octave);
         text(rgb565, 160, 4, line, fg);
     }
-    if (screen == FZ_SCR_HOME)
+    if (screen == FZ_SCR_HOME) {
+        int pattern = seq && seq->current[0] >= 0 ? seq->current[0] : 0;
+        draw_playhead_strip(rgb565, playhead_step(project, seq, pattern), 176, head, hi);
         return;
-    if (screen == FZ_SCR_EDIT && session)
+    }
+    if (screen == FZ_SCR_EDIT && session) {
         draw_edit(rgb565, project, session, fg, hi);
-    else if ((screen == FZ_SCR_STEP || screen == FZ_SCR_PATTERNS) && session)
-        draw_steps(rgb565, session, seq, fg, on, hi);
+        if (session->edit_tab == FZ_TAB_WAVE)
+            draw_harmonics(rgb565, project, session, fg, on);
+    }
+    else if (screen == FZ_SCR_STEP && session)
+        draw_steps(rgb565, project, session, seq, fg, on, hi, head);
+    else if (screen == FZ_SCR_PATTERNS && session)
+        draw_steps(rgb565, project, session, seq, fg, on, hi, head);
     else if (screen == FZ_SCR_SONG && seq) {
         snprintf(line, sizeof line, "ROW %d / %d", seq->song_n > 0 ? seq->song_pos + 1 : 0, seq->song_n);
         text(rgb565, 4, 40, line, fg);

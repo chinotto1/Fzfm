@@ -57,7 +57,7 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 
 | Operation | Here | Scope | Test | Difference |
 |---|---|---|---|---|
-| Additive | 48 levels, zero phase, peak scale, recipe `FZH1` | Instrument recipe | `test_main` | No on-device partial list |
+| Additive | 48 levels, zero phase, peak scale, recipe `FZH1` | Instrument recipe. WAVE tab: K2 selects partial, K3 sets level 0–256 and rebuilds the cycle | `test_main`, panel test | Not in the `FZB1` bundle yet |
 | Preset wave | `fz_preset_sine`, `fz_preset_square` (±12000, not band-limited), `fz_edit_preset` | New cycle asset | preset test | WAVE tab row does not call it |
 | Cut cycle | `fz_edit_cut_cycle` copies a span and leaves the source bytes | | cut test | |
 | Draw | `fz_draw_set`, `fz_draw_normalize`, `fz_draw_smooth` | A table the caller owns | normalize and smooth tests | No point-edit screen |
@@ -69,7 +69,7 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 
 | Operation | Here | Test | Difference |
 |---|---|---|---|
-| Sparse steps | 512 events, 16th = 24 ticks, PPQ 96, bar = 384 | advance lands on 96, 288, 384 | No probability seed, no recorded knob lanes |
+| Sparse steps | 512 events, 16th = 24 ticks, PPQ 96, bar = 384. The panel playhead is `tick % pattern length` and the panel loops that length | advance lands on 96, 288, 384 | No probability seed, no recorded knob lanes |
 | Chain and queue | Inclusive range in one call. A queued pattern launches at the next bar and does not advance again on that same bar | chain and queue tests | No two-key gesture capture from the matrix |
 | Song | Rows of per-track pattern, mute, repeats | one bar advances to the next row | No insert/reorder UI |
 | Free take | REC arms, first note starts, close infers tempo only when the project has no music and no external clock | 2 s phrase near 120 BPM; existing music stays at 100 | |

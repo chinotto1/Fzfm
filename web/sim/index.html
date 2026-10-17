@@ -38,7 +38,7 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. PLAY moves the playhead. EDIT cycles the tabs; WAVE is the additive synth (K2 picks harmonic 1–48, K3 sets its level 0–256).</p>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
     <div class="panel">
@@ -214,6 +214,20 @@ async function selftest() {
     if (s > 80) rawBright++;
   }
   if (bright < 30 || rawBright < 30) fail("blank display canvas " + bright + " wasm " + rawBright);
+  document.querySelector('[data-button="11"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 4 }));
+  document.querySelector('[data-button="11"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 4 }));
+  document.querySelector('[data-button="12"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 5 }));
+  document.querySelector('[data-button="12"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 5 }));
+  const lcd = new Uint16Array(mem(), api.sim_lcd(), 240 * 240);
+  const head0 = lcd[64 * 240 + 6];
+  for (let n = 0; n < 20; n++) api.sim_render(api.sim_mix(), 256);
+  paint();
+  if (lcd[64 * 240 + 6] === head0) fail("playhead stuck");
+  for (let n = 0; n < 7; n++) {
+    document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 6 }));
+    document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 6 }));
+  }
+  if (!document.getElementById("status").textContent.includes("WAVE H1")) fail("wave tab");
   document.title = "PASS";
   document.getElementById("result").textContent = "PASS";
 }
