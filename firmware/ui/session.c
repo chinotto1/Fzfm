@@ -215,6 +215,20 @@ void fz_session_handle(FzSession *session, const FzAction *action, FzCommand *ou
         emit(out, FZ_CMD_PAGE, session->fx_slot, action->at_us);
         return;
     }
+    if (action->button == FZ_BTN_ENV && action->kind == FZ_ACT_TAP) {
+        session->screen = FZ_SCR_EDIT;
+        session->edit_tab = FZ_TAB_AMP;
+        session->gesture = 0;
+        emit(out, FZ_CMD_EDIT_TAB, session->edit_tab, action->at_us);
+        return;
+    }
+    if (action->button == FZ_BTN_LFO && action->kind == FZ_ACT_TAP) {
+        session->screen = FZ_SCR_EDIT;
+        session->edit_tab = FZ_TAB_MOD;
+        session->gesture = 0;
+        emit(out, FZ_CMD_EDIT_TAB, session->edit_tab, action->at_us);
+        return;
+    }
     if (action->button == FZ_BTN_PLAY && action->kind == FZ_ACT_TAP) {
         emit(out, FZ_CMD_PLAY, 0, action->at_us);
         return;

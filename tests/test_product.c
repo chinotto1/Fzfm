@@ -170,6 +170,14 @@ static void test_oct_plus_router(void)
     EXPECT(fz_session_pick_key(&session, 60) == FZ_OK);
     EXPECT(session.pick_low == 60 && session.pick_high == 70);
     EXPECT(session.screen == FZ_SCR_EDIT);
+
+    fz_session_init(&session);
+    tap(&input, &session, FZ_BTN_ENV, 600, &cmd);
+    EXPECT(cmd.kind == FZ_CMD_EDIT_TAB && session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_AMP);
+    tap(&input, &session, FZ_BTN_LFO, 610, &cmd);
+    EXPECT(session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_MOD);
+    tap(&input, &session, FZ_BTN_ENV, 620, &cmd);
+    EXPECT(session.edit_tab == FZ_TAB_AMP);
 }
 
 static void test_edit_scope_and_undo(void)
@@ -316,6 +324,21 @@ static void test_edit_scope_and_undo(void)
     session.row[FZ_TAB_MOD] = 2;
     EXPECT(fz_edit_knob(&session, &project, 1, 1) == FZ_OK);
     EXPECT(project.track[0].lfo.dest == 1);
+    EXPECT(strcmp(fz_lfo_target_name(project.track[0].lfo.dest), "CUTOFF") == 0);
+    session.row[FZ_TAB_MOD] = 0;
+    EXPECT(fz_edit_knob(&session, &project, 2, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.dest == FZ_LFO_LEVEL);
+    EXPECT(fz_edit_knob(&session, &project, 2, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.dest == FZ_LFO_PITCH);
+    EXPECT(fz_edit_knob(&session, &project, 2, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.dest == FZ_LFO_PAN);
+    EXPECT(fz_edit_knob(&session, &project, 2, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.dest == FZ_LFO_PAN);
+    session.edit_tab = FZ_TAB_AMP;
+    session.row[FZ_TAB_AMP] = 4;
+    EXPECT(fz_edit_knob(&session, &project, 1, 3) == FZ_OK);
+    EXPECT(fz_region(&project, project.instrument[0].region[0])->filt_on == 1);
+    EXPECT(fz_region(&project, project.instrument[0].region[0])->filt.frames[0] == 13);
     EXPECT(fz_region(&project, project.instrument[0].region[0])->gain_q15 == 32767 - 512);
 }
 
@@ -1167,10 +1190,39 @@ static void test_capture_command_and_mix(void)
     }
 }
 
+static void test_lfo_targets(void)
+{
+    FzEngine dry, pitched, panned;
+    int16_t pcm[8] = {8000, 1000, 4000, 8000, 8000, 4000, 1000, 0};
+    int16_t a[8], b[8], c[8];
+
+    fz_engine_init(&dry);
+    fz_engine_set_filter(&dry, 0, 0, 0, 0);
+    EXPECT(fz_engine_note_on_pcm(&dry, pcm, 8, FZ_ENGINE_RATE_HZ, 60, 60, 0, 127, 127, 0, 1, 0, 1) >= 0);
+    fz_engine_render(&dry, a, 4);
+    EXPECT(a[1] == 0);
+
+    fz_engine_init(&pitched);
+    fz_engine_set_filter(&pitched, 0, 0, 0, 0);
+    EXPECT(fz_engine_note_on_pcm(&pitched, pcm, 8, FZ_ENGINE_RATE_HZ, 60, 60, 0, 127, 127, 0, 1, 0, 1) >= 0);
+    fz_engine_set_lfo(&pitched, 127, 127, 1, FZ_LFO_PITCH, 0);
+    fz_engine_render(&pitched, b, 4);
+    EXPECT(b[0] == a[0]);
+    EXPECT(b[2] != a[2]);
+
+    fz_engine_init(&panned);
+    fz_engine_set_filter(&panned, 0, 0, 0, 0);
+    EXPECT(fz_engine_note_on_pcm(&panned, pcm, 8, FZ_ENGINE_RATE_HZ, 60, 60, 0, 127, 127, 0, 1, 0, 1) >= 0);
+    fz_engine_set_lfo(&panned, 127, 127, 1, FZ_LFO_PAN, 0);
+    fz_engine_render(&panned, c, 4);
+    EXPECT(c[1] != 0);
+}
+
 void test_product(void)
 {
     test_oct_plus_router();
     test_edit_scope_and_undo();
+    test_lfo_targets();
     test_mangle_loop_env();
     test_filter_playback();
     test_fx_and_bake();

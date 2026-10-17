@@ -677,3 +677,11 @@ void fz_home_select_track(FzProject *p, int detents)
         idx = n - 1;
     p->selected_track = map[idx];
 }
+
+const char *fz_lfo_target_name(int dest)
+{
+    static const char *names[FZ_LFO_DEST_COUNT] = {"OFF", "CUTOFF", "LEVEL", "PITCH", "PAN"};
+    if (dest < 0 || dest >= FZ_LFO_DEST_COUNT)
+        return "OFF";
+    return names[dest];
+}

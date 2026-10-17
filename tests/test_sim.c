@@ -99,4 +99,20 @@ void test_sim(void)
     peak = sim_render(buf, 64);
     EXPECT(peak > 100);
     sim_key(7, 0, 210000);
+
+    sim_boot();
+    sim_button(4, 1, 1000);
+    sim_button(4, 0, 4000);
+    EXPECT(strstr(sim_status(), "ENV") != 0);
+    sim_button(5, 1, 10000);
+    sim_button(5, 0, 14000);
+    EXPECT(strstr(sim_status(), "LFO OFF") != 0);
+    sim_encoder(4, 1);
+    EXPECT(strstr(sim_status(), "LFO CUTOFF") != 0);
+    sim_encoder(4, 1);
+    EXPECT(strstr(sim_status(), "LFO LEVEL") != 0);
+    sim_encoder(4, 1);
+    EXPECT(strstr(sim_status(), "LFO PITCH") != 0);
+    sim_encoder(4, 1);
+    EXPECT(strstr(sim_status(), "LFO PAN") != 0);
 }

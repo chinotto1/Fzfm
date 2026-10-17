@@ -35,7 +35,11 @@ enum {
     F_LDEST,
     F_LSHAPE,
     F_LRETRIG,
-    F_HARM
+    F_HARM,
+    F_FATTACK,
+    F_FDECAY,
+    F_FSUSTAIN,
+    F_FRELEASE
 };
 
 typedef struct {
@@ -52,10 +56,17 @@ static const FzRowDef k_loop[] = {{"LOOP START", 1, F_LOOP_START},
                                   {"LOOP END", 1, F_LOOP_END},
                                   {"XFADE", 0, F_XFADE},
                                   {"REPEATS", 1, F_REPEATS}};
-static const FzRowDef k_amp[] = {{"ATTACK", 1, F_ATTACK}, {"DECAY", 1, F_DECAY}, {"SUSTAIN", 1, F_SUSTAIN},
-                                 {"RELEASE", 1, F_RELEASE}};
+static const FzRowDef k_amp[] = {{"ATTACK", 1, F_ATTACK},
+                                 {"DECAY", 1, F_DECAY},
+                                 {"SUSTAIN", 1, F_SUSTAIN},
+                                 {"RELEASE", 1, F_RELEASE},
+                                 {"FLT ATK", 1, F_FATTACK},
+                                 {"FLT DEC", 1, F_FDECAY},
+                                 {"FLT SUS", 1, F_FSUSTAIN},
+                                 {"FLT REL", 1, F_FRELEASE},
+                                 {"FLT AMT", 1, F_ENVAMT}};
 static const FzRowDef k_filter[] = {{"CUT OFFSET", 0, F_CUT}, {"RES OFFSET", 0, F_RES}, {"ENV AMOUNT", 1, F_ENVAMT}};
-static const FzRowDef k_mod[] = {{"RATE", 1, F_LRATE}, {"DEPTH", 1, F_LDEPTH}, {"DEST", 0, F_LDEST},
+static const FzRowDef k_mod[] = {{"RATE", 1, F_LRATE}, {"DEPTH", 1, F_LDEPTH}, {"TARGET", 0, F_LDEST},
                                  {"SHAPE", 0, F_LSHAPE}, {"RETRIG", 0, F_LRETRIG}};
 static const FzRowDef k_map[] = {{"ROOT", 1, F_ROOT}, {"SEND", 0, F_SEND}, {"GAIN", 1, F_GAIN}, {"CHOKE", 0, F_CHOKE}};
 static const FzRowDef k_mix[] = {{"MIX WRITE", 0, F_NONE}};
@@ -72,7 +83,7 @@ static const FzRowDef *rows_for(int tab, int *count)
         *count = 4;
         return k_loop;
     case FZ_TAB_AMP:
-        *count = 4;
+        *count = 9;
         return k_amp;
     case FZ_TAB_FILTER:
         *count = 3;
@@ -148,20 +159,121 @@ static FzInstrument *selected_inst(const FzProject *project)
     return fz_instrument((FzProject *)project, project->track[project->selected_track].instrument);
 }
 
+static const FzRegion *shown_region(const FzSession *session, const FzProject *project)
+{
+    const FzInstrument *it = selected_inst(project);
+    int sel;
+    if (!session || !it || it->region_count <= 0)
+        return 0;
+    sel = session->region_sel;
+    if (sel < 0 || sel >= it->region_count)
+        sel = 0;
+    return fz_region((FzProject *)project, it->region[sel]);
+}
+
+static int shown_frames(const FzEnvelope *env, int stage, int fallback)
+{
+    if (env && env->n_stages >= 4)
+        return (int)env->frames[stage];
+    return fallback;
+}
+
+static int shown_sustain(const FzEnvelope *env)
+{
+    if (env && env->n_stages >= 4)
+        return env->level[1];
+    return 20000;
+}
+
+void fz_edit_row_value(const FzSession *session, const FzProject *project, int row, char *dst, uint32_t cap)
+{
+    int n = 0;
+    const FzRowDef *rows;
+    const FzRegion *region;
+    const FzTrack *track = 0;
+    int field;
+    if (!dst || cap == 0)
+        return;
+    dst[0] = 0;
+    if (!session)
+        return;
+    rows = rows_for(session->edit_tab, &n);
+    if (row < 0 || row >= n)
+        return;
+    field = rows[row].field;
+    region = shown_region(session, project);
+    if (project && project->selected_track >= 0 && project->selected_track < FZ_MAX_TRACKS &&
+        project->track[project->selected_track].alive)
+        track = &project->track[project->selected_track];
+    switch (field) {
+    case F_ATTACK:
+        snprintf(dst, cap, "%d", shown_frames(region ? &region->amp : 0, 0, 10));
+        break;
+    case F_DECAY:
+        snprintf(dst, cap, "%d", shown_frames(region ? &region->amp : 0, 1, 200));
+        break;
+    case F_SUSTAIN:
+        snprintf(dst, cap, "%d", shown_sustain(region ? &region->amp : 0));
+        break;
+    case F_RELEASE:
+        snprintf(dst, cap, "%d", shown_frames(region ? &region->amp : 0, 3, 400));
+        break;
+    case F_FATTACK:
+        snprintf(dst, cap, "%d", shown_frames(region ? &region->filt : 0, 0, 10));
+        break;
+    case F_FDECAY:
+        snprintf(dst, cap, "%d", shown_frames(region ? &region->filt : 0, 1, 200));
+        break;
+    case F_FSUSTAIN:
+        snprintf(dst, cap, "%d", shown_sustain(region ? &region->filt : 0));
+        break;
+    case F_FRELEASE:
+        snprintf(dst, cap, "%d", shown_frames(region ? &region->filt : 0, 3, 400));
+        break;
+    case F_ENVAMT:
+        snprintf(dst, cap, "%d", region ? (int)region->env_amount : 0);
+        break;
+    case F_LRATE:
+        snprintf(dst, cap, "%d", track ? (int)track->lfo.rate : 0);
+        break;
+    case F_LDEPTH:
+        snprintf(dst, cap, "%d", track ? (int)track->lfo.depth : 0);
+        break;
+    case F_LDEST:
+        snprintf(dst, cap, "%s", fz_lfo_target_name(track ? (int)track->lfo.dest : 0));
+        break;
+    case F_LSHAPE:
+        snprintf(dst, cap, "%s", track && track->lfo.shape ? "SQR" : "TRI");
+        break;
+    case F_LRETRIG:
+        snprintf(dst, cap, "%s", track && track->lfo.retrigger ? "ON" : "OFF");
+        break;
+    default:
+        break;
+    }
+}
+
 void fz_edit_header(const FzSession *session, const FzProject *project, char *dst, uint32_t cap)
 {
     const FzInstrument *it = selected_inst(project);
     const char *name = it ? it->name : "-";
+    const char *label;
     if (!dst || cap == 0)
         return;
     if (!session) {
         dst[0] = 0;
         return;
     }
-    if (session->scope_all)
-        snprintf(dst, cap, "%s / %s / ALL", name, fz_edit_tab_name(session->edit_tab));
+    if (session->edit_tab == FZ_TAB_AMP)
+        label = "ENV";
+    else if (session->edit_tab == FZ_TAB_MOD)
+        label = "LFO";
     else
-        snprintf(dst, cap, "%s / %s / ONE %d", name, fz_edit_tab_name(session->edit_tab), session->region_sel + 1);
+        label = fz_edit_tab_name(session->edit_tab);
+    if (session->scope_all)
+        snprintf(dst, cap, "%s / %s / ALL", name, label);
+    else
+        snprintf(dst, cap, "%s / %s / ONE %d", name, label, session->region_sel + 1);
 }
 
 int fz_edit_affected(const FzSession *session, const FzProject *project)
@@ -235,12 +347,27 @@ static void ensure_amp(FzRegion *region)
     region->amp_on = 1;
 }
 
+static void ensure_filt(FzRegion *region)
+{
+    if (region->filt.n_stages < 4)
+        fz_env_adsr(&region->filt, 10, 200, 20000, 400);
+    region->filt_on = 1;
+}
+
 static void set_amp_frames(FzRegion *region, int stage, int frames)
 {
     ensure_amp(region);
     if (frames < 1)
         frames = 1;
     region->amp.frames[stage] = (uint32_t)frames;
+}
+
+static void set_filt_frames(FzRegion *region, int stage, int frames)
+{
+    ensure_filt(region);
+    if (frames < 1)
+        frames = 1;
+    region->filt.frames[stage] = (uint32_t)frames;
 }
 
 static FzLoopSection *ensure_loop(FzRegion *region, uint32_t frames)
@@ -289,6 +416,17 @@ static void apply_field(FzProject *project, FzRegion *region, int field, int det
             ensure_amp(region);
             region->amp.level[1] = level;
             region->amp.level[2] = level;
+        } else if (field == F_FATTACK)
+            set_filt_frames(region, 0, value);
+        else if (field == F_FDECAY)
+            set_filt_frames(region, 1, value);
+        else if (field == F_FRELEASE)
+            set_filt_frames(region, 3, value);
+        else if (field == F_FSUSTAIN) {
+            int16_t level = (int16_t)clamp_i(value, 0, 32767);
+            ensure_filt(region);
+            region->filt.level[1] = level;
+            region->filt.level[2] = level;
         } else if (field == F_LOOP_START || field == F_LOOP_END || field == F_XFADE || field == F_REPEATS) {
             FzLoopSection *s = ensure_loop(region, frames);
             if (field == F_LOOP_START)
@@ -337,6 +475,18 @@ static void apply_field(FzProject *project, FzRegion *region, int field, int det
         ensure_amp(region);
         region->amp.level[1] = (int16_t)level;
         region->amp.level[2] = (int16_t)level;
+    } else if (field == F_FATTACK)
+        set_filt_frames(region, 0, (int)(region->filt.n_stages >= 4 ? region->filt.frames[0] : 10) + detents);
+    else if (field == F_FDECAY)
+        set_filt_frames(region, 1, (int)(region->filt.n_stages >= 4 ? region->filt.frames[1] : 200) + detents);
+    else if (field == F_FRELEASE)
+        set_filt_frames(region, 3, (int)(region->filt.n_stages >= 4 ? region->filt.frames[3] : 400) + detents);
+    else if (field == F_FSUSTAIN) {
+        int level = region->filt.n_stages >= 4 ? region->filt.level[1] : 20000;
+        level = clamp_i(level + detents * 256, 0, 32767);
+        ensure_filt(region);
+        region->filt.level[1] = (int16_t)level;
+        region->filt.level[2] = (int16_t)level;
     } else if (field == F_XFADE || field == F_REPEATS || field == F_LOOP_START || field == F_LOOP_END) {
         FzLoopSection *s = ensure_loop(region, frames);
         if (field == F_XFADE) {
@@ -390,11 +540,25 @@ static FzStatus edit_lfo(FzSession *session, FzProject *project, int detents, in
     else if (field == F_LDEPTH)
         lfo->depth = (uint8_t)clamp_i((int)lfo->depth + detents, 0, 127);
     else if (field == F_LDEST)
-        lfo->dest = (uint8_t)clamp_i((int)lfo->dest + (detents > 0 ? 1 : (detents < 0 ? -1 : 0)), 0, 2);
+        lfo->dest = (uint8_t)clamp_i((int)lfo->dest + (detents > 0 ? 1 : (detents < 0 ? -1 : 0)), 0, FZ_LFO_DEST_COUNT - 1);
     else if (field == F_LSHAPE)
         lfo->shape = (uint8_t)clamp_i((int)lfo->shape + (detents > 0 ? 1 : (detents < 0 ? -1 : 0)), 0, 1);
     else if (field == F_LRETRIG)
         lfo->retrigger = detents > 0 ? 1 : (detents < 0 ? 0 : lfo->retrigger);
+    return FZ_OK;
+}
+
+static FzStatus edit_lfo_target(FzProject *project, int detents)
+{
+    FzTrack *track;
+    int dest;
+    if (!project || project->selected_track < 0 || project->selected_track >= FZ_MAX_TRACKS)
+        return FZ_ERR_BAD_ID;
+    track = &project->track[project->selected_track];
+    if (!track->alive)
+        return FZ_ERR_BAD_ID;
+    dest = (int)track->lfo.dest + (detents > 0 ? 1 : (detents < 0 ? -1 : 0));
+    track->lfo.dest = (uint8_t)clamp_i(dest, 0, FZ_LFO_DEST_COUNT - 1);
     return FZ_OK;
 }
 
@@ -462,6 +626,8 @@ FzStatus fz_edit_knob(FzSession *session, FzProject *project, int knob, int dete
     }
     if (knob < 1 || knob > 2 || detents == 0)
         return FZ_OK;
+    if (session->edit_tab == FZ_TAB_MOD && knob == 2)
+        return edit_lfo_target(project, detents);
     field = field_of(session);
     if (field == F_HARM)
         return edit_harmonic(session, project, knob, detents);

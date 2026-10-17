@@ -14,6 +14,8 @@ Source: `firmware/src/panel.c` at melodee `84e2d97`, cross-checked against feluc
 | ALGORITHM | encoder | Select track, clamped at the ends | `fz_home_select_track` |
 | KNOB 1–4 on HOME | encoders | Cutoff, resonance, volume, pan of the selected track | `fz_home_turn`. Volume and pan are the mixer fields. Cutoff and resonance feed `fz_performance_render` |
 | EDIT tap / hold | button | Tap enters the editor and then cycles tabs. Hold opens naming and must not also change tabs | Host router does this. Tabs are SAMPLE, LOOP, MIX, AMP, FILTER, MOD, WAVE, MAP, RENDER |
+| ENV | button | Open the amplitude and filter envelopes | Screen `FZ_SCR_EDIT`, tab AMP. Rows are attack, decay, sustain, release, then the filter envelope and its amount |
+| LFO | button | Open the track modulator and choose a target | Screen `FZ_SCR_EDIT`, tab MOD. K3 steps the target: off, cutoff, level, pitch, pan |
 | OCT+ tap / hold | button | Context confirm, undo, octave, or page. See ADR 0002 | `fz_session_handle` |
 | SELECT | encoder | Turn only. No push | Unbound as a button. Logical `FZ_BTN_SEL` is a test input, not this encoder |
 | REC tap / hold | button | Tap arms or closes a take, or toggles overdub while playing. Hold is retrospective capture ending at the down edge | `fz_session_apply` calls `fz_seq_rec_tap`. A hold is `fz_seq_capture_history` in the panel, which owns the history ring |
@@ -23,7 +25,7 @@ Source: `firmware/src/panel.c` at melodee `84e2d97`, cross-checked against feluc
 | SEQ | button | STEP, then PATTERNS, then SONG | Those three screens, in that order |
 | PLAY | button | Start/stop. Screen changes do not stop it | `fz_session_apply` toggles `fz_seq_play` |
 | SAVE | button | Commit when it is safe to write | Emits `FZ_CMD_SAVE`. There is no flash commit |
-| SCL, ENV, LFO, ARP | buttons | No new jobs in the specification | Ids exist. No actions |
+| SCL, ARP | buttons | No new jobs in the specification | Ids exist. No actions |
 | PRESETS | encoder | Outside the sampler contract | Unbound |
 | Note keys | 27 keys, F3–G5 in the board comment | Play, except inside a picker | `fz_performance_note` on HOME, EDIT, MIXER, and FX. Numeric, naming, pick, confirm, STEP, PATTERNS, SONG, and capture do not record those keys into the history ring |
 | Master pot | ADC | Separate from the four HOME knobs | Unread |

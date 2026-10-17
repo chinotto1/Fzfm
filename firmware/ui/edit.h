@@ -24,6 +24,7 @@ enum {
 const char *fz_edit_tab_name(int tab);
 int fz_edit_row_count(int tab);
 const char *fz_edit_row_name(int tab, int row);
+void fz_edit_row_value(const FzSession *session, const FzProject *project, int row, char *dst, uint32_t cap);
 int fz_edit_row_numeric(int tab, int row);
 const char *fz_edit_knob_label(int tab, int row, int knob);
 void fz_edit_header(const FzSession *session, const FzProject *project, char *dst, uint32_t cap);

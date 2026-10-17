@@ -50,7 +50,7 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 | FZ INSPIRED lowpass | See `docs/FILTER_MODEL.md` | Track cutoff/resonance plus region offsets | stability sweep; open cutoff is louder than nearly closed on a 2 kHz sine | Fidelity to an FZ-1 is unmeasured |
 | Envelope amount | `env_amount` −127..127 added inside the cutoff sum | Region | filter row | |
 | Key track | `key_track` steps per octave from the root | Track | applied in `fz_performance_note` | |
-| LFO | Track `FzLfo`: rate about 0.1–20 Hz, depth, triangle or square, destination off / cutoff / level, retrigger | Selected track. Depth 0 leaves the mix alone | MOD rows; level destination changes a sustained note | No tempo sync. LFO edits are not in the region undo stack |
+| LFO | Track `FzLfo`: rate about 0.1–20 Hz, depth, triangle or square, target off / cutoff / level / pitch / pan, retrigger. The LFO button opens this page. K3 selects the target. Full pitch depth is about two semitones | Selected track. Depth 0 leaves the mix alone | MOD rows; level, pitch, and pan targets each change a note | No tempo sync. LFO edits are not in the region undo stack |
 | Drive | Optional shaper after the lowpass when `fz_engine_set_filter` drive > 0 | Engine | performance render passes 0 | Not an FZ-1 measurement |
 
 ## WAVE / MAP / RENDER

@@ -40,6 +40,8 @@ typedef struct {
     uint8_t send_trim[4];
     int released;
     uint32_t lfo_phase;
+    uint32_t base_step; /* Q16 playback step before pitch LFO */
+    int pitch_bent;
     FzSvFilter svf;
     FzEnvRun amp_env;
     FzEnvRun filt_env;
@@ -80,7 +82,9 @@ void fz_engine_render(FzEngine *e, int16_t *interleaved_lr, uint32_t frames);
 
 /* `enabled` 0 leaves the mix bit-identical to a build without a filter. */
 void fz_engine_set_filter(FzEngine *e, int enabled, int cutoff, int resonance, int drive);
-/* Depth 0 or destination 0 leaves the sample path unchanged. */
+/* Depth 0 or FZ_LFO_OFF leaves the sample path unchanged.
+ * FZ_LFO_PITCH bends the reader step by about two semitones at full depth.
+ * FZ_LFO_PAN adds that bipolar depth to the voice pan. */
 void fz_engine_set_lfo(FzEngine *e, int rate, int depth, int shape, int dest, int retrigger);
 /* A null rack leaves the mix unchanged. Sends are post-voice and mono into the rack. */
 void fz_engine_set_fx(FzEngine *e, struct FzFxRack *fx);

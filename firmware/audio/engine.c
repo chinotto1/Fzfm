@@ -81,7 +81,48 @@ int fz_engine_note_on_pcm(FzEngine *e, const int16_t *pcm, uint32_t frames, uint
     v->asset_tag = asset_tag;
     v->pcm = pcm;
     v->gain_q15 = 32767;
+    v->base_step = (v->reader.step_i << 16) | (uint32_t)v->reader.step_f;
     return slot;
+}
+
+static int lfo_bipolar(uint32_t phase, int shape);
+
+static int voice_mod(FzEngine *e, FzVoice *v, int shared_mod)
+{
+    if (e->lfo_retrigger) {
+        v->lfo_phase += e->lfo_inc;
+        return lfo_bipolar(v->lfo_phase, e->lfo_shape) * e->lfo_depth / 127;
+    }
+    return shared_mod;
+}
+
+/* Full depth is about two semitones. The product stays inside uint32. */
+static void bend_pitch(FzVoice *v, int mod)
+{
+    int scale = 256 + (mod * 31) / 127;
+    uint32_t hi, lo, hi_part, scaled;
+    if (scale < 1)
+        scale = 1;
+    hi = v->base_step >> 16;
+    lo = v->base_step & 0xFFFFu;
+    hi_part = hi * (uint32_t)scale;
+    if (hi_part > 0x00FFFFFFu)
+        hi_part = 0x00FFFFFFu;
+    scaled = (hi_part << 8) + ((lo * (uint32_t)scale) >> 8);
+    if (scaled < 1u)
+        scaled = 1u;
+    v->reader.step_i = scaled >> 16;
+    v->reader.step_f = (uint16_t)scaled;
+    v->pitch_bent = 1;
+}
+
+static void restore_pitch(FzVoice *v)
+{
+    if (!v->pitch_bent)
+        return;
+    v->reader.step_i = v->base_step >> 16;
+    v->reader.step_f = (uint16_t)v->base_step;
+    v->pitch_bent = 0;
 }
 
 static FzVoice *voice_at(FzEngine *e, int slot)
@@ -128,8 +169,8 @@ void fz_engine_set_lfo(FzEngine *e, int rate, int depth, int shape, int dest, in
         depth = 127;
     if (dest < 0)
         dest = 0;
-    if (dest > 2)
-        dest = 2;
+    if (dest >= FZ_LFO_DEST_COUNT)
+        dest = FZ_LFO_DEST_COUNT - 1;
     e->lfo_rate = rate;
     e->lfo_depth = depth;
     e->lfo_shape = shape ? 1 : 0;
@@ -275,20 +316,18 @@ void fz_engine_render(FzEngine *e, int16_t *interleaved_lr, uint32_t frames)
             int16_t s;
             if (!v->alive)
                 continue;
+            if (lfo_on && e->lfo_dest == FZ_LFO_PITCH && v->base_step != 0)
+                bend_pitch(v, voice_mod(e, v, shared_mod));
+            else
+                restore_pitch(v);
             s = fz_reader_next(&v->reader);
             if (!v->reader.active && !v->reader.cycle)
                 v->alive = 0;
             y = ((int32_t)s * v->volume * v->velocity) / (127 * 127);
             if (v->gain_q15 != 32767)
                 y = (y * v->gain_q15) / 32767;
-            if (lfo_on && e->lfo_dest == 2) {
-                int mod = shared_mod;
-                if (e->lfo_retrigger) {
-                    v->lfo_phase += e->lfo_inc;
-                    mod = lfo_bipolar(v->lfo_phase, e->lfo_shape) * e->lfo_depth / 127;
-                }
-                y = y * (256 + mod) / 256;
-            }
+            if (lfo_on && e->lfo_dest == FZ_LFO_LEVEL)
+                y = y * (256 + voice_mod(e, v, shared_mod)) / 256;
             if (v->use_env) {
                 int32_t eg = fz_env_next(&v->amp_env);
                 y = (y * eg) / 32767;
@@ -303,14 +342,8 @@ void fz_engine_render(FzEngine *e, int16_t *interleaved_lr, uint32_t frames)
                     int32_t eg = fz_env_next(&v->filt_env);
                     cut += (int)((v->env_amount * eg) / 32767);
                 }
-                if (lfo_on && e->lfo_dest == 1) {
-                    int mod = shared_mod;
-                    if (e->lfo_retrigger) {
-                        v->lfo_phase += e->lfo_inc;
-                        mod = lfo_bipolar(v->lfo_phase, e->lfo_shape) * e->lfo_depth / 127;
-                    }
-                    cut += mod;
-                }
+                if (lfo_on && e->lfo_dest == FZ_LFO_CUTOFF)
+                    cut += voice_mod(e, v, shared_mod);
                 if (cut < 0)
                     cut = 0;
                 if (cut > 127)
@@ -343,8 +376,18 @@ void fz_engine_render(FzEngine *e, int16_t *interleaved_lr, uint32_t frames)
                     out = -4.0f;
                 y = (int32_t)lrintf(out * 32768.0f);
             }
-            l = (y * (128 - v->pan)) / 128;
-            r = (y * v->pan) / 128;
+            {
+                int pan = v->pan;
+                if (lfo_on && e->lfo_dest == FZ_LFO_PAN) {
+                    pan += voice_mod(e, v, shared_mod);
+                    if (pan < 0)
+                        pan = 0;
+                    if (pan > 127)
+                        pan = 127;
+                }
+                l = (y * (128 - pan)) / 128;
+                r = (y * pan) / 128;
+            }
             left += l;
             right += r;
             if (e->fx && !v->no_send) {

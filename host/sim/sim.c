@@ -73,7 +73,14 @@ static void refresh(void)
         partial = 0;
     if (partial >= FZ_HARMONICS)
         partial = FZ_HARMONICS - 1;
-    if (session.screen == FZ_SCR_EDIT)
+    if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_AMP)
+        snprintf(wave, sizeof wave, "ENV ");
+    else if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_MOD) {
+        int dest = 0;
+        if (project.selected_track >= 0 && project.selected_track < FZ_MAX_TRACKS)
+            dest = project.track[project.selected_track].lfo.dest;
+        snprintf(wave, sizeof wave, "LFO %s ", fz_lfo_target_name(dest));
+    } else if (session.screen == FZ_SCR_EDIT)
         snprintf(wave, sizeof wave, "%s ", fz_edit_tab_name(session.edit_tab));
     if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_WAVE && project.selected_track >= 0 &&
         project.selected_track < FZ_MAX_TRACKS) {

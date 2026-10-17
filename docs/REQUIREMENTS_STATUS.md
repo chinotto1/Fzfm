@@ -88,14 +88,14 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | T46 | Pending device. Flash scripts refuse |
 | T47 | Pending device |
 | T48 | No third-party source is vendored. Lockfile and `THIRD_PARTY_NOTICES.md` list what was read |
-| T49 | `make sim` then `web/sim/index.html?selftest=1`. Octave, BPM 120, a sounding key, the EDIT screen, and a non-blank 240×240 frame. Headless Chrome, not the device |
+| T49 | `make sim` then `web/sim/index.html?selftest=1`. Octave, BPM 120, a sounding key, the EDIT screen, ENV, an LFO target, and a non-blank 240×240 frame. Headless Chrome, not the device |
 
 ## Commands for this revision
 
 Host only.
 
-- `make test` — 10720 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
-- The same suite at `-O2` without sanitizers — 10720 passed, 0 failed
+- `make test` — 10748 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
+- The same suite at `-O2` without sanitizers — 10748 passed, 0 failed
 - `make sim` — wasm32 panel at `web/sim/sim.wasm`. Needs clang with `wasm-ld`
 - `make render` — A4 zero-crossings 439, +12 semitones 879, both WAV files 36,000 Hz mono int16
 - `scripts/package_firmware.sh` and `scripts/flash.sh` — exit 2

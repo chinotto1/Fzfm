@@ -94,10 +94,29 @@ static int step_on(const FzSeq *seq, int pattern, int step)
     return 0;
 }
 
+static void draw_lfo_targets(uint16_t *px, const FzProject *project, uint16_t fg, uint16_t hi)
+{
+    static const int xs[FZ_LFO_DEST_COUNT] = {4, 36, 96, 148, 200};
+    int dest = 0;
+    int i;
+    if (project && project->selected_track >= 0 && project->selected_track < FZ_MAX_TRACKS &&
+        project->track[project->selected_track].alive)
+        dest = project->track[project->selected_track].lfo.dest;
+    if (dest < 0 || dest >= FZ_LFO_DEST_COUNT)
+        dest = 0;
+    for (i = 0; i < FZ_LFO_DEST_COUNT; i++) {
+        const char *name = fz_lfo_target_name(i);
+        int w = (int)strlen(name) * 8 + 4;
+        if (i == dest)
+            rect(px, xs[i] - 2, 150, w, 12, hi);
+        text(px, xs[i], 152, name, fg);
+    }
+}
+
 static void draw_edit(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t hi)
 {
     char header[64];
-    (void)project;
+    char value[16];
     int n, i, y;
     fz_edit_header(session, project, header, sizeof header);
     text(px, 4, 28, header, fg);
@@ -107,10 +126,14 @@ static void draw_edit(uint16_t *px, const FzProject *project, const FzSession *s
         if (i == session->row[session->edit_tab])
             rect(px, 0, y, FZ_LCD_W, 16, hi);
         text(px, 4, y + 4, fz_edit_row_name(session->edit_tab, i), fg);
+        fz_edit_row_value(session, project, i, value, sizeof value);
+        text(px, 128, y + 4, value, fg);
     }
+    if (session->edit_tab == FZ_TAB_MOD)
+        draw_lfo_targets(px, project, fg, hi);
     text(px, 4, 200, "K1 ROW", fg);
     text(px, 80, 200, fz_edit_knob_label(session->edit_tab, session->row[session->edit_tab], 1), fg);
-    text(px, 4, 216, "K3 -", fg);
+    text(px, 4, 216, session->edit_tab == FZ_TAB_MOD ? "K3 TARGET" : "K3 -", fg);
     text(px, 80, 216, "K4 -", fg);
 }
 

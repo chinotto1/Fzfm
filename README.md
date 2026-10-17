@@ -25,7 +25,7 @@ The FM-1 is a JieLi AC79-class board (pi32v2). The engine renders at 36 kHz. USB
 
 https://htmlpreview.github.io/?https://github.com/chinotto1/Fzfm/blob/cursor/host-sampler-slice-83c0/web/sim/index.html
 
-That address serves the committed page. Sound starts after the first click. SELECT turns. OCT+ is the click. The screen and the status line show the current BPM. PLAY moves the playhead on HOME and on SEQ. Tap EDIT until the header says WAVE: K2 chooses a harmonic, K3 sets its level.
+That address serves the committed page. Sound starts after the first click. SELECT turns. OCT+ is the click. The screen and the status line show the current BPM. PLAY moves the playhead on HOME and on SEQ. ENV opens the amplitude and filter envelopes. LFO opens the modulator; K3 selects off, cutoff, level, pitch, or pan. Tap EDIT until the header says WAVE: K2 chooses a harmonic, K3 sets its level.
 
 ## Commands that exist
 

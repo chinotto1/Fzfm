@@ -8,6 +8,16 @@
 #include <stdint.h>
 
 #define FZ_ENGINE_RATE_HZ 36000u
+
+/* Track LFO destinations. OFF leaves the voice path unchanged. */
+enum {
+    FZ_LFO_OFF = 0,
+    FZ_LFO_CUTOFF = 1,
+    FZ_LFO_LEVEL = 2,
+    FZ_LFO_PITCH = 3,
+    FZ_LFO_PAN = 4,
+    FZ_LFO_DEST_COUNT = 5
+};
 #define FZ_PCM_BYTES_PER_FRAME 2u
 #define FZ_MONO_BYTES_PER_SECOND (FZ_ENGINE_RATE_HZ * FZ_PCM_BYTES_PER_FRAME)
 
