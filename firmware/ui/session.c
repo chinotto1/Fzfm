@@ -258,8 +258,17 @@ void fz_session_handle(FzSession *session, const FzAction *action, FzCommand *ou
         emit(out, FZ_CMD_REC_HOLD, 0, action->at_us);
         return;
     }
-    if (action->button == FZ_BTN_SAVE && action->kind == FZ_ACT_TAP)
-        emit(out, FZ_CMD_SAVE, 0, action->at_us);
+    if (action->button == FZ_BTN_SAVE && action->kind == FZ_ACT_TAP) {
+        if (session->screen != FZ_SCR_SAVE) {
+            session->screen = FZ_SCR_SAVE;
+            session->row[0] = 0;
+        } else {
+            session->row[0] = session->row[0] ? 0 : 1;
+        }
+        session->gesture = 0;
+        emit(out, FZ_CMD_PAGE, session->row[0], action->at_us);
+        return;
+    }
 }
 
 void fz_session_did(FzSession *session, int undo_kind)
@@ -466,6 +475,8 @@ void fz_session_knob(FzSession *session, FzProject *project, int knob, int deten
         fz_edit_knob(session, project, knob, detents);
     else if (session->screen == FZ_SCR_ARP)
         fz_arp_turn(session->arp, session->arp_page, knob, detents);
+    else if (session->screen == FZ_SCR_SAVE && knob == 0)
+        session->row[0] = detents > 0 ? 1 : 0;
     else if (session->screen == FZ_SCR_SONG && project && knob == 1 && session->row[0] >= 0 &&
              session->row[0] < FZ_SONG_ROWS) {
         /* Repeats are edited on the sequencer song, not from this knob path. */

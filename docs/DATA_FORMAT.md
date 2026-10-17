@@ -21,7 +21,29 @@ Little-endian. `fz_bundle_read` checks the whole buffer before it changes the de
 | track | uint8 index, uint16 volume, pan, cutoff, resonance, four uint16 sends, uint8 mute, uint8 solo |
 | checksum | uint32 FNV-1a |
 
-The file does not contain pattern events, the song, FX slots, the LFO, envelopes, or loop sections. Calibration is not stored.
+Version 1 does not contain pattern events, the song, FX slots, the LFO, envelopes, or loop sections. Calibration is not stored. `fz_bundle_read` accepts only version 1, so a version 2 file leaves that project untouched.
+
+### Bundle `FZB1` (version 2)
+
+`fz_bundle_write_all` and `fz_bundle_read_all` use the same magic and the same instrument and track block as version 1. The version field is 2. A trailer follows the tracks and precedes the same FNV-1a checksum. `fz_bundle_read_all` checks the whole buffer, including the trailer counts and the checksum, before it changes the destination project or sequence. A bad file leaves both untouched. Playback position is not stored.
+
+The trailer counts follow the version 1 order: alive instruments, then their regions, then alive tracks.
+
+| Field | Type |
+|---|---|
+| cycles | uint16 count, then one uint8 per region (1 = cycle) |
+| recipes | uint16 count, then 48 uint16 levels and one uint16 point count per instrument |
+| modulators | uint16 count, then rate, depth, shape, destination, retrigger, and int16 key track per track |
+| tempo | uint32 sequencer milli-BPM. This replaces the header tempo on load |
+| events | uint16 count, then note, velocity, probability, uint16 pattern, uint16 duration, uint32 tick, int16 micro |
+| song | uint16 row count (at most 16), then eight pattern bytes, eight mute bytes, and uint16 repeats |
+| patterns | uint16 count, then uint8 index, uint32 length in steps, uint8 baked, uint8 unsend mask |
+| current | eight uint8 pattern indexes. 255 means none |
+| swing | uint8, 0..50 |
+| quantize | uint16 grid |
+| checksum | uint32 FNV-1a |
+
+A version 1 file still loads through `fz_bundle_read_all`. The sequence is cleared and its tempo follows the header. Envelopes, loop sections, and FX slots are not in either version. There is no flash transaction.
 
 ### Journal `FZJR`
 

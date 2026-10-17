@@ -10,6 +10,8 @@
  * ENV opens the envelope page. LFO opens the modulator. Neither is in the EDIT cycle.
  * K3 selects the LFO target. K4 selects its shape.
  * ARP opens the arpeggiator. A second tap switches to its second page.
+ * SAVE opens the project menu. A second tap, or K1, picks save or load.
+ * OCT+ confirms that row. There is no flash write.
  * A logical SEL tap/hold still maps to confirm/undo for host tests.
  */
 #ifndef FZ_SESSION_H
@@ -39,7 +41,8 @@ typedef enum {
     FZ_SCR_CONFIRM,
     FZ_SCR_PICK_NOTE,
     FZ_SCR_PICK_RANGE,
-    FZ_SCR_ARP
+    FZ_SCR_ARP,
+    FZ_SCR_SAVE
 } FzScreen;
 
 typedef enum {

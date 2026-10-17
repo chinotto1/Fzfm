@@ -1507,6 +1507,141 @@ static void test_arp(void)
     EXPECT(arp.mode == FZ_ARP_UP);
 }
 
+static void test_bundle_v2(void)
+{
+    static FzProject project;
+    static FzProject restored;
+    static FzSeq seq;
+    static FzSeq back;
+    static int16_t store[4096];
+    static int16_t store_b[4096];
+    static uint8_t bundle[32768];
+    static int16_t pcm[8] = {1000, -1000, 500, -500, 250, -250, 100, -100};
+    FzId inst, track, asset, region;
+    uint32_t len = 0;
+    int regions;
+    uint8_t patterns[FZ_MAX_TRACKS];
+    uint8_t mutes[FZ_MAX_TRACKS];
+    int t;
+
+    fz_project_init(&project, store, 4096);
+    EXPECT(fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    EXPECT(fz_project_add_pcm(&project, pcm, 8, 36000, 1, &asset) == FZ_OK);
+    EXPECT(fz_project_add_region(&project, inst, asset, 60, 0, &region) == FZ_OK);
+    EXPECT(fz_asset(&project, asset)->cycle == 1);
+    fz_instrument(&project, inst)->additive.level[0] = 200;
+    fz_instrument(&project, inst)->additive.points = 1024;
+    project.track[track.index].lfo.rate = 40;
+    project.track[track.index].lfo.depth = 12;
+    project.track[track.index].lfo.shape = FZ_LFO_SIN;
+    project.track[track.index].lfo.dest = FZ_LFO_CUTOFF;
+    project.track[track.index].lfo.retrigger = 1;
+    project.track[track.index].key_track = -7;
+    project.pattern[0].length_ticks = 32;
+    project.pattern[0].baked = 1;
+    project.pattern[0].unsend_mask = 3;
+    project.tempo_bpm = 90.0;
+
+    fz_seq_init(&seq);
+    fz_seq_set_tempo(&seq, 100000);
+    seq.ev[0].used = 1;
+    seq.ev[0].note = 64;
+    seq.ev[0].velocity = 90;
+    seq.ev[0].prob = 80;
+    seq.ev[0].pattern = 0;
+    seq.ev[0].duration = 24;
+    seq.ev[0].tick = 48;
+    seq.ev[0].micro = -3;
+    seq.count = 1;
+    seq.current[0] = 0;
+    seq.swing = 20;
+    seq.quantize_grid = 24;
+    seq.playing = 1;
+    for (t = 0; t < FZ_MAX_TRACKS; t++) {
+        patterns[t] = 0;
+        mutes[t] = 0;
+    }
+    patterns[0] = 2;
+    mutes[1] = 1;
+    EXPECT(fz_seq_song_set(&seq, 0, patterns, mutes, 4) == FZ_OK);
+    EXPECT(fz_bundle_write_all(0, &seq, bundle, sizeof bundle, &len) == FZ_ERR_ARGS);
+    EXPECT(fz_bundle_write_all(&project, &seq, bundle, sizeof bundle, &len) == FZ_OK);
+    EXPECT(len > 32);
+
+    regions = fz_instrument(&project, inst)->region_count;
+    EXPECT(fz_bundle_read(&project, bundle, len) == FZ_ERR_FORMAT);
+    EXPECT(fz_instrument(&project, inst)->region_count == regions);
+    EXPECT(fz_asset(&project, asset)->pcm[0] == 1000);
+    EXPECT(fz_asset(&project, asset)->cycle == 1);
+
+    fz_project_init(&restored, store_b, 4096);
+    fz_seq_init(&back);
+    back.ev[0].note = 7;
+    back.ev[0].used = 1;
+    back.count = 9;
+    EXPECT(fz_bundle_read_all(&restored, &back, bundle, len) == FZ_OK);
+    {
+        FzRegion *reg = fz_region(&restored, restored.instrument[0].region[0]);
+        FzAsset *got = reg ? fz_asset(&restored, reg->asset) : 0;
+        EXPECT(got != 0);
+        EXPECT(got->cycle == 1);
+        EXPECT(got->frames == 8);
+        EXPECT(got->pcm[0] == 1000);
+    }
+    EXPECT(restored.instrument[0].additive.level[0] == 200);
+    EXPECT(restored.instrument[0].additive.points == 1024);
+    EXPECT(restored.track[0].lfo.dest == FZ_LFO_CUTOFF);
+    EXPECT(restored.track[0].lfo.rate == 40);
+    EXPECT(restored.track[0].lfo.shape == FZ_LFO_SIN);
+    EXPECT(restored.track[0].lfo.retrigger == 1);
+    EXPECT(restored.track[0].key_track == -7);
+    EXPECT(restored.pattern[0].length_ticks == 32);
+    EXPECT(restored.pattern[0].baked == 1);
+    EXPECT(restored.pattern[0].unsend_mask == 3);
+    EXPECT(back.count == 1);
+    EXPECT(back.ev[0].used == 1);
+    EXPECT(back.ev[0].note == 64);
+    EXPECT(back.ev[0].velocity == 90);
+    EXPECT(back.ev[0].prob == 80);
+    EXPECT(back.ev[0].tick == 48);
+    EXPECT(back.ev[0].duration == 24);
+    EXPECT(back.ev[0].micro == -3);
+    EXPECT(back.bpm_milli == 100000);
+    EXPECT(restored.tempo_bpm > 99.9 && restored.tempo_bpm < 100.1);
+    EXPECT(back.song_n == 1);
+    EXPECT(back.song[0].pattern[0] == 2);
+    EXPECT(back.song[0].mute[1] == 1);
+    EXPECT(back.song[0].repeats == 4);
+    EXPECT(back.current[0] == 0);
+    EXPECT(back.current[1] == -1);
+    EXPECT(back.swing == 20);
+    EXPECT(back.quantize_grid == 24);
+    EXPECT(back.playing == 0);
+
+    bundle[len - 1] ^= 0xFF;
+    EXPECT(fz_bundle_read_all(&restored, &back, bundle, len) == FZ_ERR_FORMAT);
+    EXPECT(restored.instrument[0].region_count == 1);
+    EXPECT(back.ev[0].note == 64);
+    bundle[len - 1] ^= 0xFF;
+    EXPECT(fz_bundle_read_all(&restored, &back, bundle, len - 1) == FZ_ERR_FORMAT);
+    EXPECT(restored.instrument[0].region_count == 1);
+    EXPECT(back.bpm_milli == 100000);
+
+    project.tempo_bpm = 90.0;
+    EXPECT(fz_bundle_write(&project, bundle, sizeof bundle, &len) == FZ_OK);
+    back.ev[0].used = 1;
+    back.ev[0].note = 3;
+    back.count = 4;
+    back.bpm_milli = 150000;
+    fz_project_init(&restored, store_b, 4096);
+    EXPECT(fz_bundle_read_all(&restored, &back, bundle, len) == FZ_OK);
+    EXPECT(back.ev[0].used == 0);
+    EXPECT(back.count == 0);
+    EXPECT(back.playing == 0);
+    EXPECT(back.bpm_milli == 90000);
+    EXPECT(restored.track[0].volume == project.track[track.index].volume);
+}
+
 void test_product(void)
 {
     test_oct_plus_router();
@@ -1519,5 +1654,6 @@ void test_product(void)
     test_fx_and_bake();
     test_seq();
     test_import_journal_bundle();
+    test_bundle_v2();
     test_capture_command_and_mix();
 }

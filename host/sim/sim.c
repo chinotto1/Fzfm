@@ -6,8 +6,10 @@
 #include "dsp/additive.h"
 #include "dsp/fx.h"
 #include "dsp/mangle.h"
+#include "sampler/capture.h"
 #include "sequence/arp.h"
 #include "sequence/history.h"
+#include "storage/bundle.h"
 #include "ui/edit.h"
 #include "ui/input.h"
 #include "ui/screen.h"
@@ -17,6 +19,7 @@
 
 #define SIM_PCM 72000
 #define SIM_KEYS 27
+#define SIM_FILE (256u * 1024u)
 
 static FzProject project;
 static int16_t pcm[SIM_PCM];
@@ -34,6 +37,10 @@ static uint16_t lcd[FZ_LCD_W * FZ_LCD_H];
 static int16_t mixbuf[1024 * 2];
 static char status[192];
 static char hint[24];
+static uint8_t filebuf[SIM_FILE];
+static uint32_t file_len;
+static uint32_t file_gen;
+static int file_kind;
 static int key_down[SIM_KEYS];
 static int voice[SIM_KEYS];
 static int held_note[SIM_KEYS];
@@ -108,7 +115,14 @@ static void refresh(void)
     if (session.screen == FZ_SCR_ARP)
         snprintf(wave, sizeof wave, "ARP%s %s %s ", session.arp_page ? "2" : "", fz_arp_mode_name(arp.mode),
                  fz_arp_rate_name(arp.rate));
-    else if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_AMP)
+    else if (session.screen == FZ_SCR_SAVE) {
+        int evn = 0;
+        int ei;
+        for (ei = 0; ei < FZ_SEQ_EVENTS; ei++)
+            if (seq.ev[ei].used)
+                evn++;
+        snprintf(wave, sizeof wave, "PROJECT %s E%d ", session.row[0] ? "LOAD" : "SAVE", evn);
+    } else if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_AMP)
         snprintf(wave, sizeof wave, "ENV ");
     else if (session.screen == FZ_SCR_EDIT && session.edit_tab == FZ_TAB_MOD) {
         int dest = 0;
@@ -166,6 +180,7 @@ static void refresh(void)
              : session.screen == FZ_SCR_PICK_NOTE ? "NOTE"
              : session.screen == FZ_SCR_PICK_RANGE ? "RANGE"
              : session.screen == FZ_SCR_ARP      ? "ARP"
+             : session.screen == FZ_SCR_SAVE     ? "SAVE"
                                                  : "?",
              session.octave, bpm, seq.playing ? "PLAY " : "", seq.recording ? "REC " : "", wave, hint, msg);
 }
@@ -275,8 +290,24 @@ static void apply_cmd(const FzCommand *cmd)
         fz_seq_capture_history(&seq, &project, &history, 0, cmd->at_us, 2000000u);
     else
         fz_session_apply(&session, &project, &capture, &seq, cmd);
-    if (cmd->kind == FZ_CMD_SAVE)
-        snprintf(project.last_error, sizeof project.last_error, "NO FLASH");
+    if (cmd->kind == FZ_CMD_CONFIRM && session.screen == FZ_SCR_SAVE) {
+        if (session.row[0] == 0) {
+            uint32_t n = 0;
+            FzStatus st = fz_bundle_write_all(&project, &seq, filebuf, SIM_FILE, &n);
+            if (st == FZ_OK) {
+                file_len = n;
+                file_kind = 1;
+                file_gen++;
+                snprintf(hint, sizeof hint, "SAVED ");
+            } else {
+                snprintf(hint, sizeof hint, "SAVE FULL ");
+            }
+        } else {
+            file_kind = 2;
+            file_gen++;
+            snprintf(hint, sizeof hint, "PICK FILE ");
+        }
+    }
 }
 
 static void drain(void)
@@ -469,6 +500,91 @@ int sim_voices(void)
             n++;
     }
     return n;
+}
+
+static void silence_keys(void)
+{
+    int i;
+    for (i = 0; i < SIM_KEYS; i++) {
+        key_down[i] = 0;
+        voice[i] = -1;
+        held_note[i] = -1;
+    }
+    step_voice = -1;
+    step_note = -1;
+    arp_sounding = -1;
+}
+
+static void rebind_capture(void)
+{
+    FzId inst;
+    FzId track;
+    int i;
+    inst = fz_id_none();
+    track = fz_id_none();
+    if (project.selected_track >= 0 && project.selected_track < FZ_MAX_TRACKS &&
+        project.track[project.selected_track].alive) {
+        track = fz_track_id(&project, project.selected_track);
+        inst = project.track[project.selected_track].instrument;
+    } else {
+        for (i = 0; i < FZ_MAX_TRACKS; i++) {
+            if (!project.track[i].alive)
+                continue;
+            project.selected_track = i;
+            track = fz_track_id(&project, i);
+            inst = project.track[i].instrument;
+            break;
+        }
+    }
+    fz_capture_init(&capture, &project, inst, track, take, 4096);
+}
+
+uint8_t *sim_file_ptr(void)
+{
+    return filebuf;
+}
+
+uint32_t sim_file_cap(void)
+{
+    return SIM_FILE;
+}
+
+uint32_t sim_file_len(void)
+{
+    return file_len;
+}
+
+uint32_t sim_file_gen(void)
+{
+    return file_gen;
+}
+
+int sim_file_kind(void)
+{
+    return file_kind;
+}
+
+int sim_load(uint32_t len)
+{
+    FzStatus st;
+    if (!booted)
+        sim_boot();
+    if (len == 0 || len > SIM_FILE)
+        return FZ_ERR_ARGS;
+    st = fz_bundle_read_all(&project, &seq, filebuf, len);
+    if (st != FZ_OK) {
+        snprintf(hint, sizeof hint, "BAD FILE ");
+        refresh();
+        return (int)st;
+    }
+    file_len = len;
+    fz_engine_init(&engine);
+    fz_arp_init(&arp);
+    silence_keys();
+    rebind_capture();
+    snprintf(hint, sizeof hint, "LOADED ");
+    refresh();
+    return FZ_OK;
 }
 
 int sim_render(int16_t *stereo, int frames)

@@ -39,7 +39,8 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash.</p>
+  <input id="file" type="file" accept=".fzb" hidden>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
     <div class="panel">
@@ -67,6 +68,7 @@ const OCT = [3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5];
 let api = null;
 let audio = null;
 let phase = 0;
+let fileSeen = 0;
 const owners = Array.from({ length: 27 }, () => new Set());
 const order = [];
 const LETTERS = {
@@ -99,6 +101,36 @@ function paint() {
   }
   ctx.putImageData(img, 0, 0);
   document.getElementById("status").textContent = cstr(api.sim_status());
+  takeProjectFile();
+}
+function takeProjectFile() {
+  if (location.search.includes("selftest=1") || !api || !api.sim_file_gen) return;
+  const gen = api.sim_file_gen();
+  if (gen === fileSeen) return;
+  fileSeen = gen;
+  const kind = api.sim_file_kind();
+  if (kind === 1) {
+    const len = api.sim_file_len();
+    const ptr = api.sim_file_ptr();
+    if (len <= 0) return;
+    const bytes = new Uint8Array(mem().slice(ptr, ptr + len));
+    const blob = new Blob([bytes], { type: "application/octet-stream" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "project.fzb";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } else if (kind === 2) {
+    const input = document.getElementById("file");
+    if (input) input.click();
+  }
+}
+function clearLatches() {
+  owners.forEach((set) => set.clear());
+  order.length = 0;
+  document.querySelectorAll(".keys button.on").forEach((el) => el.classList.remove("on"));
 }
 function press(id, down) { api.sim_button(id, down ? 1 : 0, nowUs()); paint(); }
 function turn(id, detents) { api.sim_encoder(id, detents); paint(); }
@@ -255,6 +287,23 @@ async function boot() {
   api = wasm.instance.exports;
   api.sim_boot();
   build();
+  document.getElementById("file").addEventListener("change", () => {
+    const input = document.getElementById("file");
+    const f = input.files && input.files[0];
+    input.value = "";
+    if (!f || !api) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const bytes = new Uint8Array(reader.result);
+      const cap = api.sim_file_cap();
+      if (!bytes.length || bytes.length > cap) return;
+      new Uint8Array(mem()).set(bytes, api.sim_file_ptr());
+      api.sim_load(bytes.length);
+      clearLatches();
+      paint();
+    };
+    reader.readAsArrayBuffer(f);
+  });
   if (!location.search.includes("selftest=1"))
     setInterval(() => { api.sim_poll(nowUs()); paint(); }, 50);
   paint();
@@ -336,6 +385,10 @@ async function selftest() {
   if (api.sim_voices() !== 1) fail("toggle " + api.sim_voices());
   for (let n = 0; n < 8; n++) mouseKey(12 + (n % 8));
   if (api.sim_voices() !== 8) fail("eight " + api.sim_voices());
+  document.querySelector('[data-button="9"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 40 }));
+  document.querySelector('[data-button="9"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 40 }));
+  if (!document.getElementById("status").textContent.includes("PROJECT")) fail("save menu");
+  if (document.getElementById("status").textContent.includes("NO FLASH")) fail("flash");
   document.title = "PASS";
   document.getElementById("result").textContent = "PASS";
 }

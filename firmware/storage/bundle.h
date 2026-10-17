@@ -9,7 +9,14 @@
 
 #include "core/project.h"
 
+struct FzSeq;
+
 FzStatus fz_bundle_write(const FzProject *project, uint8_t *dst, uint32_t cap, uint32_t *out_len);
 FzStatus fz_bundle_read(FzProject *project, const uint8_t *src, uint32_t len);
+/* Version 2. Samples, mixer, additive recipe, and the sequence. A bad file
+ * leaves the destination project and sequence untouched. */
+FzStatus fz_bundle_write_all(const FzProject *project, const struct FzSeq *seq, uint8_t *dst, uint32_t cap,
+                             uint32_t *out_len);
+FzStatus fz_bundle_read_all(FzProject *project, struct FzSeq *seq, const uint8_t *src, uint32_t len);
 
 #endif

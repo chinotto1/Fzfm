@@ -24,11 +24,11 @@ Source: `firmware/src/panel.c` at melodee `84e2d97`, cross-checked against feluc
 | FX | button | Four send slots | Screen `FZ_SCR_FX` cycles `fx_slot`. The rack itself is `fz_fx_set` |
 | SEQ | button | STEP, then PATTERNS, then SONG | Those three screens, in that order |
 | PLAY | button | Start/stop. Screen changes do not stop it | `fz_session_apply` toggles `fz_seq_play` |
-| SAVE | button | Commit when it is safe to write | Emits `FZ_CMD_SAVE`. There is no flash commit |
+| SAVE | button | Open the project menu. Confirm writes the current samples, recipes, mixer, modulators, and sequence | Screen `FZ_SCR_SAVE`. The first row saves and the second loads. A second tap, or K1, switches rows. OCT+ confirms. The browser downloads `project.fzb` or asks for a file. There is no flash commit |
 | ARP | button | Open the arpeggiator. A second tap switches to its second page. HOME leaves the page and the pattern keeps running | Screen `FZ_SCR_ARP`. Page 1: K1 mode (off, up, down, up-down, random, order), K2 rate, K3 octaves 1–4, K4 gate. Page 2: K1 swing, K2 probability, K3 hold, K4 order (note or play). The clock follows the sequencer BPM and runs while the sequencer is stopped. Mode off keeps ordinary notes |
 | SCL | button | No new job in the specification | Id exists. No action |
 | PRESETS | encoder | Outside the sampler contract | Unbound |
-| Note keys | 27 keys, F3–G5 in the board comment | Play, except inside a picker. Eight notes sound together; a ninth replaces the oldest | `fz_performance_note` on HOME, EDIT, MIXER, FX, and ARP. Releasing one key stops that note and leaves the others. When the arpeggiator mode is not off, those keys feed the arpeggio instead of sounding together. On the panel, a mouse click latches a key and a second click releases it. Letter keys play while held. Numeric, naming, pick, confirm, STEP, PATTERNS, SONG, and capture do not record those keys into the history ring |
+| Note keys | 27 keys, F3–G5 in the board comment | Play, except inside a picker. Eight notes sound together; a ninth replaces the oldest | `fz_performance_note` on HOME, EDIT, MIXER, FX, and ARP. Releasing one key stops that note and leaves the others. When the arpeggiator mode is not off, those keys feed the arpeggio instead of sounding together. On the panel, a mouse click latches a key and a second click releases it. Letter keys play while held. Numeric, naming, pick, confirm, STEP, PATTERNS, SONG, SAVE, and capture do not record those keys into the history ring |
 | Master pot | ADC | Separate from the four HOME knobs | Unread |
 
 ## Hold rule

@@ -243,4 +243,37 @@ void test_sim(void)
     EXPECT(sim_voices() == 0);
     peak = sim_render(buf, 64);
     EXPECT(peak == 0);
+
+    sim_boot();
+    sim_button(11, 1, 1000);
+    sim_button(11, 0, 4000);
+    sim_key(0, 1, 8000);
+    sim_key(0, 0, 9000);
+    sim_button(9, 1, 12000);
+    sim_button(9, 0, 16000);
+    EXPECT(strstr(sim_status(), "PROJECT") != 0);
+    EXPECT(strstr(sim_status(), "SAVE") != 0);
+    EXPECT(strstr(sim_status(), "E1") != 0);
+    EXPECT(strstr(sim_status(), "NO FLASH") == 0);
+    sim_encoder(2, 1);
+    EXPECT(strstr(sim_status(), "LOAD") != 0);
+    sim_encoder(2, -1);
+    EXPECT(strstr(sim_status(), "LOAD") == 0);
+    sim_button(1, 1, 20000);
+    sim_button(1, 0, 24000);
+    EXPECT(sim_file_kind() == 1);
+    EXPECT(sim_file_len() > 32);
+    {
+        static uint8_t kept[16384];
+        uint32_t n = sim_file_len();
+        EXPECT(n <= sizeof kept);
+        memcpy(kept, sim_file_ptr(), n);
+        sim_boot();
+        memcpy(sim_file_ptr(), kept, n);
+        EXPECT(sim_load(n) == 0);
+        sim_button(9, 1, 30000);
+        sim_button(9, 0, 34000);
+        EXPECT(strstr(sim_status(), "E1") != 0);
+        EXPECT(strstr(sim_status(), "LOADED") != 0);
+    }
 }

@@ -57,7 +57,7 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 
 | Operation | Here | Scope | Test | Difference |
 |---|---|---|---|---|
-| Additive | 48 levels, zero phase, peak scale, recipe `FZH1` | Instrument recipe. WAVE tab: K2 selects partial, K3 sets level 0–256 and rebuilds the cycle | `test_main`, panel test | Not in the `FZB1` bundle yet |
+| Additive | 48 levels, zero phase, peak scale, recipe `FZH1` | Instrument recipe. WAVE tab: K2 selects partial, K3 sets level 0–256 and rebuilds the cycle | `test_main`, panel test | Version 2 of `FZB1` stores the recipe with the cycle flag |
 | Preset wave | `fz_preset_sine`, `fz_preset_square` (±12000, not band-limited), `fz_edit_preset` | New cycle asset | preset test | WAVE tab row does not call it |
 | Cut cycle | `fz_edit_cut_cycle` copies a span and leaves the source bytes | | cut test | |
 | Draw | `fz_draw_set`, `fz_draw_normalize`, `fz_draw_smooth`. DRAW tab on a cycle instrument plots the cycle. K2 steps the point by 8, K3 adds 1024 to that sample. NORMALIZE and SMOOTH are rows | The playing cycle, up to 1024 points | normalize reaches 28000; the panel status follows the point | A drawn cycle is replaced if a harmonic level is edited afterwards |
@@ -78,6 +78,6 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 | Undo a take | Sequencer snapshot. The instrument generation is unchanged | seq undo | Six snapshots, 96 events each |
 | Four sends live | `fz_performance_render_sends` / `fz_engine_set_fx`. Wet is added once. One reverb maximum | delay of an impulse appears on time; a second reverb is refused | `fz_performance_render` itself does not attach a rack. CPU cost on the AC79 is unmeasured |
 | Journal | In-memory `FZJR` records. The commit word is written last | a torn tail is dropped | Not flash |
-| Bundle | `FZB1` validates before it mutates | bad checksum leaves the destination project | Patterns, song, FX, LFO, envelopes, and loops are not in the file |
+| Bundle | `FZB1` version 1 is unchanged. Version 2 adds the cycle flag, additive recipe, LFO, key track, pattern lengths, song, and events. SAVE opens that menu; OCT+ writes it | a bad checksum leaves the project and the sequence untouched. The panel round-trips one step | FX slots, envelopes, and loop sections are still absent. There is no flash write |
 | EPROM | Profile `FZTEST` only: 4×256 unsigned 8-bit, rate 8000, roots 36–39, `(u-128)<<8` | wrong size or unknown name is `FZ_ERR_FORMAT` | Not a commercial ROM. The page in `web/importer/` repeats this rule locally |
 | Cycle WAV | Point count is the cycle. The file rate is returned and is not a root | 600 points at 44100 | |

@@ -26,7 +26,7 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | R16 | partial | Numeric keypad (6 digits, out-of-range stays on the keypad) and note/range pick |
 | R17 | partial | Hold EDIT plus a category key names `CATEGORY n` |
 | R18 | partial | Mix, cross, truncate, reverse write, cut cycle, eight-stage envelopes, eight loop sections. The voice reader uses section 0 only. Crossfade is `fz_loop_sample` |
-| R19 | partial | 48-harmonic recipe, cycle playback, and the WAVE tab on the panel. The recipe is not in `FZB1` yet |
+| R19 | partial | 48-harmonic recipe, cycle playback, and the WAVE tab on the panel. Version 2 of `FZB1` stores the recipe and the cycle flag |
 | R20 | partial | Sine and naive square presets, cut cycle, and a DRAW page for cycle instruments. Sample instruments keep loop and sample pages |
 | R21 | partial | HOME values are the track. `fz_performance_render` filters from them |
 | R22 | partial | FZ INSPIRED trapezoidal lowpass. Stability is host-tested. Fidelity is unmeasured. See `docs/FILTER_MODEL.md` |
@@ -38,7 +38,7 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | R28 | partial | Caller PCM budget and the ceilings in `project.h`. Those ceilings are host safety limits |
 | R29 | partial | Undo groups, sequencer snapshots, and an in-memory journal whose commit word is last. Not flash |
 | R30 | partial | `scripts/package_firmware.sh` and `scripts/flash.sh` exit 2. See `docs/BOOT_RECOVERY.md` |
-| R31 | partial | `FZB1` round-trips tempo, instrument PCM, region gain/trim/reverse/root, and track mixer fields. Patterns, song, FX, LFO, envelopes, and loops are not in the file |
+| R31 | partial | `FZB1` version 1 round-trips tempo, instrument PCM, region gain/trim/reverse/root, and track mixer fields. Version 2 also stores the cycle flag, additive recipe, LFO, key track, pattern lengths, song, and events. The SAVE menu writes that file in the browser. FX, envelopes, loops, and flash are not in it |
 | R32 | partial | External clock blocks tempo replacement. No MIDI driver and no clock reader |
 | R33 | partial | 240×240 frames for the session screens, and `web/sim` runs that engine in the browser. Not the device panel |
 | R34 | partial | Spec, lockfile, notices, this table, the feature matrix, and ADRs. The JieLi toolchain is not downloaded |
@@ -83,19 +83,19 @@ No target image was compiled. No device was tested. Nothing was flashed.
 | T41 | Host: a bad bundle checksum does not mutate the destination. WAV rejects a short chunk |
 | T42 | Local page `web/importer/index.html` auditions `FZTEST` and a WAV cycle in the browser. No device and no upload |
 | T43 | Host: a journal record without the commit word is dropped and the previous record remains. Not flash |
-| T44 | Host: `FZB1` restores the fields it stores. Calibration is absent on purpose. Patterns and FX are not in the file yet |
+| T44 | Host: `FZB1` version 1 restores the fields it stores. Version 2 restores samples, the cycle flag, the recipe, the LFO, pattern lengths, the song, and events. A bad checksum leaves the destination untouched. Calibration and FX are absent on purpose |
 | T45 | Host ceilings only. No device high-water mark |
 | T46 | Pending device. Flash scripts refuse |
 | T47 | Pending device |
 | T48 | No third-party source is vendored. Lockfile and `THIRD_PARTY_NOTICES.md` list what was read |
-| T49 | `make sim` then `web/sim/index.html?selftest=1`. Octave, BPM 120, a sounding key that stops on release, the EDIT screen, DRAW, ENV outside that cycle, an LFO target and shape, the ARP page starting off, two latched notes sounding together, eight voices, and a non-blank 240×240 frame. Headless Chrome, not the device |
+| T49 | `make sim` then `web/sim/index.html?selftest=1`. Octave, BPM 120, a sounding key that stops on release, the EDIT screen, DRAW, ENV outside that cycle, an LFO target and shape, the ARP page starting off, two latched notes sounding together, eight voices, the SAVE project menu, and a non-blank 240×240 frame. Headless Chrome, not the device |
 
 ## Commands for this revision
 
 Host only.
 
-- `make test` — 10931 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
-- The same suite at `-O2` without sanitizers — 10931 passed, 0 failed
+- `make test` — 11002 passed, 0 failed (gcc, ASan, UBSan, `-Wall -Wextra -Werror`)
+- The same suite at `-O2` without sanitizers — 11002 passed, 0 failed
 - `make sim` — wasm32 panel at `web/sim/sim.wasm`. Needs clang with `wasm-ld`
 - `make render` — A4 zero-crossings 439, +12 semitones 879, both WAV files 36,000 Hz mono int16
 - `scripts/package_firmware.sh` and `scripts/flash.sh` — exit 2

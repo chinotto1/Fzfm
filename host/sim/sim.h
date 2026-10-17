@@ -18,6 +18,14 @@ void sim_key(int index, int down, uint32_t time_us);
 int sim_render(int16_t *stereo, int frames);
 /* Notes whose voices are still sounding. */
 int sim_voices(void);
+/* Project file. sim_file_gen() changes when OCT+ asks to download or pick.
+ * sim_load() reads len bytes already stored at sim_file_ptr(). */
+uint8_t *sim_file_ptr(void);
+uint32_t sim_file_cap(void);
+uint32_t sim_file_len(void);
+uint32_t sim_file_gen(void);
+int sim_file_kind(void);
+int sim_load(uint32_t len);
 int16_t *sim_mix(void);
 uint16_t *sim_lcd(void);
 char *sim_status(void);

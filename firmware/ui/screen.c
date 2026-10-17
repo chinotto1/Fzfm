@@ -75,7 +75,7 @@ static void tempo_text(char *dst, int cap, const FzProject *project, const FzSeq
 static const char *screen_name(FzScreen screen)
 {
     static const char *names[] = {"HOME", "CAPTURE", "EDIT",  "STEP", "PATTERNS", "SONG", "MIXER",
-                                  "FX",   "NUMERIC", "NAME",  "CONFIRM", "NOTE", "RANGE", "ARP"};
+                                  "FX",   "NUMERIC", "NAME",  "CONFIRM", "NOTE", "RANGE", "ARP", "SAVE"};
     if ((int)screen < 0 || (int)screen >= (int)(sizeof names / sizeof names[0]))
         return "";
     return names[screen];
@@ -513,6 +513,34 @@ static void draw_arp(uint16_t *px, const FzSession *session, uint16_t fg, uint16
     }
 }
 
+static int count_events(const FzSeq *seq)
+{
+    int i, n = 0;
+    if (!seq)
+        return 0;
+    for (i = 0; i < FZ_SEQ_EVENTS; i++)
+        if (seq->ev[i].used)
+            n++;
+    return n;
+}
+
+static void draw_save(uint16_t *px, const FzProject *project, const FzSession *session, const FzSeq *seq, uint16_t fg,
+                      uint16_t head)
+{
+    char line[40];
+    int row = session && session->row[0] ? 1 : 0;
+    unsigned samples = project ? project->pcm_used : 0;
+    text(px, 4, 40, "PROJECT", head);
+    snprintf(line, sizeof line, "SAMPLES %u", samples);
+    text(px, 4, 64, line, fg);
+    snprintf(line, sizeof line, "EVENTS %d", count_events(seq));
+    text(px, 4, 82, line, fg);
+    text(px, 4, 110, "SAVE FILE", row == 0 ? head : fg);
+    text(px, 4, 128, "LOAD FILE", row == 1 ? head : fg);
+    text(px, 4, 204, "K1 PICKS", fg);
+    text(px, 120, 204, "OCT+ GO", fg);
+}
+
 static void draw_harmonics(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t on)
 {
     const FzInstrument *inst = 0;
@@ -609,6 +637,8 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
         }
     } else if (screen == FZ_SCR_ARP && session) {
         draw_arp(rgb565, session, fg, on, head);
+    } else if (screen == FZ_SCR_SAVE && session) {
+        draw_save(rgb565, project, session, seq, fg, head);
     } else if (screen == FZ_SCR_FX && session) {
         snprintf(line, sizeof line, "SLOT %d", session->fx_slot + 1);
         text(rgb565, 4, 40, line, fg);

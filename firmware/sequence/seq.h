@@ -45,7 +45,7 @@ typedef struct {
     uint16_t repeats;
 } FzSongRow;
 
-typedef struct {
+typedef struct FzSeq {
     FzSeqEvent ev[FZ_SEQ_EVENTS];
     int count;
     int playing;
