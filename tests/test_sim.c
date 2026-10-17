@@ -16,6 +16,7 @@ void test_sim(void)
     sim_boot();
     EXPECT(strstr(sim_status(), "HOME") != 0);
     EXPECT(strstr(sim_status(), "OCT 0") != 0);
+    EXPECT(strstr(sim_status(), "BPM 120") != 0);
     lcd = sim_lcd();
     EXPECT(lcd[FZ_HOME_LIST_Y * FZ_LCD_W + 10] == FZ_RGB(40, 90, 160));
 

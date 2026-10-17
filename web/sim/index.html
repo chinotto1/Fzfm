@@ -193,6 +193,7 @@ async function selftest() {
   document.querySelector('[data-button="1"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }));
   document.querySelector('[data-button="1"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
   if (!document.getElementById("status").textContent.includes("OCT 1")) fail("octave tap");
+  if (!document.getElementById("status").textContent.includes("BPM 120")) fail("bpm");
   document.querySelector('[data-key="7"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 2 }));
   const peak = api.sim_render(api.sim_mix(), 64);
   document.querySelector('[data-key="7"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 2 }));

@@ -63,7 +63,9 @@ static void refresh(void)
 {
     const char *msg = project.last_error[0] ? project.last_error : "";
     char wave[24];
+    char bpm[32];
     int partial;
+    unsigned whole, tenth;
     fz_screen_draw(lcd, &project, &session, &seq, &capture);
     wave[0] = 0;
     partial = session.partial;
@@ -79,7 +81,13 @@ static void refresh(void)
         int level = inst ? (int)inst->additive.level[partial] : 0;
         snprintf(wave, sizeof wave, "WAVE H%d %d ", partial + 1, level);
     }
-    snprintf(status, sizeof status, "%s | OCT %d | %s%s%s%s%s",
+    whole = seq.bpm_milli / 1000u;
+    tenth = (seq.bpm_milli % 1000u) / 100u;
+    if (tenth)
+        snprintf(bpm, sizeof bpm, "BPM %u.%u | ", whole, tenth);
+    else
+        snprintf(bpm, sizeof bpm, "BPM %u | ", whole);
+    snprintf(status, sizeof status, "%s | OCT %d | %s%s%s%s%s%s",
              session.screen == FZ_SCR_HOME       ? "HOME"
              : session.screen == FZ_SCR_CAPTURE  ? "CAPTURE"
              : session.screen == FZ_SCR_EDIT     ? "EDIT"
@@ -94,7 +102,7 @@ static void refresh(void)
              : session.screen == FZ_SCR_PICK_NOTE ? "NOTE"
              : session.screen == FZ_SCR_PICK_RANGE ? "RANGE"
                                                  : "?",
-             session.octave, seq.playing ? "PLAY " : "", seq.recording ? "REC " : "", wave, hint, msg);
+             session.octave, bpm, seq.playing ? "PLAY " : "", seq.recording ? "REC " : "", wave, hint, msg);
 }
 
 static void note_on(int index)

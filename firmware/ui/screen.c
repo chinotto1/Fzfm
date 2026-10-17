@@ -53,6 +53,24 @@ static void text(uint16_t *px, int x, int y, const char *s, uint16_t color)
     }
 }
 
+static void tempo_text(char *dst, int cap, const FzProject *project, const FzSeq *seq)
+{
+    uint32_t milli = 120000;
+    unsigned whole, tenth;
+    if (!dst || cap <= 0)
+        return;
+    if (seq && seq->bpm_milli >= 10000)
+        milli = seq->bpm_milli;
+    else if (project && project->tempo_bpm > 0.0)
+        milli = (uint32_t)(project->tempo_bpm * 1000.0 + 0.5);
+    whole = milli / 1000u;
+    tenth = (milli % 1000u) / 100u;
+    if (tenth)
+        snprintf(dst, (size_t)cap, "BPM %u.%u", whole, tenth);
+    else
+        snprintf(dst, (size_t)cap, "BPM %u", whole);
+}
+
 static const char *screen_name(FzScreen screen)
 {
     static const char *names[] = {"HOME", "CAPTURE", "EDIT",  "STEP", "PATTERNS", "SONG", "MIXER",
@@ -196,6 +214,8 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
         snprintf(line, sizeof line, "OCT %d", session->octave);
         text(rgb565, 160, 4, line, fg);
     }
+    tempo_text(line, (int)sizeof line, project, seq);
+    text(rgb565, 4, 14, line, fg);
     if (screen == FZ_SCR_HOME) {
         int pattern = seq && seq->current[0] >= 0 ? seq->current[0] : 0;
         draw_playhead_strip(rgb565, playhead_step(project, seq, pattern), 176, head, hi);
