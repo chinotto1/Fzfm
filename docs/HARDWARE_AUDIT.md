@@ -19,6 +19,8 @@ This project does not change voltage, cache, flash geometry, or the second core.
 
 felucca-bsp `boards/fm1/fm1_audio.h` at `7d8f849`: ALNK0 I2S to an external codec, double-buffered DMA, interleaved int32 frames, 24-bit left-justified. The header does not state the sample rate.
 
+Official FM1 Open V13 (`b178ac4`, GPL application sources, not the binary SDK) states the missing rate. `app/board/fm1_audio.h` sets `FM1_AUDIO_HARDWARE_RATE` to 44118 and describes WL82 ALNK0 as 24-bit stereo, 128 frames per interrupt. Pins in that header: PC0 MCLK, PC2 LRCLK, PC1 SCLK, PC3 clock/RX, PC6 DAC. The same comment says the FM-1 has no connected analogue input; RX is the interrupt clock. `sdk/include/fm1_block.h` names the API block 44100 Hz, 128 frames, stereo. Those two constants differ by 18 Hz. This tree keeps the engine at 36 kHz and does not treat either number as a measurement we made. USB playback in their `app/audio_output.c` is signed Q23 mixed by the application. Their header `fm1_audio_io.h` says the buffers are at the board rate.
+
 Melodee `firmware/src/usb_audio_desc.h` at `84e2d97`: one UAC1 duplex function, PCM16 and PCM24, fixed 44.1 kHz (`0x44, 0xAC, 0x00`). Playback is EP2 OUT, explicit feedback is EP3 IN (3 bytes, 10.14), recording is EP2 IN. 16-bit stereo max packet 180 bytes (45 frames). 24-bit stereo max packet 270 bytes. Alternate setting 0 is zero-bandwidth.
 
 Our engine rate is 36 kHz regardless. 44.1 kHz is a transport rate. The host converter implements 44100↔36000 and 48000→36000. 48 kHz is not advertised by the pinned Melodee descriptor and is not a device format yet.
@@ -61,6 +63,8 @@ Melodee `firmware/src/panel.c` at `84e2d97` records a measured label map (not re
 | 5 | KNOB 4 |
 
 SELECT is an encoder. The scanned sources do not show a SEL button and do not show a push on that encoder. The logical SEL gesture exists in the input arbiter and is unbound. See `docs/CONTROL_MAP.md`.
+
+Official V13 agrees. `sdk/include/fm1.h` describes seven encoder fields as signed detents since the last read, and separate ADC fields `knob` and `battery` in the range 0..1023. There is no click field. `app/board/panel.c` reads the master potentiometer as ADC channel 4 on PB6 and a battery divider as channel 3 on PB1. `app/board/fm1_input.h` scans 14 buttons and 27 keys (bits 0..26, F3..G5) plus 7 quadrature encoders. A press is accepted after 2 matching scans and released after 8. Encoder steps are accumulated as detents (`edges / 4`). The GPL scan code has no encoder push. Button index names are still Melodee's measured labels; the official header numbers the buttons 0..13 without printing those labels. Their `app/board/panel.c` returns TRS MIDI as enabled. That is their board hook, not a loopback test here.
 
 ## Flash and RAM
 

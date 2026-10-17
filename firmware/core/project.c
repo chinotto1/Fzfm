@@ -27,6 +27,147 @@ static FzId make_id(uint16_t index, uint16_t generation)
     return id;
 }
 
+int fz_project_undo_begin(FzProject *p)
+{
+    if (!p)
+        return 0;
+    p->undo_serial++;
+    if (p->undo_serial <= 0)
+        p->undo_serial = 1;
+    return p->undo_serial;
+}
+
+void fz_project_undo_mark(FzProject *p, FzId id, int group)
+{
+    FzRegion *region;
+    int i;
+    if (!p)
+        return;
+    region = fz_region(p, id);
+    if (!region || p->undo_count >= 24)
+        return;
+    for (i = 0; i < p->undo_count; i++) {
+        if (p->undo_item[i].valid && p->undo_item[i].group == group &&
+            p->undo_item[i].id.index == id.index && p->undo_item[i].id.generation == id.generation)
+            return;
+    }
+    p->undo_item[p->undo_count].valid = 1;
+    p->undo_item[p->undo_count].group = group;
+    p->undo_item[p->undo_count].is_pattern = 0;
+    p->undo_item[p->undo_count].id = id;
+    p->undo_item[p->undo_count].snap = *region;
+    p->undo_count++;
+    p->redo_count = 0;
+}
+
+void fz_project_undo_mark_pattern(FzProject *p, int pattern_index, int group)
+{
+    int i;
+    if (!p || pattern_index < 0 || pattern_index >= FZ_MAX_PATTERNS)
+        return;
+    if (!p->pattern[pattern_index].alive || p->undo_count >= 24)
+        return;
+    for (i = 0; i < p->undo_count; i++) {
+        if (p->undo_item[i].valid && p->undo_item[i].is_pattern && p->undo_item[i].group == group &&
+            p->undo_item[i].pattern_index == pattern_index)
+            return;
+    }
+    p->undo_item[p->undo_count].valid = 1;
+    p->undo_item[p->undo_count].group = group;
+    p->undo_item[p->undo_count].is_pattern = 1;
+    p->undo_item[p->undo_count].id = fz_id_none();
+    p->undo_item[p->undo_count].pattern_index = pattern_index;
+    p->undo_item[p->undo_count].pattern_snap = p->pattern[pattern_index];
+    p->undo_count++;
+    p->redo_count = 0;
+}
+
+static int group_start(const FzUndoItem *row, int count, int group)
+{
+    int start = count - 1;
+    while (start > 0 && row[start - 1].valid && row[start - 1].group == group)
+        start--;
+    return start;
+}
+
+FzStatus fz_project_undo(FzProject *p)
+{
+    int group, start, i;
+    if (!p || p->undo_count <= 0)
+        return FZ_ERR_STATE;
+    group = p->undo_item[p->undo_count - 1].group;
+    start = group_start(p->undo_item, p->undo_count, group);
+    for (i = start; i < p->undo_count; i++) {
+        FzUndoItem *item = &p->undo_item[i];
+        if (p->redo_count < 24) {
+            FzUndoItem *redo = &p->redo_item[p->redo_count];
+            redo->valid = 1;
+            redo->group = group;
+            redo->is_pattern = item->is_pattern;
+            redo->id = item->id;
+            redo->pattern_index = item->pattern_index;
+            if (item->is_pattern && item->pattern_index >= 0 && item->pattern_index < FZ_MAX_PATTERNS)
+                redo->pattern_snap = p->pattern[item->pattern_index];
+            else if (!item->is_pattern) {
+                FzRegion *region = fz_region(p, item->id);
+                if (region)
+                    redo->snap = *region;
+            }
+            p->redo_count++;
+        }
+        if (item->is_pattern) {
+            if (item->pattern_index >= 0 && item->pattern_index < FZ_MAX_PATTERNS)
+                p->pattern[item->pattern_index] = item->pattern_snap;
+        } else {
+            FzRegion *region = fz_region(p, item->id);
+            if (region)
+                *region = item->snap;
+        }
+        item->valid = 0;
+    }
+    p->undo_count = start;
+    return FZ_OK;
+}
+
+FzStatus fz_project_redo(FzProject *p)
+{
+    int group, start, i;
+    if (!p || p->redo_count <= 0)
+        return FZ_ERR_STATE;
+    group = p->redo_item[p->redo_count - 1].group;
+    start = group_start(p->redo_item, p->redo_count, group);
+    for (i = start; i < p->redo_count; i++) {
+        FzUndoItem *item = &p->redo_item[i];
+        if (p->undo_count < 24) {
+            FzUndoItem *undo = &p->undo_item[p->undo_count];
+            undo->valid = 1;
+            undo->group = group;
+            undo->is_pattern = item->is_pattern;
+            undo->id = item->id;
+            undo->pattern_index = item->pattern_index;
+            if (item->is_pattern && item->pattern_index >= 0 && item->pattern_index < FZ_MAX_PATTERNS)
+                undo->pattern_snap = p->pattern[item->pattern_index];
+            else if (!item->is_pattern) {
+                FzRegion *region = fz_region(p, item->id);
+                if (region)
+                    undo->snap = *region;
+            }
+            p->undo_count++;
+        }
+        if (item->is_pattern) {
+            if (item->pattern_index >= 0 && item->pattern_index < FZ_MAX_PATTERNS)
+                p->pattern[item->pattern_index] = item->pattern_snap;
+        } else {
+            FzRegion *region = fz_region(p, item->id);
+            if (region)
+                *region = item->snap;
+        }
+        item->valid = 0;
+    }
+    p->redo_count = start;
+    return FZ_OK;
+}
+
 uint32_t fz_pcm_checksum(const int16_t *pcm, uint32_t frames)
 {
     uint32_t h = 2166136261u;
@@ -82,6 +223,27 @@ static void next_name(const FzProject *p, FzInstKind kind, char *dst, uint32_t n
         }
     }
     snprintf(dst, n, "%s", prefix);
+}
+
+FzStatus fz_project_rename_category(FzProject *p, FzId inst, const char *category)
+{
+    FzInstrument *it = fz_instrument(p, inst);
+    char candidate[FZ_NAME_LEN];
+    int number;
+    size_t len;
+    if (!it || !category)
+        return FZ_ERR_ARGS;
+    len = strlen(category);
+    if (len == 0 || len > 12)
+        return FZ_ERR_ARGS;
+    for (number = 1; number < 1000; number++) {
+        snprintf(candidate, sizeof candidate, "%s %d", category, number);
+        if (!name_taken(p, candidate) || strcmp(it->name, candidate) == 0) {
+            snprintf(it->name, sizeof it->name, "%s", candidate);
+            return FZ_OK;
+        }
+    }
+    return FZ_ERR_FULL;
 }
 
 FzInstrument *fz_instrument(FzProject *p, FzId id)
@@ -274,7 +436,7 @@ FzStatus fz_project_add_pcm(FzProject *p, const int16_t *pcm, uint32_t frames, u
         set_error(p, "ASSET CAPACITY FULL");
         return FZ_ERR_ASSET_CAPACITY;
     }
-    memcpy(p->pcm_store + p->pcm_used, pcm, frames * sizeof(int16_t));
+    memmove(p->pcm_store + p->pcm_used, pcm, frames * sizeof(int16_t));
     a = &p->asset[slot];
     {
         uint16_t gen = (uint16_t)(a->generation + 1u);
@@ -295,6 +457,17 @@ FzStatus fz_project_add_pcm(FzProject *p, const int16_t *pcm, uint32_t frames, u
     a->tag = p->asset_tags;
     p->pcm_used += frames;
     *out_asset = make_id((uint16_t)slot, a->generation);
+    return FZ_OK;
+}
+
+FzStatus fz_project_overwrite_pcm(FzProject *p, FzId asset, const int16_t *pcm, uint32_t frames)
+{
+    FzAsset *a = fz_asset(p, asset);
+    if (!p || !a || !pcm || frames == 0 || a->frames != frames || !a->pcm)
+        return FZ_ERR_ARGS;
+    memmove((int16_t *)(uintptr_t)a->pcm, pcm, frames * (uint32_t)sizeof(int16_t));
+    a->checksum = fz_pcm_checksum(a->pcm, frames);
+    a->cycle = 1;
     return FZ_OK;
 }
 
@@ -324,6 +497,8 @@ FzStatus fz_project_add_region(FzProject *p, FzId inst, FzId asset, uint8_t root
     r->root = root;
     r->one_shot = it->kind == FZ_INST_MULTI ? 1 : 0;
     r->slot = (uint8_t)slot;
+    r->gain_q15 = 32767;
+    r->send_trim[0] = r->send_trim[1] = r->send_trim[2] = r->send_trim[3] = 127;
     if (it->kind == FZ_INST_MULTI) {
         r->key_low = root;
         r->key_high = root;
@@ -501,4 +676,20 @@ void fz_home_select_track(FzProject *p, int detents)
     if (idx >= n)
         idx = n - 1;
     p->selected_track = map[idx];
+}
+
+const char *fz_lfo_target_name(int dest)
+{
+    static const char *names[FZ_LFO_DEST_COUNT] = {"OFF", "CUTOFF", "LEVEL", "PITCH", "PAN"};
+    if (dest < 0 || dest >= FZ_LFO_DEST_COUNT)
+        return "OFF";
+    return names[dest];
+}
+
+const char *fz_lfo_shape_name(int shape)
+{
+    static const char *names[FZ_LFO_SHAPE_COUNT] = {"TRI", "SQR", "SIN", "SAW", "SH"};
+    if (shape < 0 || shape >= FZ_LFO_SHAPE_COUNT)
+        return "TRI";
+    return names[shape];
 }

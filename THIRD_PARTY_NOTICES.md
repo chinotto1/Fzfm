@@ -2,7 +2,7 @@
 
 The code in this repository is GPL-3.0-only. The license text is `LICENSE`.
 
-No third-party source tree is copied into this repository. `third_party/sources.lock` records the commits that were read while choosing a board layer. Reading them did not import their copyrighted text.
+No third-party source tree is copied into this repository. `third_party/sources.lock` records the commits that were read while choosing a board layer. Reading them did not import their copyrighted text. The arpeggiator page follows the public SLOOP guide. SLOOP source was not copied.
 
 If a later change copies a file from felucca-bsp, that file stays under MPL-2.0 and its SPDX header and copyright line stay with it. MPL-2.0 files from that repository may be combined with this GPL-3.0 program. Copying Felucca, Melodee, SLOOP, or X0X sources would bring GPL-3.0-only obligations for those files; do not drop their copyright lines.
 

@@ -13,6 +13,7 @@
 #include "ui/font.h"
 #include "ui/home.h"
 #include "ui/input.h"
+#include "check.h"
 
 #include <math.h>
 
@@ -21,21 +22,6 @@
 #endif
 #include <stdio.h>
 #include <string.h>
-
-static int g_failed;
-static int g_passed;
-
-static void expect_true(int cond, const char *msg, const char *file, int line)
-{
-    if (cond) {
-        g_passed++;
-        return;
-    }
-    fprintf(stderr, "FAIL %s:%d %s\n", file, line, msg);
-    g_failed++;
-}
-
-#define EXPECT(cond) expect_true((cond), #cond, __FILE__, __LINE__)
 
 static int crossings(const int16_t *mono, int frames)
 {
@@ -451,6 +437,50 @@ static void test_capture(void)
         }
     }
     (void)before;
+
+    fz_project_init(&project, store, 20000);
+    EXPECT(fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    fz_capture_init(&cap, &project, inst, track, take, 4000);
+    fz_capture_set_thresholds(&cap, -36, -42, 2, 2, 1);
+    cap.tail_keep = 0;
+    fz_capture_arm(&cap);
+    EXPECT(fz_capture_slot_limit(&cap) == 8);
+    EXPECT(fz_capture_next_note(&cap) == 36);
+    EXPECT(fz_sample_anchor_note(2, 0) == 60);
+    EXPECT(fz_sample_anchor_note(7, 0) == 120);
+    EXPECT(fz_sample_anchor_note(7, 11) == 127);
+    {
+        char name[12];
+        fz_note_name(name, (int)sizeof name, 60);
+        EXPECT(strcmp(name, "C 4") == 0);
+        fz_note_name(name, (int)sizeof name, 37);
+        EXPECT(strcmp(name, "CS 2") == 0);
+    }
+    for (i = 0; i < 8; i++)
+        hit(&cap, 5000, 5, 2);
+    EXPECT(cap.slot == 8);
+    EXPECT(cap.state == FZ_CAP_FINISHED);
+    EXPECT(fz_instrument(&project, inst)->region_count == 8);
+    for (i = 0; i < 8; i++) {
+        FzRegion *r = fz_region(&project, fz_instrument(&project, inst)->region[i]);
+        EXPECT(r && r->root == (uint8_t)(36 + i * 12));
+    }
+    hit(&cap, 5000, 5, 2);
+    EXPECT(fz_instrument(&project, inst)->region_count == 8);
+
+    fz_project_init(&project, store, 20000);
+    EXPECT(fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    fz_instrument(&project, inst)->anchor_pitch_class = 2;
+    fz_capture_init(&cap, &project, inst, track, take, 4000);
+    fz_capture_set_thresholds(&cap, -36, -42, 2, 2, 1);
+    cap.tail_keep = 0;
+    fz_capture_arm(&cap);
+    EXPECT(fz_capture_next_note(&cap) == 38);
+    hit(&cap, 5000, 5, 2);
+    EXPECT(fz_region(&project, fz_instrument(&project, inst)->region[0])->root == 38);
+    fz_capture_set_root(&cap, 72);
+    hit(&cap, 5000, 5, 2);
+    EXPECT(fz_region(&project, fz_instrument(&project, inst)->region[1])->root == 72);
 }
 
 static void test_input_history_tempo(void)
@@ -491,8 +521,11 @@ static void test_input_history_tempo(void)
     EXPECT(fz_input_pop(&input, &action) == 0);
 
     fz_input_button(&input, FZ_BTN_OCT_UP, 1, 5);
+    EXPECT(fz_input_pop(&input, &action) == 0);
+    fz_input_button(&input, FZ_BTN_OCT_UP, 0, 20);
     EXPECT(fz_input_pop(&input, &action) == 1);
     EXPECT(action.kind == FZ_ACT_TAP && action.button == FZ_BTN_OCT_UP && action.at_us == 5);
+    EXPECT(fz_input_pop(&input, &action) == 0);
 
     fz_history_init(&hist);
     ev.note = 60;
@@ -635,6 +668,46 @@ static void test_home_and_mix(void)
     fz_engine_render(&engine, mix_a, 8);
 }
 
+static int alive_note(const FzEngine *e, int note)
+{
+    int i;
+    for (i = 0; i < FZ_MAX_VOICES; i++) {
+        if (e->voice[i].alive && e->voice[i].note == note)
+            return 1;
+    }
+    return 0;
+}
+
+static void test_polyphony(void)
+{
+    FzEngine engine;
+    int16_t pcm[32];
+    int16_t mix[8];
+    int i, n;
+    for (i = 0; i < 32; i++)
+        pcm[i] = 8000;
+    fz_engine_init(&engine);
+    for (i = 0; i < FZ_POLYPHONY; i++)
+        EXPECT(fz_engine_note_on_pcm(&engine, pcm, 32, FZ_ENGINE_RATE_HZ, 60, 60 + i, 0, 110, 110, 64, 0, 1, 1) >= 0);
+    for (i = 0; i < FZ_POLYPHONY; i++)
+        EXPECT(alive_note(&engine, 60 + i) == 1);
+    EXPECT(fz_engine_note_on_pcm(&engine, pcm, 32, FZ_ENGINE_RATE_HZ, 60, 60 + FZ_POLYPHONY, 0, 110, 110, 64, 0, 1, 1) >= 0);
+    EXPECT(alive_note(&engine, 60) == 0);
+    EXPECT(alive_note(&engine, 61) == 1);
+    EXPECT(alive_note(&engine, 60 + FZ_POLYPHONY) == 1);
+    n = 0;
+    for (i = 0; i < FZ_MAX_VOICES; i++) {
+        if (engine.voice[i].alive)
+            n++;
+    }
+    EXPECT(n == FZ_POLYPHONY);
+    fz_engine_note_off(&engine, 61);
+    EXPECT(alive_note(&engine, 61) == 0);
+    EXPECT(alive_note(&engine, 62) == 1);
+    fz_engine_render(&engine, mix, 4);
+    EXPECT(mix[0] != 0);
+}
+
 static void test_gated_notes(void)
 {
     FzEngine engine;
@@ -655,6 +728,8 @@ static void test_gated_notes(void)
 
 int main(void)
 {
+    extern int g_failed;
+    extern int g_passed;
     test_units();
     test_pitch_ratio();
     test_cycles();
@@ -665,6 +740,9 @@ int main(void)
     test_additive();
     test_home_and_mix();
     test_gated_notes();
+    test_polyphony();
+    test_product();
+    test_sim();
     printf("%d passed, %d failed\n", g_passed, g_failed);
     return g_failed ? 1 : 0;
 }

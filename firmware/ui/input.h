@@ -2,8 +2,9 @@
 /* Copyright (C) 2026 the fm1-fz-sampler contributors */
 /* R11, R13, R17: one arbiter decides tap versus hold. A hold fires once, at
  * the button-down time plus the threshold, and the action timestamp stays at
- * the down edge. SEL is a logical button: the FM-1 sources inspected for M0
- * have no verified SEL key (see docs/CONTROL_MAP.md). */
+ * the down edge. SELECT has no push. OCT+ is the physical tap/hold used for
+ * confirm, cancel, and undo. FZ_BTN_SEL stays as a logical button so a host
+ * test can still name that gesture. */
 #ifndef FZ_INPUT_H
 #define FZ_INPUT_H
 

@@ -20,7 +20,7 @@ The musical engine renders at 36 kHz. USB and the codec stay at a transport rate
 ## What is not decided yet
 
 - The exact felucca-bsp files to compile in, and the JieLi toolchain revision `tools/get_sdk.sh` pins. That waits until a target build machine has the toolchain.
-- Which physical control, if any, is SEL. See `docs/CONTROL_MAP.md`.
+- Which physical control is the confirm/undo click. Decided in `docs/adr/0002-oct-plus-click.md`: OCT+ is that button. SELECT stays a turn-only encoder.
 - Our flash partition layout. Upstream addresses are recorded as upstream facts, not copied into a linker script.
 
 ## Consequences

@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FM-1 sampler panel</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; background: #12141a; color: #e6e4dc;
+    font: 14px/1.4 ui-sans-serif, system-ui, sans-serif;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  p.note { margin: 0 0 12px; color: #a8a69c; }
+  .layout { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  canvas {
+    width: 480px; height: 480px; background: #000;
+    image-rendering: pixelated; border-radius: 8px;
+  }
+  .panel { display: flex; flex-direction: column; gap: 10px; min-width: 280px; flex: 1; }
+  .status { min-height: 2.6em; padding: 8px; background: #1c2030; border-radius: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  button {
+    background: #2a3144; color: inherit; border: 1px solid #46506a;
+    border-radius: 6px; padding: 8px 4px; font: inherit; cursor: pointer;
+  }
+  button:active { background: #3d6eae; }
+  #encoders { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px 4px; }
+  .enc { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .enc span { font-size: 10px; letter-spacing: 0; color: #c9c7bd; white-space: nowrap; }
+  .knob {
+    width: min(100%, 52px); aspect-ratio: 1; border-radius: 50%; position: relative;
+    touch-action: none; cursor: grab; user-select: none;
+    background: radial-gradient(circle at 50% 40%, #7b8aa3 0%, #2e384c 64%, #171c28 100%);
+    border: 1px solid #8b97ad;
+    box-shadow: inset 0 0 0 7px rgba(10, 14, 22, 0.38), inset 0 7px 8px rgba(255,255,255,0.07), 0 2px 3px rgba(0,0,0,.45);
+  }
+  .knob:active { cursor: grabbing; }
+  .knob:focus-visible { outline: 2px solid #f0b428; outline-offset: 3px; }
+  .knob .rotor { position: absolute; inset: 0; }
+  .knob .mark {
+    position: absolute; left: 50%; top: 6px; width: 4px; height: 16px; margin-left: -2px;
+    border-radius: 2px; background: #f0b428;
+  }
+  .keys { display: flex; gap: 3px; margin-top: 12px; touch-action: none; }
+  .keys button { flex: 1; height: 92px; padding: 4px 0; font-size: 11px; touch-action: none; }
+  .keys button.black { background: #10131a; height: 58px; align-self: flex-start; }
+  .keys button.on { background: #3d6eae; }
+  #result { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FM-1 sampler panel</h1>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. Drag or scroll a knob to turn it. SELECT does not click. PRESETS steps sine, saw, square, and triangle on a cycle instrument. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash. Hold REC to sample. The page listens through the microphone. SAMPLE and MULTI are both on the screen, and K1 switches between them before the first slot is kept. A pitched sample shows eight octave squares, and a kit shows sixteen. A gold bar marks the slot that is listening, and a kept slot turns green. K2 sets how loud a sound must be. Tap REC to start or end a take. OCT+ keeps what you recorded and returns to playing. HOME leaves if nothing was recorded.</p>
+  <input id="file" type="file" accept=".fzb" hidden>
+  <div class="layout">
+    <canvas id="lcd" width="240" height="240"></canvas>
+    <div class="panel">
+      <div class="status" id="status">loading</div>
+      <div id="encoders"></div>
+      <div class="grid" id="buttons"></div>
+    </div>
+  </div>
+  <div class="keys" id="keys"></div>
+  <p id="result"></p>
+</main>
+<script>
+const BUTTONS = [
+  ["OCT-", 0], ["OCT+", 1], ["FX", 2], ["SCL", 3],
+  ["ENV", 4], ["LFO", 5], ["EDIT", 6], ["GLO", 7],
+  ["HOME", 8], ["SAVE", 9], ["ARP", 10], ["SEQ", 11],
+  ["PLAY", 12], ["REC", 13]
+];
+const ENCODERS = [
+  ["SELECT", 0], ["ALG", 1], ["PRESETS", 6], ["K1", 2], ["K2", 3], ["K3", 4], ["K4", 5]
+];
+const NAMES = ["F","F#","G","G#","A","A#","B","C","C#","D","D#","E","F","F#","G","G#","A","A#","B","C","C#","D","D#","E","F","F#","G"];
+const OCT = [3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5];
+
+let api = null;
+let audio = null;
+let phase = 0;
+let fileSeen = 0;
+let mic = null;
+let samplingSeen = false;
+const owners = Array.from({ length: 27 }, () => new Set());
+const order = [];
+const LETTERS = {
+  KeyZ: 0, KeyX: 2, KeyC: 4, KeyV: 6,
+  KeyA: 7, KeyW: 8, KeyS: 9, KeyE: 10, KeyD: 11, KeyF: 12, KeyT: 13,
+  KeyG: 14, KeyY: 15, KeyH: 16, KeyU: 17, KeyJ: 18, KeyK: 19,
+  KeyO: 20, KeyL: 21, KeyP: 22, Semicolon: 23
+};
+
+function nowUs() { return (performance.now() * 1000) | 0; }
+function mem() { return api.memory.buffer; }
+function cstr(ptr) {
+  const bytes = new Uint8Array(mem());
+  let s = "";
+  for (let i = ptr; bytes[i]; i++) s += String.fromCharCode(bytes[i]);
+  return s;
+}
+function paint() {
+  const ptr = api.sim_lcd();
+  const pix = new Uint16Array(mem(), ptr, 240 * 240);
+  const ctx = document.getElementById("lcd").getContext("2d");
+  const img = ctx.createImageData(240, 240);
+  for (let i = 0; i < pix.length; i++) {
+    const c = pix[i];
+    const o = i * 4;
+    img.data[o] = ((c >> 11) & 31) << 3;
+    img.data[o + 1] = ((c >> 5) & 63) << 2;
+    img.data[o + 2] = (c & 31) << 3;
+    img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  document.getElementById("status").textContent = cstr(api.sim_status());
+  takeProjectFile();
+  watchSampling();
+}
+function takeProjectFile() {
+  if (location.search.includes("selftest=1") || !api || !api.sim_file_gen) return;
+  const gen = api.sim_file_gen();
+  if (gen === fileSeen) return;
+  fileSeen = gen;
+  const kind = api.sim_file_kind();
+  if (kind === 1) {
+    const len = api.sim_file_len();
+    const ptr = api.sim_file_ptr();
+    if (len <= 0) return;
+    const bytes = new Uint8Array(mem().slice(ptr, ptr + len));
+    const blob = new Blob([bytes], { type: "application/octet-stream" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "project.fzb";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } else if (kind === 2) {
+    const input = document.getElementById("file");
+    if (input) input.click();
+  }
+}
+function watchSampling() {
+  if (!api) return;
+  const on = document.getElementById("status").textContent.includes("SAMPLING");
+  if (on && !samplingSeen) {
+    samplingSeen = true;
+    clearLatches();
+  } else {
+    samplingSeen = on;
+  }
+  if (location.search.includes("selftest=1")) return;
+  if (on) startMic();
+  else stopMic();
+}
+async function startMic() {
+  if (mic || location.search.includes("selftest=1")) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (err) {
+    return;
+  }
+  if (!document.getElementById("status").textContent.includes("SAMPLING")) {
+    stream.getTracks().forEach((track) => track.stop());
+    return;
+  }
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  const node = ctx.createScriptProcessor(1024, 1, 1);
+  const sink = ctx.createGain();
+  sink.gain.value = 0;
+  node.onaudioprocess = (e) => {
+    if (!api || !document.getElementById("status").textContent.includes("SAMPLING")) return;
+    const input = e.inputBuffer.getChannelData(0);
+    const ratio = ctx.sampleRate / 36000;
+    const n = Math.min(api.sim_capture_cap(), Math.floor(input.length / ratio));
+    if (n <= 0) return;
+    const dst = new Int16Array(mem(), api.sim_capture_buf(), n);
+    for (let i = 0; i < n; i++) {
+      const s = input[Math.min(input.length - 1, Math.floor(i * ratio))];
+      const v = s < -1 ? -1 : s > 1 ? 1 : s;
+      dst[i] = v * 32767;
+    }
+    api.sim_capture(n);
+  };
+  src.connect(node);
+  node.connect(sink);
+  sink.connect(ctx.destination);
+  mic = { stream, ctx, node, sink };
+}
+function stopMic() {
+  if (!mic) return;
+  mic.stream.getTracks().forEach((track) => track.stop());
+  try { mic.node.disconnect(); } catch (err) {}
+  try { mic.sink.disconnect(); } catch (err) {}
+  mic.ctx.close();
+  mic = null;
+}
+function clearLatches() {
+  owners.forEach((set) => set.clear());
+  order.length = 0;
+  document.querySelectorAll(".keys button.on").forEach((el) => el.classList.remove("on"));
+}
+function press(id, down) { api.sim_button(id, down ? 1 : 0, nowUs()); paint(); }
+function turn(id, detents) { api.sim_encoder(id, detents); paint(); }
+function bindRotary(knob, id) {
+  const rotor = knob.querySelector(".rotor");
+  const step = 24;
+  let angle = 0;
+  let carry = 0;
+  let wheelCarry = 0;
+  let drag = null;
+  function show() { rotor.style.transform = "rotate(" + angle + "deg)"; }
+  function apply(delta) {
+    if (!delta) return;
+    angle += delta;
+    carry += delta;
+    show();
+    let detents = 0;
+    while (carry >= step) { carry -= step; detents++; }
+    while (carry <= -step) { carry += step; detents--; }
+    if (detents) turn(id, detents);
+  }
+  show();
+  knob.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    try { knob.setPointerCapture(e.pointerId); } catch (err) {}
+    const box = knob.getBoundingClientRect();
+    drag = { x: e.clientX, y: e.clientY, cx: box.left + box.width / 2, cy: box.top + box.height / 2 };
+    ensureAudio();
+  });
+  knob.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const vx = drag.x - drag.cx;
+    const vy = drag.y - drag.cy;
+    const radius = Math.hypot(vx, vy);
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    let deg;
+    if (radius < 8) deg = -dy * 1.5;
+    else deg = ((dx * -vy + dy * vx) / (radius * radius)) * (180 / Math.PI);
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    apply(deg);
+  });
+  const stop = () => { drag = null; };
+  knob.addEventListener("pointerup", stop);
+  knob.addEventListener("pointercancel", stop);
+  knob.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    let dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 16;
+    else if (e.deltaMode === 2) dy *= 48;
+    wheelCarry += dy;
+    ensureAudio();
+    while (wheelCarry <= -80) { wheelCarry += 80; apply(step); }
+    while (wheelCarry >= 80) { wheelCarry -= 80; apply(-step); }
+  }, { passive: false });
+  knob.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowRight") { e.preventDefault(); ensureAudio(); apply(step); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowLeft") { e.preventDefault(); ensureAudio(); apply(-step); }
+  });
+}
+function key(index, down) { api.sim_key(index, down ? 1 : 0, nowUs()); paint(); }
+function paintKey(index) {
+  const el = document.querySelector('[data-key="' + index + '"]');
+  if (el) el.classList.toggle("on", owners[index].size > 0);
+}
+function dropOldest() {
+  while (order.length >= 8) {
+    const index = order.shift();
+    owners[index].clear();
+    key(index, false);
+    paintKey(index);
+  }
+}
+function engage(index, owner, down) {
+  if (!api || index < 0 || index > 26) return;
+  const set = owners[index];
+  const was = set.size > 0;
+  if (down) set.add(owner);
+  else set.delete(owner);
+  const now = set.size > 0;
+  if (now && !was) {
+    dropOldest();
+    order.push(index);
+    key(index, true);
+  } else if (!now && was) {
+    const at = order.indexOf(index);
+    if (at >= 0) order.splice(at, 1);
+    key(index, false);
+  }
+  paintKey(index);
+}
+function canPlayKeys() {
+  const s = document.getElementById("status").textContent;
+  return s.includes("HOME") || s.includes("EDIT") || s.includes("MIXER") || s.includes("FX") || s.includes("ARP");
+}
+
+function bindHold(el, fnDown, fnUp) {
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    ensureAudio();
+    fnDown();
+  });
+  const up = () => fnUp();
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointercancel", up);
+}
+
+function build() {
+  const buttons = document.getElementById("buttons");
+  BUTTONS.forEach(([label, id]) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.dataset.button = String(id);
+    bindHold(b, () => {
+      press(id, true);
+      if (id === 13) startMic();
+    }, () => press(id, false));
+    buttons.appendChild(b);
+  });
+  const enc = document.getElementById("encoders");
+  ENCODERS.forEach(([label, id]) => {
+    const box = document.createElement("div");
+    box.className = "enc";
+    const knob = document.createElement("div");
+    knob.className = "knob";
+    knob.tabIndex = 0;
+    knob.dataset.encoder = String(id);
+    knob.setAttribute("role", "slider");
+    knob.setAttribute("aria-label", label);
+    const rotor = document.createElement("div");
+    rotor.className = "rotor";
+    const mark = document.createElement("div");
+    mark.className = "mark";
+    rotor.appendChild(mark);
+    knob.appendChild(rotor);
+    const name = document.createElement("span");
+    name.textContent = label;
+    box.append(knob, name);
+    bindRotary(knob, id);
+    enc.appendChild(box);
+  });
+  const keys = document.getElementById("keys");
+  NAMES.forEach((name, i) => {
+    const b = document.createElement("button");
+    b.textContent = name + OCT[i];
+    b.className = name.includes("#") ? "black" : "";
+    b.dataset.key = String(i);
+    b.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      ensureAudio();
+      if (e.pointerType === "mouse") {
+        engage(i, "mouse", !owners[i].has("mouse"));
+        return;
+      }
+      try { b.setPointerCapture(e.pointerId); } catch (err) {}
+      engage(i, "p" + e.pointerId, true);
+    });
+    const lift = (e) => {
+      if (e.pointerType === "mouse") return;
+      engage(i, "p" + e.pointerId, false);
+    };
+    b.addEventListener("pointerup", lift);
+    b.addEventListener("pointercancel", lift);
+    keys.appendChild(b);
+  });
+}
+
+window.addEventListener("keydown", (e) => {
+  const index = LETTERS[e.code];
+  if (index === undefined || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!canPlayKeys()) return;
+  e.preventDefault();
+  ensureAudio();
+  engage(index, "k" + e.code, true);
+});
+window.addEventListener("keyup", (e) => {
+  const index = LETTERS[e.code];
+  if (index === undefined) return;
+  engage(index, "k" + e.code, false);
+});
+
+function ensureAudio() {
+  if (location.search.includes("selftest=1")) return;
+  if (audio) {
+    if (audio.ctx.state === "suspended") audio.ctx.resume();
+    return;
+  }
+  const ctx = new AudioContext();
+  const node = ctx.createScriptProcessor(1024, 0, 2);
+  const mixPtr = api.sim_mix();
+  node.onaudioprocess = (e) => {
+    const L = e.outputBuffer.getChannelData(0);
+    const R = e.outputBuffer.getChannelData(1);
+    const ratio = 36000 / ctx.sampleRate;
+    const need = Math.min(1024, Math.ceil(L.length * ratio) + 4);
+    api.sim_render(mixPtr, need);
+    const pcm = new Int16Array(mem(), mixPtr, need * 2);
+    for (let i = 0; i < L.length; i++) {
+      const pos = phase;
+      const i0 = Math.floor(pos);
+      const f = pos - i0;
+      const a = i0 < need ? pcm[i0 * 2] : 0;
+      const b = i0 + 1 < need ? pcm[(i0 + 1) * 2] : a;
+      const c = i0 < need ? pcm[i0 * 2 + 1] : 0;
+      const d = i0 + 1 < need ? pcm[(i0 + 1) * 2 + 1] : c;
+      L[i] = ((a + (b - a) * f) / 32768);
+      R[i] = ((c + (d - c) * f) / 32768);
+      phase += ratio;
+      if (phase >= need - 1) phase = 0;
+    }
+    phase = 0;
+  };
+  node.connect(ctx.destination);
+  audio = { ctx, node };
+}
+
+async function boot() {
+  const got = await fetch("sim.wasm");
+  const wasm = await WebAssembly.instantiate(await got.arrayBuffer(), {});
+  api = wasm.instance.exports;
+  api.sim_boot();
+  build();
+  document.getElementById("file").addEventListener("change", () => {
+    const input = document.getElementById("file");
+    const f = input.files && input.files[0];
+    input.value = "";
+    if (!f || !api) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const bytes = new Uint8Array(reader.result);
+      const cap = api.sim_file_cap();
+      if (!bytes.length || bytes.length > cap) return;
+      new Uint8Array(mem()).set(bytes, api.sim_file_ptr());
+      api.sim_load(bytes.length);
+      clearLatches();
+      paint();
+    };
+    reader.readAsArrayBuffer(f);
+  });
+  if (!location.search.includes("selftest=1"))
+    setInterval(() => { api.sim_poll(nowUs()); paint(); }, 50);
+  paint();
+}
+
+async function selftest() {
+  const fail = (m) => { document.title = "FAIL"; document.getElementById("result").textContent = m; throw new Error(m); };
+  document.querySelector('[data-button="1"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }));
+  document.querySelector('[data-button="1"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+  if (!document.getElementById("status").textContent.includes("OCT 1")) fail("octave tap");
+  if (!document.getElementById("status").textContent.includes("BPM 120")) fail("bpm");
+  document.querySelector('[data-key="7"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 2 }));
+  const peak = api.sim_render(api.sim_mix(), 64);
+  document.querySelector('[data-key="7"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 2 }));
+  if (peak < 100) fail("silent key");
+  if (api.sim_render(api.sim_mix(), 128) > 0) fail("no gate");
+  document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 3 }));
+  document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 3 }));
+  if (!document.getElementById("status").textContent.includes("EDIT")) fail("edit screen");
+  const canvas = document.getElementById("lcd");
+  const img = canvas.getContext("2d").getImageData(0, 0, 240, 240);
+  let bright = 0;
+  for (let i = 0; i < img.data.length; i += 4) {
+    if (img.data[i] + img.data[i + 1] + img.data[i + 2] > 80) bright++;
+  }
+  const raw = new Uint16Array(mem(), api.sim_lcd(), 240 * 240);
+  let rawBright = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    const s = (((c >> 11) & 31) << 3) + (((c >> 5) & 63) << 2) + ((c & 31) << 3);
+    if (s > 80) rawBright++;
+  }
+  if (bright < 30 || rawBright < 30) fail("blank display canvas " + bright + " wasm " + rawBright);
+  document.querySelector('[data-button="11"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 4 }));
+  document.querySelector('[data-button="11"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 4 }));
+  document.querySelector('[data-button="12"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 5 }));
+  document.querySelector('[data-button="12"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 5 }));
+  const lcd = new Uint16Array(mem(), api.sim_lcd(), 240 * 240);
+  const head0 = lcd[64 * 240 + 6];
+  for (let n = 0; n < 20; n++) api.sim_render(api.sim_mix(), 256);
+  paint();
+  if (lcd[64 * 240 + 6] === head0) fail("playhead stuck");
+  for (let n = 0; n < 5; n++) {
+    document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 6 }));
+    document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 6 }));
+  }
+  if (!document.getElementById("status").textContent.includes("WAVE H1")) fail("wave tab");
+  if (document.getElementById("status").textContent.includes("ENV")) fail("env in edit cycle");
+  document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 9 }));
+  document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 9 }));
+  if (!document.getElementById("status").textContent.includes("DRAW")) fail("draw");
+  document.querySelector('[data-button="4"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 7 }));
+  document.querySelector('[data-button="4"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 7 }));
+  if (!document.getElementById("status").textContent.includes("ENV")) fail("env");
+  document.querySelector('[data-button="5"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 8 }));
+  document.querySelector('[data-button="5"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 8 }));
+  if (!document.getElementById("status").textContent.includes("LFO OFF")) fail("lfo");
+  if (document.querySelector("#encoders button")) fail("encoder buttons");
+  if (document.querySelectorAll("#encoders .knob").length !== 7) fail("knobs");
+  function wheelKnob(id, dir) {
+    const knob = document.querySelector('#encoders .knob[data-encoder="' + id + '"]');
+    if (!knob) fail("knob " + id);
+    knob.dispatchEvent(new WheelEvent("wheel", { deltaY: dir > 0 ? -80 : 80, bubbles: true, cancelable: true }));
+  }
+  wheelKnob(6, 1);
+  if (!document.getElementById("status").textContent.includes("PRESET SAW")) fail("presets");
+  wheelKnob(4, 1);
+  if (!document.getElementById("status").textContent.includes("LFO CUTOFF")) fail("lfo target");
+  wheelKnob(5, 1);
+  if (!document.getElementById("status").textContent.includes("SQR")) fail("lfo shape");
+  document.querySelector('[data-button="10"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 10 }));
+  document.querySelector('[data-button="10"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 10 }));
+  if (!document.getElementById("status").textContent.includes("ARP")) fail("arp");
+  if (document.getElementById("status").textContent.includes("UP")) fail("arp starts on");
+  wheelKnob(2, 1);
+  if (!document.getElementById("status").textContent.includes("UP")) fail("arp mode");
+  api.sim_boot();
+  function mouseKey(index) {
+    const el = document.querySelector('[data-key="' + index + '"]');
+    el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 30 + index, pointerType: "mouse", button: 0 }));
+    el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 30 + index, pointerType: "mouse", button: 0 }));
+  }
+  mouseKey(7);
+  if (api.sim_voices() !== 1) fail("voice " + api.sim_voices());
+  mouseKey(11);
+  if (api.sim_voices() !== 2) fail("poly " + api.sim_voices());
+  mouseKey(7);
+  if (api.sim_voices() !== 1) fail("toggle " + api.sim_voices());
+  for (let n = 0; n < 8; n++) mouseKey(12 + (n % 8));
+  if (api.sim_voices() !== 8) fail("eight " + api.sim_voices());
+  document.querySelector('[data-button="9"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 40 }));
+  document.querySelector('[data-button="9"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 40 }));
+  if (!document.getElementById("status").textContent.includes("PROJECT")) fail("save menu");
+  if (document.getElementById("status").textContent.includes("NO FLASH")) fail("flash");
+  const t0 = 9000000;
+  api.sim_button(13, 1, t0);
+  api.sim_poll(t0 + 600000);
+  api.sim_button(13, 0, t0 + 700000);
+  paint();
+  if (!document.getElementById("status").textContent.includes("SAMPLING")) fail("sampling");
+  if (!document.getElementById("status").textContent.includes("CAPTURE")) fail("capture");
+  if (!document.getElementById("status").textContent.includes("SAMPLE")) fail("sample kind");
+  if (!document.getElementById("status").textContent.includes("C 2")) fail("sample root");
+  function slotColor(rows, color) {
+    const lcd = new Uint16Array(mem(), api.sim_lcd(), 240 * 240);
+    let n = 0;
+    for (let i = 0; i < rows * 8; i++) {
+      const x0 = 4 + (i % 8) * 29;
+      const y0 = 56 + Math.floor(i / 8) * 36;
+      for (let y = y0; y < y0 + 28; y++)
+        for (let x = x0; x < x0 + 26; x++)
+          if (lcd[y * 240 + x] === color) n++;
+    }
+    return n;
+  }
+  const empty = 0x2ad4;
+  const bar = 0xf5a5;
+  if (slotColor(1, empty) !== 5720 || slotColor(1, bar) !== 104) fail("sample squares");
+  wheelKnob(2, 1);
+  if (!document.getElementById("status").textContent.includes("MULTI")) fail("multi kind");
+  if (slotColor(2, empty) !== 11544 || slotColor(2, bar) !== 104) fail("kit squares");
+  document.title = "PASS";
+  document.getElementById("result").textContent = "PASS";
+}
+
+boot().then(() => {
+  if (location.search.includes("selftest=1")) return selftest();
+}).catch((err) => {
+  document.title = "FAIL";
+  document.getElementById("result").textContent = String(err);
+});
+</script>
+</body>
+</html>
