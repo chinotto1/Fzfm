@@ -1,0 +1,69 @@
+# Pinned sources inspected for M0 on 2026-10-17.
+# None of these trees are vendored into this repository.
+# Hashes are the commits fetched during that inspection, not floating branches.
+
+# Primary board layer selected for a later adapter. Not copied yet.
+name: felucca-bsp
+url: https://github.com/hugelton/felucca-bsp
+commit: 7d8f8490c2245f334775889cb7107573b12289e0
+date: 2026-10-17T14:53:51Z
+license: MPL-2.0
+role: chip and FM-1 board layer (clock, USB device, flash, audio DMA, input, LCD pins)
+
+# USB host-to-device audio reference. GPL; not copied.
+name: melodee
+url: https://github.com/keremimo/melodee
+commit: 84e2d97e958eef0e6e7e1d2c09d10de7f160cff3
+date: 2026-10-17T12:04:52Z
+license: GPL-3.0
+role: UAC1 44.1 kHz playback into the FM-1, duplex descriptor, panel map
+
+# Application references. Not selected as the firmware base.
+name: Felucca
+url: https://github.com/hugelton/Felucca
+commit: 5738617968a22b5d4c0d3470cfcc95559052f446
+date: 2026-10-16T13:00:53Z
+license: GPL-3.0-only
+role: ST7789 240x240 panel notes, effect code to inspect later
+
+name: sloop-fm1
+url: https://github.com/isod89/sloop-fm1
+commit: 4ec1ac829fd2bdf2c571ea215fb3d62477d01220
+date: 2026-10-16T16:21:24Z
+license: GPL-3.0
+role: free-take behavior reference
+
+name: fm1-x0x
+url: https://github.com/charlesvestal/fm1-x0x
+commit: 2e31c517ded3732c58b845eb0c800fe018004b8d
+date: 2026-10-15T19:34:22Z
+license: GPL-3.0
+role: pattern/song behavior reference; flash-save caution
+
+name: fm1_open
+url: https://github.com/m-vave/fm1_open
+commit: b178ac43c25f010c60a878056fb5331fe693fd62
+date: 2026-10-17T06:53:33Z
+license: NOASSERTION
+role: official SDK/app split. Not used. Terms were not accepted for redistribution.
+
+name: fm1-base
+url: https://github.com/charlesvestal/fm1-base
+commit: 6fa5ae2101589bcc5e3a5e75ceda018f444b3c28
+date: 2026-10-17T14:54:37Z
+license: MPL-2.0
+role: inspected alternative (simulator, USB audio, BLE, Wi-Fi). Not imported.
+
+name: alm014-fizzle-guts
+url: https://github.com/busycircuits/alm014-fizzle-guts
+commit: 1162e411d52ddc40d1bd683bed0b597dd211ea3b
+date: 2023-03-09T11:29:37Z
+license: unset in the GitHub API
+role: MB87186 hardware control reference. Not a software filter. Not copied.
+
+name: AKWF-FREE
+url: https://github.com/KristofferKarlAxelEkstrand/AKWF-FREE
+commit: 8de90bf94376670947369e69de0af6b9fbd19286
+date: 2025-12-04T18:31:36Z
+license: CC0-1.0
+role: cycle-format reference. No waveforms are bundled.
