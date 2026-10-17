@@ -2,6 +2,7 @@
 /* Copyright (C) 2026 the fm1-fz-sampler contributors */
 #include "screen.h"
 
+#include "audio/engine.h"
 #include "font.h"
 #include "ui/edit.h"
 
@@ -94,30 +95,239 @@ static int step_on(const FzSeq *seq, int pattern, int step)
     return 0;
 }
 
-static void draw_lfo_targets(uint16_t *px, const FzProject *project, uint16_t fg, uint16_t hi)
+static int iabs(int v)
 {
-    static const int xs[FZ_LFO_DEST_COUNT] = {4, 36, 96, 148, 200};
-    int dest = 0;
+    return v < 0 ? -v : v;
+}
+
+static void plot(uint16_t *px, int x, int y, uint16_t color)
+{
+    if (x < 0 || y < 0 || x >= FZ_LCD_W || y >= FZ_LCD_H)
+        return;
+    px[y * FZ_LCD_W + x] = color;
+}
+
+static void line(uint16_t *px, int x0, int y0, int x1, int y1, uint16_t color)
+{
+    int dx = x1 - x0;
+    int dy = y1 - y0;
+    int steps = iabs(dx) > iabs(dy) ? iabs(dx) : iabs(dy);
     int i;
-    if (project && project->selected_track >= 0 && project->selected_track < FZ_MAX_TRACKS &&
-        project->track[project->selected_track].alive)
-        dest = project->track[project->selected_track].lfo.dest;
-    if (dest < 0 || dest >= FZ_LFO_DEST_COUNT)
-        dest = 0;
-    for (i = 0; i < FZ_LFO_DEST_COUNT; i++) {
-        const char *name = fz_lfo_target_name(i);
-        int w = (int)strlen(name) * 8 + 4;
-        if (i == dest)
-            rect(px, xs[i] - 2, 150, w, 12, hi);
-        text(px, xs[i], 152, name, fg);
+    if (steps < 1) {
+        plot(px, x0, y0, color);
+        return;
+    }
+    for (i = 0; i <= steps; i++)
+        plot(px, x0 + dx * i / steps, y0 + dy * i / steps, color);
+}
+
+static void frame_rect(uint16_t *px, int x, int y, int w, int h, uint16_t color)
+{
+    if (w < 2 || h < 2)
+        return;
+    rect(px, x, y, w, 1, color);
+    rect(px, x, y + h - 1, w, 1, color);
+    rect(px, x, y, 1, h, color);
+    rect(px, x + w - 1, y, 1, h, color);
+}
+
+static void share4(int w0, int w1, int w2, int w3, int total, int *out)
+{
+    int w[4];
+    int i, sum = 0, used = 0;
+    w[0] = w0 < 1 ? 1 : w0;
+    w[1] = w1 < 1 ? 1 : w1;
+    w[2] = w2 < 1 ? 1 : w2;
+    w[3] = w3 < 1 ? 1 : w3;
+    for (i = 0; i < 4; i++)
+        sum += w[i];
+    for (i = 0; i < 3; i++) {
+        out[i] = total * w[i] / sum;
+        if (out[i] < 3)
+            out[i] = 3;
+        used += out[i];
+    }
+    out[3] = total - used;
+    if (out[3] < 3) {
+        int big = 0;
+        for (i = 0; i < 3; i++) {
+            if (out[i] > out[big])
+                big = i;
+        }
+        out[big] -= 3 - out[3];
+        out[3] = 3;
     }
 }
 
-static void draw_edit(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t hi)
+static int env_weight(int frames)
+{
+    if (frames < 1)
+        frames = 1;
+    if (frames > 8000)
+        frames = 8000;
+    return 12 + frames / 20;
+}
+
+static int env_y(int level, int top, int bot)
+{
+    if (level < 0)
+        level = 0;
+    if (level > 32767)
+        level = 32767;
+    return bot - level * (bot - top) / 32767;
+}
+
+static void draw_adsr(uint16_t *px, int x, int y, int w, int h, int atk, int dec, int sus, int rel, uint16_t color)
+{
+    int seg[4];
+    int top = y + 2;
+    int bot = y + h - 3;
+    int x0, ypk, ysus, xcur;
+    if (w < 16 || bot <= top)
+        return;
+    share4(env_weight(atk), env_weight(dec), 28, env_weight(rel), w - 4, seg);
+    x0 = x + 2;
+    ypk = env_y(32767, top, bot);
+    ysus = env_y(sus, top, bot);
+    xcur = x0;
+    line(px, xcur, bot, xcur + seg[0], ypk, color);
+    xcur += seg[0];
+    line(px, xcur, ypk, xcur + seg[1], ysus, color);
+    xcur += seg[1];
+    line(px, xcur, ysus, xcur + seg[2], ysus, color);
+    xcur += seg[2];
+    line(px, xcur, ysus, xcur + seg[3], bot, color);
+}
+
+static void plot_lfo(uint16_t *px, int x, int y, int w, int h, int shape, uint16_t color)
+{
+    int i, prev = y + h / 2;
+    int mid = y + h / 2;
+    int amp = h / 2 - 1;
+    if (w < 2 || amp < 1)
+        return;
+    for (i = 0; i < w; i++) {
+        uint32_t phase = i == w - 1 ? 0xFFFFFFFFu : (uint32_t)(((uint64_t)i << 32) / (uint32_t)(w - 1));
+        int sample = fz_lfo_bipolar(phase, shape);
+        int yy = mid - sample * amp / 127;
+        if (i)
+            line(px, x + i - 1, prev, x + i, yy, color);
+        else
+            plot(px, x, yy, color);
+        prev = yy;
+    }
+}
+
+static void draw_knobs(uint16_t *px, const FzSession *session, uint16_t fg, int y)
+{
+    text(px, 4, y, "K1 ROW", fg);
+    text(px, 80, y, fz_edit_knob_label(session->edit_tab, session->row[session->edit_tab], 1), fg);
+}
+
+static void draw_row_span(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t hi,
+                          int y0, int pitch, int first, int count)
+{
+    char value[16];
+    int n = fz_edit_row_count(session->edit_tab);
+    int sel = session->row[session->edit_tab];
+    int i;
+    if (sel < 0)
+        sel = 0;
+    if (sel >= n)
+        sel = n - 1;
+    for (i = 0; i < count; i++) {
+        int row = first + i;
+        int y = y0 + i * pitch;
+        if (row < 0 || row >= n)
+            continue;
+        if (row == sel)
+            rect(px, 0, y, FZ_LCD_W, pitch, hi);
+        text(px, 4, y + 2, fz_edit_row_name(session->edit_tab, row), fg);
+        fz_edit_row_value(session, project, row, value, sizeof value);
+        text(px, 128, y + 2, value, fg);
+    }
+}
+
+static void draw_env_page(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t hi,
+                          uint16_t head)
+{
+    char header[64];
+    int atk, dec, sus, rel;
+    int n, sel, start, filter;
+    fz_edit_header(session, project, header, sizeof header);
+    text(px, 4, 28, header, fg);
+    filter = session->row[FZ_TAB_AMP] >= 4;
+    fz_edit_shown_env(session, project, 0, &atk, &dec, &sus, &rel);
+    draw_adsr(px, 8, 42, 108, 64, atk, dec, sus, rel, filter ? fg : head);
+    text(px, 8, 108, "AMP", fg);
+    fz_edit_shown_env(session, project, 1, &atk, &dec, &sus, &rel);
+    draw_adsr(px, 124, 42, 108, 64, atk, dec, sus, rel, filter ? head : fg);
+    text(px, 124, 108, "FLT", fg);
+    frame_rect(px, filter ? 124 : 8, 42, 108, 64, head);
+    n = fz_edit_row_count(FZ_TAB_AMP);
+    sel = session->row[FZ_TAB_AMP];
+    if (sel < 0)
+        sel = 0;
+    if (sel >= n)
+        sel = n - 1;
+    start = sel;
+    if (n > 4 && start > n - 4)
+        start = n - 4;
+    if (start < 0)
+        start = 0;
+    draw_row_span(px, project, session, fg, hi, 122, 16, start, 4);
+    draw_knobs(px, session, fg, 200);
+    text(px, 4, 216, "K3 -", fg);
+    text(px, 80, 216, "K4 -", fg);
+}
+
+static int track_lfo_shape(const FzProject *project)
+{
+    int shape = 0;
+    if (project && project->selected_track >= 0 && project->selected_track < FZ_MAX_TRACKS &&
+        project->track[project->selected_track].alive)
+        shape = project->track[project->selected_track].lfo.shape;
+    if (shape < 0 || shape >= FZ_LFO_SHAPE_COUNT)
+        shape = 0;
+    return shape;
+}
+
+static void draw_lfo_page(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t hi,
+                          uint16_t on, uint16_t head)
+{
+    char header[64];
+    int shape = track_lfo_shape(project);
+    int i;
+    fz_edit_header(session, project, header, sizeof header);
+    text(px, 4, 28, header, fg);
+    plot_lfo(px, 8, 42, 224, 52, shape, head);
+    for (i = 0; i < FZ_LFO_SHAPE_COUNT; i++) {
+        int x = 8 + i * 46;
+        if (i == shape)
+            rect(px, x, 98, 44, 40, hi);
+        text(px, x + 4, 100, fz_lfo_shape_name(i), fg);
+        plot_lfo(px, x + 4, 112, 36, 22, i, i == shape ? head : on);
+    }
+    draw_row_span(px, project, session, fg, hi, 142, 12, 0, fz_edit_row_count(FZ_TAB_MOD));
+    draw_knobs(px, session, fg, 206);
+    text(px, 4, 220, "K3 TARGET", fg);
+    text(px, 120, 220, "K4 SHAPE", fg);
+}
+
+static void draw_edit(uint16_t *px, const FzProject *project, const FzSession *session, uint16_t fg, uint16_t hi,
+                      uint16_t on, uint16_t head)
 {
     char header[64];
     char value[16];
     int n, i, y;
+    if (session->edit_tab == FZ_TAB_AMP) {
+        draw_env_page(px, project, session, fg, hi, head);
+        return;
+    }
+    if (session->edit_tab == FZ_TAB_MOD) {
+        draw_lfo_page(px, project, session, fg, hi, on, head);
+        return;
+    }
     fz_edit_header(session, project, header, sizeof header);
     text(px, 4, 28, header, fg);
     n = fz_edit_row_count(session->edit_tab);
@@ -129,12 +339,8 @@ static void draw_edit(uint16_t *px, const FzProject *project, const FzSession *s
         fz_edit_row_value(session, project, i, value, sizeof value);
         text(px, 128, y + 4, value, fg);
     }
-    if (session->edit_tab == FZ_TAB_MOD)
-        draw_lfo_targets(px, project, fg, hi);
-    text(px, 4, 200, "K1 ROW", fg);
-    text(px, 80, 200, fz_edit_knob_label(session->edit_tab, session->row[session->edit_tab], 1), fg);
-    text(px, 4, 216,
-         session->edit_tab == FZ_TAB_MOD ? "K3 TARGET" : session->edit_tab == FZ_TAB_DRAW ? "K3 LEVEL" : "K3 -", fg);
+    draw_knobs(px, session, fg, 200);
+    text(px, 4, 216, session->edit_tab == FZ_TAB_DRAW ? "K3 LEVEL" : "K3 -", fg);
     text(px, 80, 216, "K4 -", fg);
 }
 
@@ -307,7 +513,7 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
         return;
     }
     if (screen == FZ_SCR_EDIT && session) {
-        draw_edit(rgb565, project, session, fg, hi);
+        draw_edit(rgb565, project, session, fg, hi, on, head);
         if (session->edit_tab == FZ_TAB_WAVE)
             draw_harmonics(rgb565, project, session, fg, on);
         else if (session->edit_tab == FZ_TAB_DRAW)

@@ -7,7 +7,8 @@
  *   Numeric and confirm: tap confirms, hold cancels, and never both.
  *   STEP and PATTERNS: tap turns the page.
  *   EDIT: tap confirms the row; hold undoes.
- * ENV opens the envelope page. LFO opens the modulator. K3 selects its target.
+ * ENV opens the envelope page. LFO opens the modulator. Neither is in the EDIT cycle.
+ * K3 selects the LFO target. K4 selects its shape.
  * A logical SEL tap/hold still maps to confirm/undo for host tests.
  */
 #ifndef FZ_SESSION_H

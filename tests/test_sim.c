@@ -64,12 +64,8 @@ void test_sim(void)
     EXPECT(peak > 100);
 
     sim_boot();
-    sim_button(6, 1, 1000);
-    sim_button(6, 0, 4000);
-    sim_button(6, 1, 5000);
-    sim_button(6, 0, 6000);
-    sim_button(6, 1, 7000);
-    sim_button(6, 0, 8000);
+    sim_button(4, 1, 1000);
+    sim_button(4, 0, 4000);
     EXPECT(strstr(sim_status(), "ENV") != 0);
     sim_button(1, 1, 10000);
     sim_button(1, 0, 14000);
@@ -102,11 +98,12 @@ void test_sim(void)
     EXPECT(sim_tick() < 384);
 
     sim_boot();
-    for (i = 0; i < 7; i++) {
+    for (i = 0; i < 5; i++) {
         sim_button(6, 1, 1000u + (uint32_t)i * 10000u);
         sim_button(6, 0, 4000u + (uint32_t)i * 10000u);
     }
     EXPECT(strstr(sim_status(), "WAVE H1 256") != 0);
+    EXPECT(strstr(sim_status(), "ENV") == 0);
     sim_encoder(3, 1);
     EXPECT(strstr(sim_status(), "WAVE H2 0") != 0);
     sim_encoder(4, 4);
@@ -133,9 +130,45 @@ void test_sim(void)
     sim_button(4, 1, 1000);
     sim_button(4, 0, 4000);
     EXPECT(strstr(sim_status(), "ENV") != 0);
-    sim_button(5, 1, 10000);
-    sim_button(5, 0, 14000);
+    {
+        uint16_t *frame = sim_lcd();
+        uint16_t bg = FZ_RGB(8, 10, 16);
+        int amp = 0, flt = 0, y, x;
+        for (y = 44; y < 100; y++) {
+            for (x = 10; x < 110; x++)
+                if (frame[y * FZ_LCD_W + x] != bg)
+                    amp++;
+            for (x = 126; x < 228; x++)
+                if (frame[y * FZ_LCD_W + x] != bg)
+                    flt++;
+        }
+        EXPECT(amp > 30);
+        EXPECT(flt > 30);
+    }
+    sim_button(6, 1, 8000);
+    sim_button(6, 0, 12000);
+    EXPECT(strstr(sim_status(), "WAVE") != 0);
+    EXPECT(strstr(sim_status(), "ENV") == 0);
+    sim_button(5, 1, 20000);
+    sim_button(5, 0, 24000);
     EXPECT(strstr(sim_status(), "LFO OFF") != 0);
+    EXPECT(strstr(sim_status(), "TRI") != 0);
+    {
+        uint16_t *frame = sim_lcd();
+        uint16_t ink = FZ_RGB(240, 180, 40);
+        int drawn = 0, y, x;
+        for (y = 44; y < 90; y++)
+            for (x = 8; x < 230; x++)
+                if (frame[y * FZ_LCD_W + x] == ink)
+                    drawn++;
+        EXPECT(drawn > 40);
+        drawn = 0;
+        for (y = 112; y < 134; y++)
+            for (x = 8; x < 230; x++)
+                if (frame[y * FZ_LCD_W + x] == ink || frame[y * FZ_LCD_W + x] == FZ_RGB(80, 200, 120))
+                    drawn++;
+        EXPECT(drawn > 40);
+    }
     sim_encoder(4, 1);
     EXPECT(strstr(sim_status(), "LFO CUTOFF") != 0);
     sim_encoder(4, 1);
@@ -144,4 +177,12 @@ void test_sim(void)
     EXPECT(strstr(sim_status(), "LFO PITCH") != 0);
     sim_encoder(4, 1);
     EXPECT(strstr(sim_status(), "LFO PAN") != 0);
+    sim_encoder(5, 1);
+    EXPECT(strstr(sim_status(), "SQR") != 0);
+    sim_encoder(5, 1);
+    EXPECT(strstr(sim_status(), "SIN") != 0);
+    sim_encoder(5, 1);
+    EXPECT(strstr(sim_status(), "SAW") != 0);
+    sim_encoder(5, 1);
+    EXPECT(strstr(sim_status(), "SH") != 0);
 }

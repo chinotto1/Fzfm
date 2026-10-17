@@ -38,7 +38,7 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens amplitude and filter envelopes. LFO opens the modulator; K3 selects its target (off, cutoff, level, pitch, pan). A cycle instrument opens on WAVE. EDIT then reaches DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages.</p>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
     <div class="panel">
@@ -225,11 +225,12 @@ async function selftest() {
   for (let n = 0; n < 20; n++) api.sim_render(api.sim_mix(), 256);
   paint();
   if (lcd[64 * 240 + 6] === head0) fail("playhead stuck");
-  for (let n = 0; n < 7; n++) {
+  for (let n = 0; n < 5; n++) {
     document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 6 }));
     document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 6 }));
   }
   if (!document.getElementById("status").textContent.includes("WAVE H1")) fail("wave tab");
+  if (document.getElementById("status").textContent.includes("ENV")) fail("env in edit cycle");
   document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 9 }));
   document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 9 }));
   if (!document.getElementById("status").textContent.includes("DRAW")) fail("draw");
@@ -241,6 +242,8 @@ async function selftest() {
   if (!document.getElementById("status").textContent.includes("LFO OFF")) fail("lfo");
   document.querySelectorAll("#encoders .enc")[4].querySelectorAll("button")[1].click();
   if (!document.getElementById("status").textContent.includes("LFO CUTOFF")) fail("lfo target");
+  document.querySelectorAll("#encoders .enc")[5].querySelectorAll("button")[1].click();
+  if (!document.getElementById("status").textContent.includes("SQR")) fail("lfo shape");
   document.title = "PASS";
   document.getElementById("result").textContent = "PASS";
 }

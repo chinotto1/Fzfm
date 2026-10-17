@@ -85,13 +85,11 @@ int fz_engine_note_on_pcm(FzEngine *e, const int16_t *pcm, uint32_t frames, uint
     return slot;
 }
 
-static int lfo_bipolar(uint32_t phase, int shape);
-
 static int voice_mod(FzEngine *e, FzVoice *v, int shared_mod)
 {
     if (e->lfo_retrigger) {
         v->lfo_phase += e->lfo_inc;
-        return lfo_bipolar(v->lfo_phase, e->lfo_shape) * e->lfo_depth / 127;
+        return fz_lfo_bipolar(v->lfo_phase, e->lfo_shape) * e->lfo_depth / 127;
     }
     return shared_mod;
 }
@@ -171,9 +169,13 @@ void fz_engine_set_lfo(FzEngine *e, int rate, int depth, int shape, int dest, in
         dest = 0;
     if (dest >= FZ_LFO_DEST_COUNT)
         dest = FZ_LFO_DEST_COUNT - 1;
+    if (shape < 0)
+        shape = 0;
+    if (shape >= FZ_LFO_SHAPE_COUNT)
+        shape = FZ_LFO_SHAPE_COUNT - 1;
     e->lfo_rate = rate;
     e->lfo_depth = depth;
-    e->lfo_shape = shape ? 1 : 0;
+    e->lfo_shape = shape;
     e->lfo_dest = dest;
     e->lfo_retrigger = retrigger ? 1 : 0;
     if (rate <= 0 || depth <= 0 || dest == 0) {
@@ -202,11 +204,37 @@ void fz_engine_voice_send(FzEngine *e, int slot, const uint8_t track_send[4], co
     }
 }
 
-static int lfo_bipolar(uint32_t phase, int shape)
+static const int8_t k_lfo_sin[256] = {
+       0,    3,    6,    9,   12,   16,   19,   22,   25,   28,   31,   34,   37,   40,   43,   46,
+      49,   51,   54,   57,   60,   63,   65,   68,   71,   73,   76,   78,   81,   83,   85,   88,
+      90,   92,   94,   96,   98,  100,  102,  104,  106,  107,  109,  111,  112,  113,  115,  116,
+     117,  118,  120,  121,  122,  122,  123,  124,  125,  125,  126,  126,  126,  127,  127,  127,
+     127,  127,  127,  127,  126,  126,  126,  125,  125,  124,  123,  122,  122,  121,  120,  118,
+     117,  116,  115,  113,  112,  111,  109,  107,  106,  104,  102,  100,   98,   96,   94,   92,
+      90,   88,   85,   83,   81,   78,   76,   73,   71,   68,   65,   63,   60,   57,   54,   51,
+      49,   46,   43,   40,   37,   34,   31,   28,   25,   22,   19,   16,   12,    9,    6,    3,
+       0,   -3,   -6,   -9,  -12,  -16,  -19,  -22,  -25,  -28,  -31,  -34,  -37,  -40,  -43,  -46,
+     -49,  -51,  -54,  -57,  -60,  -63,  -65,  -68,  -71,  -73,  -76,  -78,  -81,  -83,  -85,  -88,
+     -90,  -92,  -94,  -96,  -98, -100, -102, -104, -106, -107, -109, -111, -112, -113, -115, -116,
+    -117, -118, -120, -121, -122, -122, -123, -124, -125, -125, -126, -126, -126, -127, -127, -127,
+    -127, -127, -127, -127, -126, -126, -126, -125, -125, -124, -123, -122, -122, -121, -120, -118,
+    -117, -116, -115, -113, -112, -111, -109, -107, -106, -104, -102, -100,  -98,  -96,  -94,  -92,
+     -90,  -88,  -85,  -83,  -81,  -78,  -76,  -73,  -71,  -68,  -65,  -63,  -60,  -57,  -54,  -51,
+     -49,  -46,  -43,  -40,  -37,  -34,  -31,  -28,  -25,  -22,  -19,  -16,  -12,   -9,   -6,   -3};
+
+int fz_lfo_bipolar(uint32_t phase, int shape)
 {
     uint32_t p = phase >> 16;
-    if (shape == 1)
+    if (shape == FZ_LFO_SQR)
         return p < 32768u ? 127 : -127;
+    if (shape == FZ_LFO_SIN)
+        return k_lfo_sin[phase >> 24];
+    if (shape == FZ_LFO_SAW)
+        return (int)((p * 254u) >> 16) - 127;
+    if (shape == FZ_LFO_SH) {
+        uint32_t h = (phase >> 28) * 2654435761u;
+        return (int)((h >> 24) & 255u) - 127;
+    }
     if (p < 32768u)
         return (int)((p * 254u) / 32768u) - 127;
     return 127 - (int)(((p - 32768u) * 254u) / 32768u);
@@ -308,7 +336,7 @@ void fz_engine_render(FzEngine *e, int16_t *interleaved_lr, uint32_t frames)
         send_acc[0] = send_acc[1] = send_acc[2] = send_acc[3] = 0;
         if (lfo_on && !e->lfo_retrigger) {
             e->lfo_phase += e->lfo_inc;
-            shared_mod = lfo_bipolar(e->lfo_phase, e->lfo_shape) * e->lfo_depth / 127;
+            shared_mod = fz_lfo_bipolar(e->lfo_phase, e->lfo_shape) * e->lfo_depth / 127;
         }
         for (i = 0; i < FZ_MAX_VOICES; i++) {
             FzVoice *v = &e->voice[i];

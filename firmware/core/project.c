@@ -685,3 +685,11 @@ const char *fz_lfo_target_name(int dest)
         return "OFF";
     return names[dest];
 }
+
+const char *fz_lfo_shape_name(int shape)
+{
+    static const char *names[FZ_LFO_SHAPE_COUNT] = {"TRI", "SQR", "SIN", "SAW", "SH"};
+    if (shape < 0 || shape >= FZ_LFO_SHAPE_COUNT)
+        return "TRI";
+    return names[shape];
+}

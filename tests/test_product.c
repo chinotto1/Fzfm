@@ -187,8 +187,14 @@ static void test_oct_plus_router(void)
     tap(&input, &session, FZ_BTN_EDIT, 710, &cmd);
     EXPECT(session.edit_tab == FZ_TAB_DRAW);
     tap(&input, &session, FZ_BTN_EDIT, 720, &cmd);
-    EXPECT(session.edit_tab == FZ_TAB_AMP);
+    EXPECT(session.edit_tab == FZ_TAB_FILTER);
+    session.edit_tab = FZ_TAB_AMP;
+    tap(&input, &session, FZ_BTN_EDIT, 725, &cmd);
+    EXPECT(session.edit_tab == FZ_TAB_WAVE);
     session.cycle_inst = 0;
+    session.edit_tab = FZ_TAB_MOD;
+    tap(&input, &session, FZ_BTN_EDIT, 728, &cmd);
+    EXPECT(session.edit_tab == FZ_TAB_SAMPLE);
     session.edit_tab = FZ_TAB_SAMPLE;
     tap(&input, &session, FZ_BTN_EDIT, 730, &cmd);
     EXPECT(session.edit_tab == FZ_TAB_LOOP);
@@ -348,6 +354,18 @@ static void test_edit_scope_and_undo(void)
     EXPECT(project.track[0].lfo.dest == FZ_LFO_PAN);
     EXPECT(fz_edit_knob(&session, &project, 2, 1) == FZ_OK);
     EXPECT(project.track[0].lfo.dest == FZ_LFO_PAN);
+    session.row[FZ_TAB_MOD] = 3;
+    EXPECT(fz_edit_knob(&session, &project, 1, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.shape == FZ_LFO_SQR);
+    EXPECT(strcmp(fz_lfo_shape_name(project.track[0].lfo.shape), "SQR") == 0);
+    EXPECT(fz_edit_knob(&session, &project, 3, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.shape == FZ_LFO_SIN);
+    EXPECT(fz_edit_knob(&session, &project, 3, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.shape == FZ_LFO_SAW);
+    EXPECT(fz_edit_knob(&session, &project, 3, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.shape == FZ_LFO_SH);
+    EXPECT(fz_edit_knob(&session, &project, 3, 1) == FZ_OK);
+    EXPECT(project.track[0].lfo.shape == FZ_LFO_SH);
     session.edit_tab = FZ_TAB_AMP;
     session.row[FZ_TAB_AMP] = 4;
     EXPECT(fz_edit_knob(&session, &project, 1, 3) == FZ_OK);
@@ -1230,6 +1248,37 @@ static void test_lfo_targets(void)
     fz_engine_set_lfo(&panned, 127, 127, 1, FZ_LFO_PAN, 0);
     fz_engine_render(&panned, c, 4);
     EXPECT(c[1] != 0);
+
+    EXPECT(fz_lfo_bipolar(0, FZ_LFO_TRI) == -127);
+    EXPECT(fz_lfo_bipolar(0x80000000u, FZ_LFO_TRI) == 127);
+    EXPECT(fz_lfo_bipolar(0, FZ_LFO_SQR) == 127);
+    EXPECT(fz_lfo_bipolar(0x80000000u, FZ_LFO_SQR) == -127);
+    EXPECT(fz_lfo_bipolar(0, FZ_LFO_SIN) == 0);
+    EXPECT(fz_lfo_bipolar(0x40000000u, FZ_LFO_SIN) == 127);
+    EXPECT(fz_lfo_bipolar(0xC0000000u, FZ_LFO_SIN) == -127);
+    EXPECT(fz_lfo_bipolar(0, FZ_LFO_SAW) == -127);
+    EXPECT(fz_lfo_bipolar(0, FZ_LFO_SH) != fz_lfo_bipolar(0x10000000u, FZ_LFO_SH));
+    EXPECT(strcmp(fz_lfo_shape_name(FZ_LFO_SIN), "SIN") == 0);
+    EXPECT(strcmp(fz_lfo_shape_name(99), "TRI") == 0);
+    {
+        FzEngine sine, saw;
+        int16_t tone[4] = {8000, 8000, 8000, 8000};
+        int16_t s[8], w[8];
+        int i, differ = 0;
+        fz_engine_init(&sine);
+        fz_engine_init(&saw);
+        EXPECT(fz_engine_note_on_pcm(&sine, tone, 4, FZ_ENGINE_RATE_HZ, 60, 60, 0, 127, 127, 0, 1, 0, 1) >= 0);
+        EXPECT(fz_engine_note_on_pcm(&saw, tone, 4, FZ_ENGINE_RATE_HZ, 60, 60, 0, 127, 127, 0, 1, 0, 1) >= 0);
+        fz_engine_set_lfo(&sine, 127, 127, FZ_LFO_SIN, FZ_LFO_LEVEL, 0);
+        fz_engine_set_lfo(&saw, 127, 127, FZ_LFO_SAW, FZ_LFO_LEVEL, 0);
+        fz_engine_render(&sine, s, 4);
+        fz_engine_render(&saw, w, 4);
+        for (i = 0; i < 8; i += 2) {
+            if (s[i] != w[i])
+                differ = 1;
+        }
+        EXPECT(differ == 1);
+    }
 }
 
 static void test_cycle_draw(void)
@@ -1260,9 +1309,17 @@ static void test_cycle_draw(void)
     EXPECT(got->pcm[0] == 28000);
     session.cycle_inst = 0;
     EXPECT(fz_edit_next_tab(0, FZ_TAB_SAMPLE) == FZ_TAB_LOOP);
+    EXPECT(fz_edit_next_tab(0, FZ_TAB_MIX) == FZ_TAB_FILTER);
+    EXPECT(fz_edit_next_tab(0, FZ_TAB_FILTER) == FZ_TAB_WAVE);
     EXPECT(fz_edit_next_tab(1, FZ_TAB_WAVE) == FZ_TAB_DRAW);
+    EXPECT(fz_edit_next_tab(1, FZ_TAB_DRAW) == FZ_TAB_FILTER);
+    EXPECT(fz_edit_next_tab(1, FZ_TAB_AMP) == FZ_TAB_WAVE);
     EXPECT(fz_edit_tab_on_cycle(FZ_TAB_LOOP) == 0);
+    EXPECT(fz_edit_tab_on_cycle(FZ_TAB_AMP) == 0);
+    EXPECT(fz_edit_tab_on_cycle(FZ_TAB_MOD) == 0);
     EXPECT(fz_edit_tab_on_cycle(FZ_TAB_DRAW) == 1);
+    EXPECT(fz_edit_row_count(FZ_TAB_FILTER) == 2);
+    EXPECT(strcmp(fz_edit_row_name(FZ_TAB_AMP, 8), "FLT AMT") == 0);
 }
 
 void test_product(void)

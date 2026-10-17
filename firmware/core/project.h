@@ -93,7 +93,7 @@ typedef struct {
 typedef struct {
     uint8_t rate;      /* 0..127, about 0.1 Hz .. 20 Hz */
     uint8_t depth;     /* 0 = off */
-    uint8_t shape;     /* 0 triangle, 1 square */
+    uint8_t shape;     /* FZ_LFO_TRI .. FZ_LFO_SH */
     uint8_t dest;      /* FZ_LFO_OFF .. FZ_LFO_PAN */
     uint8_t retrigger; /* 1 = each note starts at phase 0 */
 } FzLfo;
@@ -194,5 +194,6 @@ FzStatus fz_project_redo(FzProject *p);
 /* Next free "CATEGORY n". The instrument's existing name is not a collision. */
 FzStatus fz_project_rename_category(FzProject *p, FzId inst, const char *category);
 const char *fz_lfo_target_name(int dest);
+const char *fz_lfo_shape_name(int shape);
 
 #endif

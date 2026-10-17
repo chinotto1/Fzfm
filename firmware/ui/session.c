@@ -175,10 +175,14 @@ void fz_session_handle(FzSession *session, const FzAction *action, FzCommand *ou
         return;
     }
     if (action->button == FZ_BTN_EDIT && action->kind == FZ_ACT_TAP) {
+        int dedicated = session->edit_tab == FZ_TAB_AMP || session->edit_tab == FZ_TAB_MOD;
         if (session->screen != FZ_SCR_EDIT) {
             session->screen = FZ_SCR_EDIT;
-            if (session->cycle_inst && !fz_edit_tab_on_cycle(session->edit_tab))
-                session->edit_tab = FZ_TAB_WAVE;
+            if (dedicated || (session->cycle_inst && !fz_edit_tab_on_cycle(session->edit_tab)))
+                session->edit_tab = session->cycle_inst ? FZ_TAB_WAVE : FZ_TAB_SAMPLE;
+        } else if (dedicated) {
+            session->edit_tab = session->cycle_inst ? FZ_TAB_WAVE : FZ_TAB_SAMPLE;
+            session->gesture = 0;
         } else {
             session->edit_tab = fz_edit_next_tab(session->cycle_inst, session->edit_tab);
             session->gesture = 0;

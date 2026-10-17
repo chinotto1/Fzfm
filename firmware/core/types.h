@@ -18,6 +18,16 @@ enum {
     FZ_LFO_PAN = 4,
     FZ_LFO_DEST_COUNT = 5
 };
+
+/* Track LFO shapes. Triangle is 0 and square is 1, matching older projects. */
+enum {
+    FZ_LFO_TRI = 0,
+    FZ_LFO_SQR = 1,
+    FZ_LFO_SIN = 2,
+    FZ_LFO_SAW = 3,
+    FZ_LFO_SH = 4,
+    FZ_LFO_SHAPE_COUNT = 5
+};
 #define FZ_PCM_BYTES_PER_FRAME 2u
 #define FZ_MONO_BYTES_PER_SECOND (FZ_ENGINE_RATE_HZ * FZ_PCM_BYTES_PER_FRAME)
 

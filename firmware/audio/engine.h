@@ -84,8 +84,11 @@ void fz_engine_render(FzEngine *e, int16_t *interleaved_lr, uint32_t frames);
 void fz_engine_set_filter(FzEngine *e, int enabled, int cutoff, int resonance, int drive);
 /* Depth 0 or FZ_LFO_OFF leaves the sample path unchanged.
  * FZ_LFO_PITCH bends the reader step by about two semitones at full depth.
- * FZ_LFO_PAN adds that bipolar depth to the voice pan. */
+ * FZ_LFO_PAN adds that bipolar depth to the voice pan.
+ * Shape is FZ_LFO_TRI, FZ_LFO_SQR, FZ_LFO_SIN, FZ_LFO_SAW, or FZ_LFO_SH. */
 void fz_engine_set_lfo(FzEngine *e, int rate, int depth, int shape, int dest, int retrigger);
+/* One cycle of the LFO, -127..127. Phase 0 is the start of the shape. */
+int fz_lfo_bipolar(uint32_t phase, int shape);
 /* A null rack leaves the mix unchanged. Sends are post-voice and mono into the rack. */
 void fz_engine_set_fx(FzEngine *e, struct FzFxRack *fx);
 void fz_engine_voice_send(FzEngine *e, int slot, const uint8_t track_send[4], const uint8_t trim[4]);

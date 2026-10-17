@@ -68,7 +68,7 @@ static const FzRowDef k_amp[] = {{"ATTACK", 1, F_ATTACK},
                                  {"FLT SUS", 1, F_FSUSTAIN},
                                  {"FLT REL", 1, F_FRELEASE},
                                  {"FLT AMT", 1, F_ENVAMT}};
-static const FzRowDef k_filter[] = {{"CUT OFFSET", 0, F_CUT}, {"RES OFFSET", 0, F_RES}, {"ENV AMOUNT", 1, F_ENVAMT}};
+static const FzRowDef k_filter[] = {{"CUT OFFSET", 0, F_CUT}, {"RES OFFSET", 0, F_RES}};
 static const FzRowDef k_mod[] = {{"RATE", 1, F_LRATE}, {"DEPTH", 1, F_LDEPTH}, {"TARGET", 0, F_LDEST},
                                  {"SHAPE", 0, F_LSHAPE}, {"RETRIG", 0, F_LRETRIG}};
 static const FzRowDef k_map[] = {{"ROOT", 1, F_ROOT}, {"SEND", 0, F_SEND}, {"GAIN", 1, F_GAIN}, {"CHOKE", 0, F_CHOKE}};
@@ -77,9 +77,9 @@ static const FzRowDef k_wave[] = {{"HARMONIC", 0, F_HARM}};
 static const FzRowDef k_render[] = {{"BAKE", 0, F_NONE}};
 static const FzRowDef k_draw[] = {{"POINT", 0, F_DRAW}, {"NORMALIZE", 0, F_NORM}, {"SMOOTH", 0, F_SMOOTH}};
 
-static const int k_sample_tabs[] = {FZ_TAB_SAMPLE, FZ_TAB_LOOP, FZ_TAB_MIX, FZ_TAB_AMP, FZ_TAB_FILTER,
-                                    FZ_TAB_MOD,    FZ_TAB_WAVE, FZ_TAB_MAP, FZ_TAB_RENDER};
-static const int k_cycle_tabs[] = {FZ_TAB_WAVE, FZ_TAB_DRAW, FZ_TAB_AMP, FZ_TAB_FILTER, FZ_TAB_MOD, FZ_TAB_MAP};
+static const int k_sample_tabs[] = {FZ_TAB_SAMPLE, FZ_TAB_LOOP, FZ_TAB_MIX, FZ_TAB_FILTER,
+                                    FZ_TAB_WAVE,   FZ_TAB_MAP,  FZ_TAB_RENDER};
+static const int k_cycle_tabs[] = {FZ_TAB_WAVE, FZ_TAB_DRAW, FZ_TAB_FILTER, FZ_TAB_MAP};
 
 static const FzRowDef *rows_for(int tab, int *count)
 {
@@ -94,7 +94,7 @@ static const FzRowDef *rows_for(int tab, int *count)
         *count = 9;
         return k_amp;
     case FZ_TAB_FILTER:
-        *count = 3;
+        *count = 2;
         return k_filter;
     case FZ_TAB_MOD:
         *count = 5;
@@ -219,6 +219,23 @@ static int shown_sustain(const FzEnvelope *env)
     return 20000;
 }
 
+void fz_edit_shown_env(const FzSession *session, const FzProject *project, int filter, int *attack, int *decay,
+                       int *sustain, int *release)
+{
+    const FzRegion *region = shown_region(session, project);
+    const FzEnvelope *env = 0;
+    if (region)
+        env = filter ? &region->filt : &region->amp;
+    if (attack)
+        *attack = shown_frames(env, 0, 10);
+    if (decay)
+        *decay = shown_frames(env, 1, 200);
+    if (sustain)
+        *sustain = shown_sustain(env);
+    if (release)
+        *release = shown_frames(env, 3, 400);
+}
+
 static int draw_sample(const FzSession *session, const FzProject *project)
 {
     const FzRegion *region = shown_region(session, project);
@@ -293,7 +310,7 @@ void fz_edit_row_value(const FzSession *session, const FzProject *project, int r
         snprintf(dst, cap, "%s", fz_lfo_target_name(track ? (int)track->lfo.dest : 0));
         break;
     case F_LSHAPE:
-        snprintf(dst, cap, "%s", track && track->lfo.shape ? "SQR" : "TRI");
+        snprintf(dst, cap, "%s", fz_lfo_shape_name(track ? (int)track->lfo.shape : 0));
         break;
     case F_LRETRIG:
         snprintf(dst, cap, "%s", track && track->lfo.retrigger ? "ON" : "OFF");
@@ -597,7 +614,8 @@ static FzStatus edit_lfo(FzSession *session, FzProject *project, int detents, in
     else if (field == F_LDEST)
         lfo->dest = (uint8_t)clamp_i((int)lfo->dest + (detents > 0 ? 1 : (detents < 0 ? -1 : 0)), 0, FZ_LFO_DEST_COUNT - 1);
     else if (field == F_LSHAPE)
-        lfo->shape = (uint8_t)clamp_i((int)lfo->shape + (detents > 0 ? 1 : (detents < 0 ? -1 : 0)), 0, 1);
+        lfo->shape = (uint8_t)clamp_i((int)lfo->shape + (detents > 0 ? 1 : (detents < 0 ? -1 : 0)), 0,
+                                      FZ_LFO_SHAPE_COUNT - 1);
     else if (field == F_LRETRIG)
         lfo->retrigger = detents > 0 ? 1 : (detents < 0 ? 0 : lfo->retrigger);
     return FZ_OK;
@@ -614,6 +632,20 @@ static FzStatus edit_lfo_target(FzProject *project, int detents)
         return FZ_ERR_BAD_ID;
     dest = (int)track->lfo.dest + (detents > 0 ? 1 : (detents < 0 ? -1 : 0));
     track->lfo.dest = (uint8_t)clamp_i(dest, 0, FZ_LFO_DEST_COUNT - 1);
+    return FZ_OK;
+}
+
+static FzStatus edit_lfo_shape(FzProject *project, int detents)
+{
+    FzTrack *track;
+    int shape;
+    if (!project || project->selected_track < 0 || project->selected_track >= FZ_MAX_TRACKS)
+        return FZ_ERR_BAD_ID;
+    track = &project->track[project->selected_track];
+    if (!track->alive)
+        return FZ_ERR_BAD_ID;
+    shape = (int)track->lfo.shape + (detents > 0 ? 1 : (detents < 0 ? -1 : 0));
+    track->lfo.shape = (uint8_t)clamp_i(shape, 0, FZ_LFO_SHAPE_COUNT - 1);
     return FZ_OK;
 }
 
@@ -723,6 +755,8 @@ FzStatus fz_edit_knob(FzSession *session, FzProject *project, int knob, int dete
         session->row[session->edit_tab] = row;
         return FZ_OK;
     }
+    if (session->edit_tab == FZ_TAB_MOD && knob == 3)
+        return edit_lfo_shape(project, detents);
     if (knob < 1 || knob > 2 || detents == 0)
         return FZ_OK;
     if (session->edit_tab == FZ_TAB_MOD && knob == 2)

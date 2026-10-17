@@ -39,7 +39,7 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 | Operation | Here | Scope | Test | Difference |
 |---|---|---|---|---|
 | Eight stages | `FzEnvelope` levels and frame counts, sustain index | Per region | 8-stage run reaches the last level then rests at 0 | |
-| ADSR macro | `fz_env_adsr` fills four stages. AMP rows edit attack, decay, sustain level, release | ALL edits each region | edit scope | Sustain is the envelope level, separate from region gain |
+| ADSR macro | `fz_env_adsr` fills four stages. The ENV button opens AMP rows for attack, decay, sustain level, release, then the filter envelope and its amount. The page draws both envelopes. AMP is not in the EDIT cycle | ALL edits each region | edit scope | Sustain is the envelope level, separate from region gain |
 | Keyboard scaling | `fz_env_scale_time` shortens non-sustain stages above the center note | | scale test | Level scaling and velocity-to-envelope are not separate curves |
 | Note-off | A voice with an envelope releases. A gated voice without one stops | | filter/playback | |
 
@@ -48,9 +48,9 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 | Operation | Here | Scope | Test | Difference |
 |---|---|---|---|---|
 | FZ INSPIRED lowpass | See `docs/FILTER_MODEL.md` | Track cutoff/resonance plus region offsets | stability sweep; open cutoff is louder than nearly closed on a 2 kHz sine | Fidelity to an FZ-1 is unmeasured |
-| Envelope amount | `env_amount` −127..127 added inside the cutoff sum | Region | filter row | |
+| Envelope amount | `env_amount` −127..127 added inside the cutoff sum | Region | ENV row FLT AMT. The FILTER tab keeps cutoff and resonance offsets only | |
 | Key track | `key_track` steps per octave from the root | Track | applied in `fz_performance_note` | |
-| LFO | Track `FzLfo`: rate about 0.1–20 Hz, depth, triangle or square, target off / cutoff / level / pitch / pan, retrigger. The LFO button opens this page. K3 selects the target. Full pitch depth is about two semitones | Selected track. Depth 0 leaves the mix alone | MOD rows; level, pitch, and pan targets each change a note | No tempo sync. LFO edits are not in the region undo stack |
+| LFO | Track `FzLfo`: rate about 0.1–20 Hz, depth, shapes triangle / square / sine / saw / sample-and-hold, target off / cutoff / level / pitch / pan, retrigger. The LFO button opens this page and draws every shape. K3 selects the target. K4 selects the shape. Full pitch depth is about two semitones. The page is not in the EDIT cycle | Selected track. Depth 0 leaves the mix alone | MOD rows; level, pitch, and pan targets each change a note; sine and saw level modulation differ | No tempo sync. LFO edits are not in the region undo stack |
 | Drive | Optional shaper after the lowpass when `fz_engine_set_filter` drive > 0 | Engine | performance render passes 0 | Not an FZ-1 measurement |
 
 ## WAVE / MAP / RENDER

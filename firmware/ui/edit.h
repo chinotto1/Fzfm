@@ -32,6 +32,9 @@ void fz_edit_row_value(const FzSession *session, const FzProject *project, int r
 int fz_edit_row_numeric(int tab, int row);
 const char *fz_edit_knob_label(int tab, int row, int knob);
 void fz_edit_header(const FzSession *session, const FzProject *project, char *dst, uint32_t cap);
+/* Attack, decay, sustain level, and release as the ENV page shows them. */
+void fz_edit_shown_env(const FzSession *session, const FzProject *project, int filter, int *attack, int *decay,
+                       int *sustain, int *release);
 
 FzStatus fz_edit_knob(FzSession *session, FzProject *project, int knob, int detents);
 FzStatus fz_edit_apply_number(FzSession *session, FzProject *project, int value);
