@@ -16,7 +16,7 @@ Source: `firmware/src/panel.c` at melodee `84e2d97`, cross-checked against feluc
 | EDIT tap / hold | button | Tap enters the editor and then cycles tabs. Hold opens naming and must not also change tabs | Host router does this. Tabs are SAMPLE, LOOP, MIX, AMP, FILTER, MOD, WAVE, MAP, RENDER |
 | OCT+ tap / hold | button | Context confirm, undo, octave, or page. See ADR 0002 | `fz_session_handle` |
 | SELECT | encoder | Turn only. No push | Unbound as a button. Logical `FZ_BTN_SEL` is a test input, not this encoder |
-| REC tap / hold | button | Tap arms or closes a take, or toggles overdub while playing. Hold is retrospective capture ending at the down edge | Commands `FZ_CMD_REC_TAP` and `FZ_CMD_REC_HOLD`. `fz_seq_rec_tap` and `fz_seq_capture_history` implement the musical side |
+| REC tap / hold | button | Tap arms or closes a take, or toggles overdub while playing. Hold is retrospective capture ending at the down edge | `fz_session_apply` calls `fz_seq_rec_tap`. A hold is `fz_seq_capture_history` in the panel, which owns the history ring |
 | OCT- | button | Octave down, or the previous pattern page | Host router |
 | GLO | button | Mixer. Later taps pick send 1–4 | Screen `FZ_SCR_MIXER`. Knob 0 selects the track, knob 1 volume, knob 2 pan, knob 3 the highlighted send |
 | FX | button | Four send slots | Screen `FZ_SCR_FX` cycles `fx_slot`. The rack itself is `fz_fx_set` |

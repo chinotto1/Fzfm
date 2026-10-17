@@ -32,6 +32,10 @@ The conversational "about 96 KiB RAM" matches this upstream **section length**, 
 
 The comment's expected JEDEC id `0x856014` is an expectation in that header, not an id read from the user's board.
 
+## Official V13 flash API, not a capacity
+
+FM1 Open `sdk/include/fm1.h` at `b178ac4` exposes a user partition whose size is returned at runtime (`fm1_flash_size`). The header says firmware, boot, VM, and BTIF are outside it, sectors are 4096 bytes, and a full instrument already uses that partition for its own format. Their groove project file places samples at offset 69632. That offset is their format. It is not a chip size and it is not a partition this firmware may write. Their audio section attribute `.volatile_ram_code` is how they keep the ISR alive while flash is programmed. This tree still has no flash driver.
+
 ## What this repository allocates on the host
 
 Safety ceilings, so a bug stops instead of growing without bound. They are not product limits:
@@ -53,4 +57,4 @@ Capture length is whatever buffer the caller passes. A full 16-slot kit is not r
 
 ## Still unknown
 
-Physical SRAM size beyond the window above, DMA-capable banks, cache geometry, the codec's real clock, how much of the 1 MiB flash is factory-protected, and how much of the gap above `0x01C20000` can be used without fighting the bootloader. Those stay unknown until a target link map and a non-destructive device read exist.
+Physical SRAM size beyond the window above, DMA-capable banks, cache geometry, how much of the flash is factory-protected, and how much of the gap above `0x01C20000` can be used without fighting the bootloader. The manufacturer's V13 headers name an ALNK rate of 44118 Hz and an API block of 44100 Hz. Neither has been measured on a unit here. Those stay unknown until a target link map and a non-destructive device read exist.

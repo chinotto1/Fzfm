@@ -8,5 +8,6 @@ void expect_true(int cond, const char *msg, const char *file, int line);
 #define EXPECT(cond) expect_true((cond), #cond, __FILE__, __LINE__)
 
 void test_product(void);
+void test_sim(void);
 
 #endif

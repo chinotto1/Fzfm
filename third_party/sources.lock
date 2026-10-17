@@ -44,8 +44,8 @@ name: fm1_open
 url: https://github.com/m-vave/fm1_open
 commit: b178ac43c25f010c60a878056fb5331fe693fd62
 date: 2026-10-17T06:53:33Z
-license: NOASSERTION
-role: official SDK/app split. Not used. Terms were not accepted for redistribution.
+license: GPL-3.0-only WITH linking exception for the binary SDK. GitHub SPDX remains NOASSERTION.
+role: official V13 app. Facts recorded in the audit. APP sources were not vendored. The binary SDK was not accepted.
 
 name: fm1-base
 url: https://github.com/charlesvestal/fm1-base

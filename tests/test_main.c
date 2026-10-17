@@ -657,6 +657,7 @@ int main(void)
     test_home_and_mix();
     test_gated_notes();
     test_product();
+    test_sim();
     printf("%d passed, %d failed\n", g_passed, g_failed);
     return g_failed ? 1 : 0;
 }

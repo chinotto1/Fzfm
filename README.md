@@ -17,6 +17,7 @@ The FM-1 is a JieLi AC79-class board (pi32v2). The engine renders at 36 kHz. USB
 - Four send effects, bake/unsend, a sparse sequencer, an in-memory journal, and an `FZB1` bundle.
 - `FZTEST` and WAV cycle import. `web/importer/index.html` auditions those files locally.
 - A 240×240 HOME frame, a retrospective event ring, and tempo candidates.
+- `web/sim/index.html` is a browser panel over the same engine (`make sim`). SELECT turns. OCT+ is the click.
 
 `docs/REQUIREMENTS_STATUS.md` is the list that matters. There is no USB device stack and no flash image.
 
@@ -35,7 +36,7 @@ Generated WAVs land in `build/fixtures/` (`a4_cycle.wav`, `a4_plus_octave.wav`) 
 
 ## Layout
 
-`firmware/` is the portable C core. `host/render/` writes fixtures. `tests/test_main.c` and `tests/test_product.c` are the host suite. `docs/` holds the audit, the feature matrix, and the requirement table. `web/importer/` is the optional local page. Pinned reference commits are in `third_party/sources.lock`. Those repositories are not vendored.
+`firmware/` is the portable C core. `host/render/` writes fixtures. `host/sim/` is the panel the browser loads. `tests/test_main.c`, `tests/test_product.c`, and `tests/test_sim.c` are the host suite. `docs/` holds the audit, the feature matrix, and the requirement table. `web/importer/` auditions cycle files. `web/sim/` is the panel. Pinned reference commits are in `third_party/sources.lock`. Those repositories are not vendored.
 
 ## Device status
 

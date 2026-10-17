@@ -258,6 +258,19 @@ void fz_session_apply(FzSession *session, FzProject *project, FzCapture *capture
         fz_session_undo(session, project, seq);
     else if (command->kind == FZ_CMD_PLAY && seq)
         fz_seq_play(seq, !seq->playing);
+    else if (command->kind == FZ_CMD_CONFIRM && session->screen == FZ_SCR_NUMERIC && project) {
+        int value = 0;
+        if (fz_session_numeric_take(session, &value) == FZ_OK)
+            fz_edit_apply_number(session, project, value);
+    } else if (command->kind == FZ_CMD_REC_TAP && seq && project) {
+        int pattern = seq->current[0] >= 0 ? seq->current[0] : 0;
+        fz_seq_rec_tap(seq, project, pattern, seq->frame);
+    } else if (command->kind == FZ_CMD_REC_HOLD) {
+        /* The history ring is owned by the caller. Retrospective import is
+         * fz_seq_capture_history, not this router. */
+        (void)seq;
+        (void)project;
+    }
 }
 
 FzStatus fz_session_name_key(FzSession *session, FzProject *project, int key)

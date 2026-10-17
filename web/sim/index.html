@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FM-1 sampler panel</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; background: #12141a; color: #e6e4dc;
+    font: 14px/1.4 ui-sans-serif, system-ui, sans-serif;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  p.note { margin: 0 0 12px; color: #a8a69c; }
+  .layout { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  canvas {
+    width: 480px; height: 480px; background: #000;
+    image-rendering: pixelated; border-radius: 8px;
+  }
+  .panel { display: flex; flex-direction: column; gap: 10px; min-width: 280px; flex: 1; }
+  .status { min-height: 2.6em; padding: 8px; background: #1c2030; border-radius: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  button, .enc {
+    background: #2a3144; color: inherit; border: 1px solid #46506a;
+    border-radius: 6px; padding: 8px 4px; font: inherit; cursor: pointer;
+  }
+  button:active, .enc button:active { background: #3d6eae; }
+  .enc { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 4px; }
+  .enc span { flex: 1; text-align: center; font-size: 12px; }
+  .enc button { width: 32px; padding: 6px 0; }
+  .keys { display: flex; gap: 3px; margin-top: 12px; }
+  .keys button { flex: 1; height: 92px; padding: 4px 0; font-size: 11px; }
+  .keys button.black { background: #10131a; height: 58px; align-self: flex-start; }
+  #result { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FM-1 sampler panel</h1>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click.</p>
+  <div class="layout">
+    <canvas id="lcd" width="240" height="240"></canvas>
+    <div class="panel">
+      <div class="status" id="status">loading</div>
+      <div class="grid" id="encoders"></div>
+      <div class="grid" id="buttons"></div>
+    </div>
+  </div>
+  <div class="keys" id="keys"></div>
+  <p id="result"></p>
+</main>
+<script>
+const BUTTONS = [
+  ["OCT-", 0], ["OCT+", 1], ["FX", 2], ["SCL", 3],
+  ["ENV", 4], ["LFO", 5], ["EDIT", 6], ["GLO", 7],
+  ["HOME", 8], ["SAVE", 9], ["ARP", 10], ["SEQ", 11],
+  ["PLAY", 12], ["REC", 13]
+];
+const ENCODERS = [
+  ["SELECT", 0], ["ALG", 1], ["K1", 2], ["K2", 3], ["K3", 4], ["K4", 5]
+];
+const NAMES = ["F","F#","G","G#","A","A#","B","C","C#","D","D#","E","F","F#","G","G#","A","A#","B","C","C#","D","D#","E","F","F#","G"];
+const OCT = [3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5];
+
+let api = null;
+let audio = null;
+let phase = 0;
+
+function nowUs() { return (performance.now() * 1000) | 0; }
+function mem() { return api.memory.buffer; }
+function cstr(ptr) {
+  const bytes = new Uint8Array(mem());
+  let s = "";
+  for (let i = ptr; bytes[i]; i++) s += String.fromCharCode(bytes[i]);
+  return s;
+}
+function paint() {
+  const ptr = api.sim_lcd();
+  const pix = new Uint16Array(mem(), ptr, 240 * 240);
+  const ctx = document.getElementById("lcd").getContext("2d");
+  const img = ctx.createImageData(240, 240);
+  for (let i = 0; i < pix.length; i++) {
+    const c = pix[i];
+    const o = i * 4;
+    img.data[o] = ((c >> 11) & 31) << 3;
+    img.data[o + 1] = ((c >> 5) & 63) << 2;
+    img.data[o + 2] = (c & 31) << 3;
+    img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  document.getElementById("status").textContent = cstr(api.sim_status());
+}
+function press(id, down) { api.sim_button(id, down ? 1 : 0, nowUs()); paint(); }
+function turn(id, detents) { api.sim_encoder(id, detents); paint(); }
+function key(index, down) { api.sim_key(index, down ? 1 : 0, nowUs()); paint(); }
+
+function bindHold(el, fnDown, fnUp) {
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    ensureAudio();
+    fnDown();
+  });
+  const up = () => fnUp();
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointercancel", up);
+}
+
+function build() {
+  const buttons = document.getElementById("buttons");
+  BUTTONS.forEach(([label, id]) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.dataset.button = String(id);
+    bindHold(b, () => press(id, true), () => press(id, false));
+    buttons.appendChild(b);
+  });
+  const enc = document.getElementById("encoders");
+  ENCODERS.forEach(([label, id]) => {
+    const box = document.createElement("div");
+    box.className = "enc";
+    const minus = document.createElement("button");
+    minus.textContent = "−";
+    const plus = document.createElement("button");
+    plus.textContent = "+";
+    const name = document.createElement("span");
+    name.textContent = label;
+    minus.addEventListener("click", () => { ensureAudio(); turn(id, -1); });
+    plus.addEventListener("click", () => { ensureAudio(); turn(id, 1); });
+    box.append(minus, name, plus);
+    enc.appendChild(box);
+  });
+  const keys = document.getElementById("keys");
+  NAMES.forEach((name, i) => {
+    const b = document.createElement("button");
+    b.textContent = name + OCT[i];
+    b.className = name.includes("#") ? "black" : "";
+    b.dataset.key = String(i);
+    bindHold(b, () => key(i, true), () => key(i, false));
+    keys.appendChild(b);
+  });
+}
+
+function ensureAudio() {
+  if (location.search.includes("selftest=1")) return;
+  if (audio) {
+    if (audio.ctx.state === "suspended") audio.ctx.resume();
+    return;
+  }
+  const ctx = new AudioContext();
+  const node = ctx.createScriptProcessor(1024, 0, 2);
+  const mixPtr = api.sim_mix();
+  node.onaudioprocess = (e) => {
+    const L = e.outputBuffer.getChannelData(0);
+    const R = e.outputBuffer.getChannelData(1);
+    const ratio = 36000 / ctx.sampleRate;
+    const need = Math.min(1024, Math.ceil(L.length * ratio) + 4);
+    api.sim_render(mixPtr, need);
+    const pcm = new Int16Array(mem(), mixPtr, need * 2);
+    for (let i = 0; i < L.length; i++) {
+      const pos = phase;
+      const i0 = Math.floor(pos);
+      const f = pos - i0;
+      const a = i0 < need ? pcm[i0 * 2] : 0;
+      const b = i0 + 1 < need ? pcm[(i0 + 1) * 2] : a;
+      const c = i0 < need ? pcm[i0 * 2 + 1] : 0;
+      const d = i0 + 1 < need ? pcm[(i0 + 1) * 2 + 1] : c;
+      L[i] = ((a + (b - a) * f) / 32768);
+      R[i] = ((c + (d - c) * f) / 32768);
+      phase += ratio;
+      if (phase >= need - 1) phase = 0;
+    }
+    phase = 0;
+  };
+  node.connect(ctx.destination);
+  audio = { ctx, node };
+}
+
+async function boot() {
+  const got = await fetch("sim.wasm");
+  const wasm = await WebAssembly.instantiate(await got.arrayBuffer(), {});
+  api = wasm.instance.exports;
+  api.sim_boot();
+  build();
+  if (!location.search.includes("selftest=1"))
+    setInterval(() => { api.sim_poll(nowUs()); paint(); }, 50);
+  paint();
+}
+
+async function selftest() {
+  const fail = (m) => { document.title = "FAIL"; document.getElementById("result").textContent = m; throw new Error(m); };
+  document.querySelector('[data-button="1"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }));
+  document.querySelector('[data-button="1"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+  if (!document.getElementById("status").textContent.includes("OCT 1")) fail("octave tap");
+  document.querySelector('[data-key="7"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 2 }));
+  const peak = api.sim_render(api.sim_mix(), 64);
+  document.querySelector('[data-key="7"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 2 }));
+  if (peak < 100) fail("silent key");
+  document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 3 }));
+  document.querySelector('[data-button="6"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 3 }));
+  if (!document.getElementById("status").textContent.includes("EDIT")) fail("edit screen");
+  const canvas = document.getElementById("lcd");
+  const img = canvas.getContext("2d").getImageData(0, 0, 240, 240);
+  let bright = 0;
+  for (let i = 0; i < img.data.length; i += 4) {
+    if (img.data[i] + img.data[i + 1] + img.data[i + 2] > 80) bright++;
+  }
+  const raw = new Uint16Array(mem(), api.sim_lcd(), 240 * 240);
+  let rawBright = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    const s = (((c >> 11) & 31) << 3) + (((c >> 5) & 63) << 2) + ((c & 31) << 3);
+    if (s > 80) rawBright++;
+  }
+  if (bright < 30 || rawBright < 30) fail("blank display canvas " + bright + " wasm " + rawBright);
+  document.title = "PASS";
+  document.getElementById("result").textContent = "PASS";
+}
+
+boot().then(() => {
+  if (location.search.includes("selftest=1")) return selftest();
+}).catch((err) => {
+  document.title = "FAIL";
+  document.getElementById("result").textContent = String(err);
+});
+</script>
+</body>
+</html>

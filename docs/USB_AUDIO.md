@@ -15,6 +15,8 @@ felucca-bsp `chip/usb.c` is the device stack (MIDI, serial, audio). It was not c
 
 The FM-1 is the USB device. The iPad, or a computer, is the host. USB host mode in the BSP is unimplemented and possibly impossible on this port.
 
+Official FM1 Open V13 (`b178ac4`) names the same transport shape from the manufacturer's application, without a descriptor in the files read here. The API block is 44,100 Hz, 128 frames, stereo. The board header's ALNK rate constant is 44,118 Hz. USB PCM is signed Q23; Bluetooth PCM in that mixer is signed 16-bit. Their application also says the codec has no connected analogue input, so a take has to come from USB or from a file. None of that was copied into this tree, and none of it is an iPad capture.
+
 ## What this tree does
 
 `FzSrc` converts interleaved PCM between rates with a carried rational position:
