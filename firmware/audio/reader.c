@@ -88,8 +88,15 @@ void fz_reader_set_loop(FzReader *r, uint32_t start, uint32_t end_exclusive)
 
 void fz_reader_set_reverse(FzReader *r, int reverse)
 {
-    if (r)
-        r->reverse = reverse ? 1 : 0;
+    if (!r)
+        return;
+    r->reverse = reverse ? 1 : 0;
+    /* A reader starts at the first frame. Reverse playback has to begin at
+     * the last frame or the first step already runs off the start. */
+    if (r->reverse && r->index == 0 && r->frac == 0 && r->frames > 0) {
+        uint32_t end = r->loop_end > 0 && r->loop_end <= r->frames ? r->loop_end : r->frames;
+        r->index = end - 1u;
+    }
 }
 
 static int16_t sample_at(const FzReader *r, uint32_t index)

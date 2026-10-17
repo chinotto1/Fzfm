@@ -13,6 +13,7 @@
 #include "ui/font.h"
 #include "ui/home.h"
 #include "ui/input.h"
+#include "check.h"
 
 #include <math.h>
 
@@ -21,21 +22,6 @@
 #endif
 #include <stdio.h>
 #include <string.h>
-
-static int g_failed;
-static int g_passed;
-
-static void expect_true(int cond, const char *msg, const char *file, int line)
-{
-    if (cond) {
-        g_passed++;
-        return;
-    }
-    fprintf(stderr, "FAIL %s:%d %s\n", file, line, msg);
-    g_failed++;
-}
-
-#define EXPECT(cond) expect_true((cond), #cond, __FILE__, __LINE__)
 
 static int crossings(const int16_t *mono, int frames)
 {
@@ -491,8 +477,11 @@ static void test_input_history_tempo(void)
     EXPECT(fz_input_pop(&input, &action) == 0);
 
     fz_input_button(&input, FZ_BTN_OCT_UP, 1, 5);
+    EXPECT(fz_input_pop(&input, &action) == 0);
+    fz_input_button(&input, FZ_BTN_OCT_UP, 0, 20);
     EXPECT(fz_input_pop(&input, &action) == 1);
     EXPECT(action.kind == FZ_ACT_TAP && action.button == FZ_BTN_OCT_UP && action.at_us == 5);
+    EXPECT(fz_input_pop(&input, &action) == 0);
 
     fz_history_init(&hist);
     ev.note = 60;
@@ -655,6 +644,8 @@ static void test_gated_notes(void)
 
 int main(void)
 {
+    extern int g_failed;
+    extern int g_passed;
     test_units();
     test_pitch_ratio();
     test_cycles();
@@ -665,6 +656,7 @@ int main(void)
     test_additive();
     test_home_and_mix();
     test_gated_notes();
+    test_product();
     printf("%d passed, %d failed\n", g_passed, g_failed);
     return g_failed ? 1 : 0;
 }

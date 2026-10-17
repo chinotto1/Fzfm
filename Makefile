@@ -21,13 +21,25 @@ SRCS := \
 	firmware/ui/font.c \
 	firmware/ui/home.c \
 	firmware/sequence/history.c \
-	firmware/sequence/tempo.c
+	firmware/sequence/tempo.c \
+	firmware/sequence/seq.c \
+	firmware/dsp/filter.c \
+	firmware/dsp/envelope.c \
+	firmware/dsp/loopprog.c \
+	firmware/dsp/mangle.c \
+	firmware/dsp/fx.c \
+	firmware/dsp/bake.c \
+	firmware/storage/journal.c \
+	firmware/storage/bundle.c \
+	firmware/import/import.c \
+	firmware/ui/session.c \
+	firmware/ui/edit.c
 
 .PHONY: test render clean
 
-build/test_core: tests/test_main.c $(SRCS)
+build/test_core: tests/test_main.c tests/test_product.c tests/check.c $(SRCS)
 	mkdir -p build
-	$(CC) $(CFLAGS) $(SAN) -o $@ tests/test_main.c $(SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(SAN) -I tests -o $@ tests/test_main.c tests/check.c tests/test_product.c $(SRCS) $(LDFLAGS)
 
 build/render_fixture: host/render/render_fixture.c $(SRCS)
 	mkdir -p build/fixtures

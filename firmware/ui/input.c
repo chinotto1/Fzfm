@@ -38,7 +38,10 @@ static void push(FzInput *in, FzActionKind kind, FzButton button, uint32_t at_us
 
 static int hold_button(FzButton button)
 {
-    return button == FZ_BTN_REC || button == FZ_BTN_EDIT || button == FZ_BTN_SEL;
+    /* OCT+ is the physical click. Tap and hold must stay distinct: a short
+     * press confirms or changes octave, a hold undoes, and the release after
+     * a hold is not a second tap. SELECT does not click. */
+    return button == FZ_BTN_REC || button == FZ_BTN_EDIT || button == FZ_BTN_SEL || button == FZ_BTN_OCT_UP;
 }
 
 void fz_input_button(FzInput *in, FzButton button, int pressed, uint32_t time_us)
@@ -78,8 +81,8 @@ void fz_input_poll(FzInput *in, uint32_t now_us)
         if (elapsed < in->hold_us)
             continue;
         b->hold_fired = 1;
-        if (i == FZ_BTN_SEL && in->confirming)
-            push(in, FZ_ACT_CANCEL, FZ_BTN_SEL, b->down_us);
+        if ((i == FZ_BTN_SEL || i == FZ_BTN_OCT_UP) && in->confirming)
+            push(in, FZ_ACT_CANCEL, (FzButton)i, b->down_us);
         else
             push(in, FZ_ACT_HOLD, (FzButton)i, b->down_us);
     }

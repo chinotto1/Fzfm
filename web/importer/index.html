@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local FZTEST importer</title>
+  <style>
+    :root { color-scheme: light; }
+    body { font: 16px/1.45 system-ui, sans-serif; margin: 2rem auto; max-width: 40rem; padding: 0 1rem; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
+    p, li { margin: 0.4rem 0; }
+    button, input { font: inherit; }
+    button { margin: 0.25rem 0.4rem 0.25rem 0; }
+    #status, #result { white-space: pre-wrap; }
+    .sound { border-top: 1px solid #ccc; padding: 0.6rem 0; }
+    .fail { color: #8a1f1f; }
+  </style>
+</head>
+<body>
+  <h1>Local importer</h1>
+  <p>This page decodes a file in the browser. It does not upload, sign in, or call a device.</p>
+  <p>The tested decoder is the C functions <code>fz_import_rom</code> and <code>fz_import_wav_cycle</code>. This page repeats those rules for audition and WAV export.</p>
+  <ul>
+    <li><strong>FZTEST</strong> — exactly 1024 bytes, four sounds of 256 unsigned 8-bit frames, 8000 Hz, roots 36–39. Each sample is <code>(byte − 128) &lt;&lt; 8</code>.</li>
+    <li><strong>WAV cycle</strong> — PCM, 8- or 16-bit, mono or stereo. The point count is the cycle. The file rate is shown and is not a root note.</li>
+    <li>Any other raw length is refused. No layout is guessed. Commercial ROMs are not built in.</li>
+  </ul>
+  <p>
+    <input id="file" type="file">
+    <button id="example" type="button">Load a synthetic FZTEST</button>
+  </p>
+  <p id="status" role="status"></p>
+  <div id="kit"></div>
+  <pre id="result"></pre>
+  <script>
+"use strict";
+
+const FZTEST_LEN = 1024;
+const FZ_FRAMES = 256;
+const FZ_SOUNDS = 4;
+const FZ_RATE = 8000;
+const FZ_ROOT0 = 36;
+
+function sat16(n) {
+  if (n > 32767) return 32767;
+  if (n < -32768) return -32768;
+  return n | 0;
+}
+
+function decodeUnsigned8(bytes) {
+  const pcm = new Int16Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++)
+    pcm[i] = sat16((bytes[i] - 128) << 8);
+  return pcm;
+}
+
+function decodeFztest(bytes) {
+  if (!bytes || bytes.length !== FZTEST_LEN)
+    return { ok: false, error: "unsupported profile" };
+  return {
+    ok: true,
+    kind: "FZTEST",
+    pcm: decodeUnsigned8(bytes),
+    sounds: FZ_SOUNDS,
+    frames: FZ_FRAMES,
+    rate: FZ_RATE,
+    root0: FZ_ROOT0
+  };
+}
+
+function rd16(b, o) { return b[o] | (b[o + 1] << 8); }
+function rd32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+function tag(b, o) { return String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]); }
+
+function decodeWavCycle(bytes) {
+  if (!bytes || bytes.length < 12 || tag(bytes, 0) !== "RIFF" || tag(bytes, 8) !== "WAVE")
+    return { ok: false, error: "unsupported profile" };
+  let at = 12;
+  let format = 0, channels = 0, bits = 0, rate = 0, haveFmt = false;
+  let data = null, dataSize = 0;
+  while (at + 8 <= bytes.length) {
+    const size = rd32(bytes, at + 4);
+    if (size > bytes.length - at - 8)
+      return { ok: false, error: "unsupported profile" };
+    const id = tag(bytes, at);
+    if (id === "fmt ") {
+      if (size < 16) return { ok: false, error: "unsupported profile" };
+      format = rd16(bytes, at + 8);
+      channels = rd16(bytes, at + 10);
+      rate = rd32(bytes, at + 12);
+      bits = rd16(bytes, at + 22);
+      haveFmt = true;
+    } else if (id === "data") {
+      data = at + 8;
+      dataSize = size;
+    }
+    at += 8 + size;
+    if ((size & 1) && at < bytes.length) at++;
+  }
+  if (!haveFmt || data === null || format !== 1 || rate === 0)
+    return { ok: false, error: "unsupported profile" };
+  if (!((channels === 1 || channels === 2) && (bits === 8 || bits === 16)))
+    return { ok: false, error: "unsupported profile" };
+  const bytesFrame = channels * (bits / 8);
+  if (bytesFrame === 0 || dataSize < bytesFrame || dataSize % bytesFrame !== 0)
+    return { ok: false, error: "unsupported profile" };
+  const frames = dataSize / bytesFrame;
+  if (frames === 0 || frames > 1000000)
+    return { ok: false, error: "unsupported profile" };
+  const pcm = new Int16Array(frames);
+  for (let i = 0; i < frames; i++) {
+    const s = data + i * bytesFrame;
+    let sample;
+    if (bits === 8) {
+      sample = (bytes[s] - 128) << 8;
+      if (channels === 2) sample = (sample + ((bytes[s + 1] - 128) << 8)) / 2;
+    } else {
+      sample = (rd16(bytes, s) << 16) >> 16;
+      if (channels === 2) sample = (sample + ((rd16(bytes, s + 2) << 16) >> 16)) / 2;
+    }
+    pcm[i] = sat16(sample);
+  }
+  return { ok: true, kind: "WAV", pcm: pcm, points: frames, fileRate: rate, root: null };
+}
+
+function encodeWav(pcm, rate) {
+  const dataBytes = pcm.length * 2;
+  const buf = new ArrayBuffer(44 + dataBytes);
+  const v = new DataView(buf);
+  const ascii = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+  ascii(0, "RIFF");
+  v.setUint32(4, 36 + dataBytes, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  ascii(36, "data");
+  v.setUint32(40, dataBytes, true);
+  for (let i = 0; i < pcm.length; i++)
+    v.setInt16(44 + i * 2, pcm[i], true);
+  return new Uint8Array(buf);
+}
+
+function syntheticFztest() {
+  const raw = new Uint8Array(FZTEST_LEN);
+  for (let s = 0; s < FZ_SOUNDS; s++) {
+    for (let i = 0; i < FZ_FRAMES; i++) {
+      const phase = (i / FZ_FRAMES) * (s + 1);
+      const tri = 2 * Math.abs(2 * (phase - Math.floor(phase + 0.5))) - 1;
+      raw[s * FZ_FRAMES + i] = Math.max(0, Math.min(255, Math.round(128 + tri * 60)));
+    }
+  }
+  raw[0] = 129;
+  return raw;
+}
+
+let audioCtx = null;
+function makeBuffer(pcm, rate) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return { ok: false, error: "no audio" };
+  if (!audioCtx) audioCtx = new Ctx();
+  const buf = audioCtx.createBuffer(1, pcm.length, rate);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 32768;
+  return { ok: true, buf: buf, frames: buf.length, rate: buf.sampleRate, first: ch[0] };
+}
+
+function playPcm(pcm, rate) {
+  const made = makeBuffer(pcm, rate);
+  if (!made.ok) return made;
+  const src = audioCtx.createBufferSource();
+  src.buffer = made.buf;
+  src.connect(audioCtx.destination);
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  src.start();
+  return made;
+}
+
+function sliceSound(model, index) {
+  const start = index * model.frames;
+  return model.pcm.subarray(start, start + model.frames);
+}
+
+function downloadWav(pcm, rate, name) {
+  const bytes = encodeWav(pcm, rate);
+  const blob = new Blob([bytes], { type: "audio/wav" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function setStatus(text, bad) {
+  const el = document.getElementById("status");
+  el.textContent = text;
+  el.className = bad ? "fail" : "";
+}
+
+function showKit(model) {
+  const kit = document.getElementById("kit");
+  kit.textContent = "";
+  if (!model.ok) return;
+  if (model.kind === "FZTEST") {
+    for (let i = 0; i < model.sounds; i++) {
+      const row = document.createElement("div");
+      row.className = "sound";
+      const title = document.createElement("div");
+      title.textContent = "Sound " + (i + 1) + "  root " + (model.root0 + i) + "  " + model.frames + " frames  " + model.rate + " Hz";
+      const play = document.createElement("button");
+      play.type = "button";
+      play.textContent = "Play";
+      play.addEventListener("click", function () { playPcm(sliceSound(model, i), model.rate); });
+      const exp = document.createElement("button");
+      exp.type = "button";
+      exp.textContent = "Export WAV";
+      exp.addEventListener("click", function () {
+        downloadWav(sliceSound(model, i), model.rate, "fztest-" + (i + 1) + ".wav");
+      });
+      row.appendChild(title);
+      row.appendChild(play);
+      row.appendChild(exp);
+      kit.appendChild(row);
+    }
+    return;
+  }
+  const row = document.createElement("div");
+  row.className = "sound";
+  const title = document.createElement("div");
+  title.textContent = model.points + " points. File rate " + model.fileRate + " Hz. That rate is not a root note.";
+  const play = document.createElement("button");
+  play.type = "button";
+  play.textContent = "Play";
+  play.addEventListener("click", function () { playPcm(model.pcm, model.fileRate); });
+  const exp = document.createElement("button");
+  exp.type = "button";
+  exp.textContent = "Export WAV";
+  exp.addEventListener("click", function () { downloadWav(model.pcm, model.fileRate, "cycle.wav"); });
+  row.appendChild(title);
+  row.appendChild(play);
+  row.appendChild(exp);
+  kit.appendChild(row);
+}
+
+function acceptBytes(bytes, label) {
+  const fz = decodeFztest(bytes);
+  if (fz.ok) {
+    setStatus(label + ": FZTEST, 4 sounds, 8000 Hz, roots 36-39.");
+    showKit(fz);
+    return fz;
+  }
+  const wav = decodeWavCycle(bytes);
+  if (wav.ok) {
+    setStatus(label + ": WAV cycle, " + wav.points + " points. File rate " + wav.fileRate + " Hz is not a root.");
+    showKit(wav);
+    return wav;
+  }
+  setStatus(label + ": unsupported profile. The file was not decoded.", true);
+  document.getElementById("kit").textContent = "";
+  return { ok: false, error: "unsupported profile" };
+}
+
+document.getElementById("file").addEventListener("change", function (ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  file.arrayBuffer().then(function (buf) {
+    acceptBytes(new Uint8Array(buf), file.name);
+  });
+});
+
+document.getElementById("example").addEventListener("click", function () {
+  acceptBytes(syntheticFztest(), "synthetic FZTEST");
+});
+
+function selfTest() {
+  const errors = [];
+  const raw = syntheticFztest();
+  const kit = decodeFztest(raw);
+  if (!kit.ok || kit.pcm[0] !== 256)
+    errors.push("fztest sample0");
+  if (kit.pcm[1] !== ((raw[1] - 128) << 8))
+    errors.push("fztest scale");
+  if (decodeFztest(raw.slice(0, 100)).ok)
+    errors.push("short accepted");
+  if (decodeFztest(new Uint8Array(1025)).ok)
+    errors.push("long accepted");
+  const tone = new Int16Array([1000, -1000, 2000, -2000]);
+  const wavBytes = encodeWav(tone, 44100);
+  const cyc = decodeWavCycle(wavBytes);
+  if (!cyc.ok || cyc.points !== 4 || cyc.fileRate !== 44100 || cyc.pcm[0] !== 1000 || cyc.pcm[1] !== -1000)
+    errors.push("wav cycle");
+  if (cyc.root !== null)
+    errors.push("wav root");
+  if (decodeWavCycle(wavBytes.slice(0, 20)).ok)
+    errors.push("torn wav");
+  let audio = "audio context not started";
+  try {
+    const played = makeBuffer(kit.pcm.subarray(0, FZ_FRAMES), FZ_RATE);
+    if (played.ok && played.frames === FZ_FRAMES && played.rate === FZ_RATE && Math.abs(played.first - (256 / 32768)) < 1e-6)
+      audio = "audio buffer " + played.frames + " frames at " + played.rate + " Hz";
+    else if (!played.ok)
+      audio = played.error;
+    else
+      errors.push("buffer");
+  } catch (err) {
+    audio = "audio context unavailable";
+  }
+  acceptBytes(raw, "self-test");
+  try {
+    document.querySelector("#kit button").click();
+    audio = audio + "; play clicked";
+  } catch (err) {
+    errors.push("play click");
+  }
+  const result = document.getElementById("result");
+  if (errors.length) {
+    result.textContent = "FAIL " + errors.join(", ");
+    document.title = "FAIL";
+  } else {
+    result.textContent = "PASS\n" + audio;
+    document.title = "PASS";
+  }
+}
+
+if (new URLSearchParams(location.search).get("selftest") === "1")
+  selfTest();
+  </script>
+</body>
+</html>
