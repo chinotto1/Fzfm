@@ -1331,6 +1331,49 @@ static void test_cycle_draw(void)
     EXPECT(strcmp(fz_edit_row_name(FZ_TAB_AMP, 8), "FLT AMT") == 0);
 }
 
+static void test_cycle_presets(void)
+{
+    static FzProject project;
+    static int16_t store[4096];
+    static int16_t wave[FZ_ADDITIVE_POINTS];
+    FzId inst, track, asset, region;
+    FzInstrument *it;
+    int i;
+
+    fz_project_init(&project, store, 4096);
+    EXPECT(fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    for (i = 0; i < 8; i++)
+        wave[i] = 1;
+    EXPECT(fz_project_add_pcm(&project, wave, 8, FZ_ENGINE_RATE_HZ, 0, &asset) == FZ_OK);
+    EXPECT(fz_project_add_region(&project, inst, asset, 60, 0, &region) == FZ_OK);
+    EXPECT(fz_edit_cycle_preset(&project, 1) == FZ_ERR_STATE);
+    EXPECT(fz_asset(&project, asset)->pcm[0] == 1);
+
+    fz_project_init(&project, store, 4096);
+    EXPECT(fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    for (i = 0; i < FZ_ADDITIVE_POINTS; i++)
+        wave[i] = 0;
+    wave[0] = 100;
+    EXPECT(fz_project_add_pcm(&project, wave, FZ_ADDITIVE_POINTS, FZ_ENGINE_RATE_HZ, 1, &asset) == FZ_OK);
+    EXPECT(fz_project_add_region(&project, inst, asset, 60, 0, &region) == FZ_OK);
+    EXPECT(fz_cycle_preset_count() == 4);
+    EXPECT(strcmp(fz_cycle_preset_name(0), "SINE") == 0);
+    EXPECT(strcmp(fz_cycle_preset_name(1), "SAW") == 0);
+    EXPECT(strcmp(fz_cycle_preset_name(2), "SQUARE") == 0);
+    EXPECT(strcmp(fz_cycle_preset_name(3), "TRI") == 0);
+    EXPECT(fz_edit_cycle_preset(&project, 0) == FZ_OK);
+    it = fz_instrument(&project, inst);
+    EXPECT(it && it->additive.level[0] == 256 && it->additive.level[1] == 0);
+    EXPECT(fz_edit_cycle_preset(&project, 1) == FZ_OK);
+    EXPECT(it->additive.level[1] == 128);
+    EXPECT(fz_edit_cycle_preset(&project, 2) == FZ_OK);
+    EXPECT(it->additive.level[1] == 0);
+    EXPECT(it->additive.level[2] == (uint16_t)(256 / 3));
+    EXPECT(fz_edit_cycle_preset(&project, 3) == FZ_OK);
+    EXPECT(it->additive.level[2] == (uint16_t)(256 / 9));
+    EXPECT(fz_asset(&project, it->region[0])->cycle == 1);
+}
+
 static void test_arp(void)
 {
     FzArp arp;
@@ -1654,6 +1697,7 @@ void test_product(void)
 {
     test_oct_plus_router();
     test_cycle_draw();
+    test_cycle_presets();
     test_arp();
     test_edit_scope_and_undo();
     test_lfo_targets();

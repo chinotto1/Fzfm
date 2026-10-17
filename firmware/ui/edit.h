@@ -49,5 +49,9 @@ FzStatus fz_edit_reverse_write(FzProject *project, FzId region, int16_t *dst, ui
 FzStatus fz_edit_cut_cycle(FzProject *project, FzId region, uint32_t start, uint32_t length, int16_t *dst,
                            FzId *out_asset);
 FzStatus fz_edit_preset(FzProject *project, FzId region, int square, int16_t *dst, uint32_t points);
+/* PRESETS encoder. Sine, saw, square, and triangle, written into the cycle recipe. */
+int fz_cycle_preset_count(void);
+const char *fz_cycle_preset_name(int index);
+FzStatus fz_edit_cycle_preset(FzProject *project, int index);
 
 #endif

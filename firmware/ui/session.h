@@ -101,6 +101,7 @@ typedef struct {
     int cycle_inst; /* 1: the selected instrument is a single cycle, not a sample */
     int arp_page; /* 0 = mode/rate/oct/gate, 1 = swing/prob/hold/order */
     int cap_db; /* sampling start threshold, dBFS */
+    int preset; /* cycle preset index, stepped by the PRESETS encoder */
     FzArp *arp;
 } FzSession;
 

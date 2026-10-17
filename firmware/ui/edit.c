@@ -915,6 +915,73 @@ FzStatus fz_edit_cut_cycle(FzProject *project, FzId region, uint32_t start, uint
     return fz_project_store_pcm(project, dst, length, 1, out_asset);
 }
 
+static const char *k_cycle_presets[] = {"SINE", "SAW", "SQUARE", "TRI"};
+
+int fz_cycle_preset_count(void)
+{
+    return (int)(sizeof k_cycle_presets / sizeof k_cycle_presets[0]);
+}
+
+const char *fz_cycle_preset_name(int index)
+{
+    if (index < 0 || index >= fz_cycle_preset_count())
+        return "";
+    return k_cycle_presets[index];
+}
+
+static void fill_cycle_preset(FzAdditiveRecipe *recipe, int index)
+{
+    int h;
+    int n = fz_cycle_preset_count();
+    fz_additive_clear(recipe);
+    recipe->points = FZ_ADDITIVE_POINTS;
+    if (n < 1)
+        return;
+    if (index < 0)
+        index = 0;
+    index %= n;
+    if (index == 0) {
+        recipe->level[0] = 256;
+        return;
+    }
+    if (index == 1) {
+        for (h = 0; h < FZ_HARMONICS; h++)
+            recipe->level[h] = (uint16_t)(256 / (h + 1));
+        return;
+    }
+    if (index == 2) {
+        for (h = 0; h < FZ_HARMONICS; h += 2)
+            recipe->level[h] = (uint16_t)(256 / (h + 1));
+        return;
+    }
+    for (h = 0; h < FZ_HARMONICS; h += 2) {
+        int partial = h + 1;
+        int level = 256 / (partial * partial);
+        recipe->level[h] = (uint16_t)level;
+    }
+}
+
+FzStatus fz_edit_cycle_preset(FzProject *project, int index)
+{
+    FzInstrument *inst;
+    FzRegion *region;
+    FzAsset *asset;
+    int16_t table[FZ_ADDITIVE_POINTS];
+    if (!project || project->selected_track < 0 || project->selected_track >= FZ_MAX_TRACKS)
+        return FZ_ERR_BAD_ID;
+    inst = fz_instrument(project, project->track[project->selected_track].instrument);
+    if (!inst || inst->region_count < 1)
+        return FZ_ERR_BAD_ID;
+    region = fz_region(project, inst->region[0]);
+    asset = region ? fz_asset(project, region->asset) : 0;
+    if (!region || !asset || !asset->cycle)
+        return FZ_ERR_STATE;
+    fill_cycle_preset(&inst->additive, index);
+    if (fz_additive_render(&inst->additive, table, FZ_ADDITIVE_POINTS) != FZ_OK)
+        return FZ_ERR_ARGS;
+    return install_cycle(project, region, table, FZ_ADDITIVE_POINTS);
+}
+
 FzStatus fz_edit_preset(FzProject *project, FzId region, int square, int16_t *dst, uint32_t points)
 {
     FzRegion *reg = 0;

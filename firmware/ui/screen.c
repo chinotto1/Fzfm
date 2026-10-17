@@ -679,6 +679,10 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
     text(rgb565, 4, 14, line, fg);
     if (screen == FZ_SCR_HOME) {
         int pattern = seq && seq->current[0] >= 0 ? seq->current[0] : 0;
+        if (session && session->cycle_inst) {
+            snprintf(line, sizeof line, "%s", fz_cycle_preset_name(session->preset));
+            text(rgb565, 148, 14, line, head);
+        }
         draw_playhead_strip(rgb565, playhead_step(project, seq, pattern), 176, head, hi);
         return;
     }

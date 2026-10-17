@@ -26,11 +26,11 @@
     border-radius: 6px; padding: 8px 4px; font: inherit; cursor: pointer;
   }
   button:active { background: #3d6eae; }
-  #encoders { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 8px; }
-  .enc { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 54px; }
-  .enc span { font-size: 11px; letter-spacing: 0.04em; color: #c9c7bd; }
+  #encoders { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px 4px; }
+  .enc { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .enc span { font-size: 10px; letter-spacing: 0; color: #c9c7bd; white-space: nowrap; }
   .knob {
-    width: 54px; height: 54px; border-radius: 50%; position: relative;
+    width: min(100%, 52px); aspect-ratio: 1; border-radius: 50%; position: relative;
     touch-action: none; cursor: grab; user-select: none;
     background: radial-gradient(circle at 50% 40%, #7b8aa3 0%, #2e384c 64%, #171c28 100%);
     border: 1px solid #8b97ad;
@@ -53,7 +53,7 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. Drag or scroll a knob to turn it. SELECT does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash. Hold REC to sample. The page listens through the microphone. SAMPLE and MULTI are both on the screen, and K1 switches between them before the first slot is kept. A pitched sample shows eight octave squares, and a kit shows sixteen. A gold bar marks the slot that is listening, and a kept slot turns green. K2 sets how loud a sound must be. Tap REC to start or end a take. OCT+ keeps what you recorded and returns to playing. HOME leaves if nothing was recorded.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. Drag or scroll a knob to turn it. SELECT does not click. PRESETS steps sine, saw, square, and triangle on a cycle instrument. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash. Hold REC to sample. The page listens through the microphone. SAMPLE and MULTI are both on the screen, and K1 switches between them before the first slot is kept. A pitched sample shows eight octave squares, and a kit shows sixteen. A gold bar marks the slot that is listening, and a kept slot turns green. K2 sets how loud a sound must be. Tap REC to start or end a take. OCT+ keeps what you recorded and returns to playing. HOME leaves if nothing was recorded.</p>
   <input id="file" type="file" accept=".fzb" hidden>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
@@ -74,7 +74,7 @@ const BUTTONS = [
   ["PLAY", 12], ["REC", 13]
 ];
 const ENCODERS = [
-  ["SELECT", 0], ["ALG", 1], ["K1", 2], ["K2", 3], ["K3", 4], ["K4", 5]
+  ["SELECT", 0], ["ALG", 1], ["PRESETS", 6], ["K1", 2], ["K2", 3], ["K3", 4], ["K4", 5]
 ];
 const NAMES = ["F","F#","G","G#","A","A#","B","C","C#","D","D#","E","F","F#","G","G#","A","A#","B","C","C#","D","D#","E","F","F#","G"];
 const OCT = [3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5];
@@ -508,12 +508,14 @@ async function selftest() {
   document.querySelector('[data-button="5"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 8 }));
   if (!document.getElementById("status").textContent.includes("LFO OFF")) fail("lfo");
   if (document.querySelector("#encoders button")) fail("encoder buttons");
-  if (document.querySelectorAll("#encoders .knob").length !== 6) fail("knobs");
+  if (document.querySelectorAll("#encoders .knob").length !== 7) fail("knobs");
   function wheelKnob(id, dir) {
     const knob = document.querySelector('#encoders .knob[data-encoder="' + id + '"]');
     if (!knob) fail("knob " + id);
     knob.dispatchEvent(new WheelEvent("wheel", { deltaY: dir > 0 ? -80 : 80, bubbles: true, cancelable: true }));
   }
+  wheelKnob(6, 1);
+  if (!document.getElementById("status").textContent.includes("PRESET SAW")) fail("presets");
   wheelKnob(4, 1);
   if (!document.getElementById("status").textContent.includes("LFO CUTOFF")) fail("lfo target");
   wheelKnob(5, 1);

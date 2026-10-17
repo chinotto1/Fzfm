@@ -41,7 +41,7 @@ static FzFxRack rack;
 static FzHistory history;
 static uint16_t lcd[FZ_LCD_W * FZ_LCD_H];
 static int16_t mixbuf[1024 * 2];
-static char status[192];
+static char status[256];
 static char hint[24];
 static uint8_t filebuf[SIM_FILE];
 static uint32_t file_len;
@@ -188,7 +188,18 @@ static void refresh(void)
         snprintf(bpm, sizeof bpm, "BPM %u.%u | ", whole, tenth);
     else
         snprintf(bpm, sizeof bpm, "BPM %u | ", whole);
-    snprintf(status, sizeof status, "%s | OCT %d | %s%s%s%s%s%s",
+    {
+        char word[8];
+        char preset[16];
+        const char *name = session.cycle_inst ? fz_cycle_preset_name(session.preset) : "";
+        int pi;
+        preset[0] = 0;
+        for (pi = 0; pi < 6 && name[pi]; pi++)
+            word[pi] = name[pi];
+        word[pi] = 0;
+        if (word[0])
+            snprintf(preset, sizeof preset, "PRESET %s ", word);
+        snprintf(status, sizeof status, "%s | OCT %d | %s%s%s%s%s%s%s",
              session.screen == FZ_SCR_HOME       ? "HOME"
              : session.screen == FZ_SCR_CAPTURE  ? "CAPTURE"
              : session.screen == FZ_SCR_EDIT     ? "EDIT"
@@ -205,7 +216,8 @@ static void refresh(void)
              : session.screen == FZ_SCR_ARP      ? "ARP"
              : session.screen == FZ_SCR_SAVE     ? "SAVE"
                                                  : "?",
-             session.octave, bpm, seq.playing ? "PLAY " : "", seq.recording ? "REC " : "", wave, hint, msg);
+             session.octave, bpm, seq.playing ? "PLAY " : "", seq.recording ? "REC " : "", wave, preset, hint, msg);
+    }
 }
 
 static void release_direct_keys(void)
@@ -531,6 +543,19 @@ void sim_encoder(int encoder, int detents)
         fz_home_select_track(&project, detents);
         refresh();
         return;
+    }
+    if (encoder == 6) {
+        int count = fz_cycle_preset_count();
+        int next = session.preset + detents;
+        if (count < 1)
+            count = 1;
+        next %= count;
+        if (next < 0)
+            next += count;
+        if (fz_edit_cycle_preset(&project, next) == FZ_OK)
+            session.preset = next;
+        else
+            snprintf(hint, sizeof hint, "NOT A CYCLE ");
     }
     if (encoder >= 2 && encoder <= 5) {
         int was = arp.mode;
