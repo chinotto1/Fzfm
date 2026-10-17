@@ -18,6 +18,7 @@ void fz_session_init(FzSession *session)
     session->screen = FZ_SCR_HOME;
     session->step_note = 36;
     session->num_max = 127;
+    session->cap_db = -36;
 }
 
 int fz_session_confirming(const FzSession *session)
@@ -251,11 +252,20 @@ void fz_session_handle(FzSession *session, const FzAction *action, FzCommand *ou
         return;
     }
     if (action->button == FZ_BTN_REC && action->kind == FZ_ACT_TAP) {
+        if (session->screen == FZ_SCR_CAPTURE) {
+            emit(out, FZ_CMD_REC_TAP, 1, action->at_us);
+            return;
+        }
         emit(out, FZ_CMD_REC_TAP, 0, action->at_us);
         return;
     }
     if (action->button == FZ_BTN_REC && action->kind == FZ_ACT_HOLD) {
-        emit(out, FZ_CMD_REC_HOLD, 0, action->at_us);
+        if (session->screen != FZ_SCR_CAPTURE) {
+            session->screen = FZ_SCR_CAPTURE;
+            session->row[0] = 0;
+            session->gesture = 0;
+        }
+        emit(out, FZ_CMD_REC_HOLD, 1, action->at_us);
         return;
     }
     if (action->button == FZ_BTN_SAVE && action->kind == FZ_ACT_TAP) {
@@ -477,6 +487,15 @@ void fz_session_knob(FzSession *session, FzProject *project, int knob, int deten
         fz_arp_turn(session->arp, session->arp_page, knob, detents);
     else if (session->screen == FZ_SCR_SAVE && knob == 0)
         session->row[0] = detents > 0 ? 1 : 0;
+    else if (session->screen == FZ_SCR_CAPTURE && knob == 0)
+        session->row[0] = detents > 0 ? 1 : 0;
+    else if (session->screen == FZ_SCR_CAPTURE && knob == 1) {
+        session->cap_db += detents;
+        if (session->cap_db < -60)
+            session->cap_db = -60;
+        if (session->cap_db > -12)
+            session->cap_db = -12;
+    }
     else if (session->screen == FZ_SCR_SONG && project && knob == 1 && session->row[0] >= 0 &&
              session->row[0] < FZ_SONG_ROWS) {
         /* Repeats are edited on the sequencer song, not from this knob path. */

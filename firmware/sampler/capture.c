@@ -53,6 +53,7 @@ static void start_take_from_pre(FzCapture *c)
     c->take_frames = n;
     c->silence_run = 0;
     trace(c, FZ_CAP_CAPTURING);
+    snprintf(c->message, sizeof c->message, "REC %d", c->slot + 1);
 }
 
 static int level_of(int16_t s)
@@ -96,6 +97,16 @@ void fz_capture_set_root(FzCapture *c, uint8_t root)
 {
     c->root_set = 1;
     c->next_root = root;
+}
+
+void fz_capture_punch(FzCapture *c)
+{
+    if (!c)
+        return;
+    if (c->state == FZ_CAP_WAIT_INPUT)
+        start_take_from_pre(c);
+    else if (c->state == FZ_CAP_CAPTURING && c->take_frames > 0)
+        trace(c, FZ_CAP_END_DETECTED);
 }
 
 void fz_capture_arm(FzCapture *c)

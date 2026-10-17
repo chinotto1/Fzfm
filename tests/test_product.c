@@ -199,6 +199,14 @@ static void test_oct_plus_router(void)
     session.edit_tab = FZ_TAB_SAMPLE;
     tap(&input, &session, FZ_BTN_EDIT, 730, &cmd);
     EXPECT(session.edit_tab == FZ_TAB_LOOP);
+
+    fz_session_init(&session);
+    tap(&input, &session, FZ_BTN_REC, 800, &cmd);
+    EXPECT(cmd.kind == FZ_CMD_REC_TAP && session.screen == FZ_SCR_HOME);
+    hold(&input, &session, FZ_BTN_REC, 900, &cmd);
+    EXPECT(cmd.kind == FZ_CMD_REC_HOLD && session.screen == FZ_SCR_CAPTURE);
+    tap(&input, &session, FZ_BTN_REC, 910, &cmd);
+    EXPECT(cmd.kind == FZ_CMD_REC_TAP && cmd.value == 1 && session.screen == FZ_SCR_CAPTURE);
 }
 
 static void test_edit_scope_and_undo(void)

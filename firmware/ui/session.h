@@ -12,6 +12,7 @@
  * ARP opens the arpeggiator. A second tap switches to its second page.
  * SAVE opens the project menu. A second tap, or K1, picks save or load.
  * OCT+ confirms that row. There is no flash write.
+ * Hold REC opens sampling. Tap REC there starts or ends a take.
  * A logical SEL tap/hold still maps to confirm/undo for host tests.
  */
 #ifndef FZ_SESSION_H
@@ -99,6 +100,7 @@ typedef struct {
     int draw_pt; /* cycle drawing cursor */
     int cycle_inst; /* 1: the selected instrument is a single cycle, not a sample */
     int arp_page; /* 0 = mode/rate/oct/gate, 1 = swing/prob/hold/order */
+    int cap_db; /* sampling start threshold, dBFS */
     FzArp *arp;
 } FzSession;
 

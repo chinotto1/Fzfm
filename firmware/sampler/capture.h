@@ -74,6 +74,8 @@ void fz_capture_init(FzCapture *c, FzProject *project, FzId instrument, FzId tra
 void fz_capture_set_thresholds(FzCapture *c, int start_dbfs, int stop_dbfs, uint32_t pre_frames,
                                uint32_t silence_hold, uint32_t min_frames);
 void fz_capture_arm(FzCapture *c);
+/* Tap while sampling: start a take from the pre-roll, or end the one in progress. */
+void fz_capture_punch(FzCapture *c);
 void fz_capture_set_root(FzCapture *c, uint8_t root);
 /* Block of 36 kHz mono PCM. Real-time safe: no allocation. */
 void fz_capture_accept(FzCapture *c, const int16_t *mono, uint32_t frames);

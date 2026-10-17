@@ -39,7 +39,7 @@
 <body>
 <main>
   <h1>FM-1 sampler panel</h1>
-  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash.</p>
+  <p class="note">Host simulation of this firmware. The engine runs at 36 kHz. SELECT turns and does not click. OCT+ taps confirm; holding it cancels or undoes. Sound starts after the first click. A key stops when you release it. The status line shows the BPM. PLAY moves the playhead. ENV opens the amplitude and filter envelopes and draws both. LFO opens the modulator and draws each shape; K3 selects the target (off, cutoff, level, pitch, pan) and K4 selects triangle, square, sine, saw, or sample-and-hold. EDIT does not include those pages. A cycle instrument opens on WAVE, then DRAW, where K2 picks a point and K3 sets its level. Sample instruments still have loop and sample pages. ARP opens the arpeggiator. A second tap switches to swing, probability, hold, and key order. K1 selects off, up, down, up-down, random, or order. It follows the BPM and keeps running after you leave the page. Eight notes can sound at once. A mouse click latches a key; click it again to release it. A ninth note replaces the oldest. Letter keys play while held: Z X C V are F G A B, and A W S E D F T G Y H U J K continue from C. SAVE opens the project menu. K1 chooses save or load, and OCT+ confirms. Saving downloads project.fzb, including the samples and the sequence. Loading asks for that file. Nothing is written to flash. Hold REC to sample. The page listens through the microphone. K1 chooses a pitched sample or a multi-sample kit, and K2 sets how loud a sound must be. Tap REC to start or end a take. OCT+ keeps what you recorded and returns to playing. HOME leaves if nothing was recorded.</p>
   <input id="file" type="file" accept=".fzb" hidden>
   <div class="layout">
     <canvas id="lcd" width="240" height="240"></canvas>
@@ -69,6 +69,8 @@ let api = null;
 let audio = null;
 let phase = 0;
 let fileSeen = 0;
+let mic = null;
+let samplingSeen = false;
 const owners = Array.from({ length: 27 }, () => new Set());
 const order = [];
 const LETTERS = {
@@ -102,6 +104,7 @@ function paint() {
   ctx.putImageData(img, 0, 0);
   document.getElementById("status").textContent = cstr(api.sim_status());
   takeProjectFile();
+  watchSampling();
 }
 function takeProjectFile() {
   if (location.search.includes("selftest=1") || !api || !api.sim_file_gen) return;
@@ -126,6 +129,66 @@ function takeProjectFile() {
     const input = document.getElementById("file");
     if (input) input.click();
   }
+}
+function watchSampling() {
+  if (!api) return;
+  const on = document.getElementById("status").textContent.includes("SAMPLING");
+  if (on && !samplingSeen) {
+    samplingSeen = true;
+    clearLatches();
+  } else {
+    samplingSeen = on;
+  }
+  if (location.search.includes("selftest=1")) return;
+  if (on) startMic();
+  else stopMic();
+}
+async function startMic() {
+  if (mic || location.search.includes("selftest=1")) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (err) {
+    return;
+  }
+  if (!document.getElementById("status").textContent.includes("SAMPLING")) {
+    stream.getTracks().forEach((track) => track.stop());
+    return;
+  }
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  const node = ctx.createScriptProcessor(1024, 1, 1);
+  const sink = ctx.createGain();
+  sink.gain.value = 0;
+  node.onaudioprocess = (e) => {
+    if (!api || !document.getElementById("status").textContent.includes("SAMPLING")) return;
+    const input = e.inputBuffer.getChannelData(0);
+    const ratio = ctx.sampleRate / 36000;
+    const n = Math.min(api.sim_capture_cap(), Math.floor(input.length / ratio));
+    if (n <= 0) return;
+    const dst = new Int16Array(mem(), api.sim_capture_buf(), n);
+    for (let i = 0; i < n; i++) {
+      const s = input[Math.min(input.length - 1, Math.floor(i * ratio))];
+      const v = s < -1 ? -1 : s > 1 ? 1 : s;
+      dst[i] = v * 32767;
+    }
+    api.sim_capture(n);
+  };
+  src.connect(node);
+  node.connect(sink);
+  sink.connect(ctx.destination);
+  mic = { stream, ctx, node, sink };
+}
+function stopMic() {
+  if (!mic) return;
+  mic.stream.getTracks().forEach((track) => track.stop());
+  try { mic.node.disconnect(); } catch (err) {}
+  try { mic.sink.disconnect(); } catch (err) {}
+  mic.ctx.close();
+  mic = null;
 }
 function clearLatches() {
   owners.forEach((set) => set.clear());
@@ -188,7 +251,10 @@ function build() {
     const b = document.createElement("button");
     b.textContent = label;
     b.dataset.button = String(id);
-    bindHold(b, () => press(id, true), () => press(id, false));
+    bindHold(b, () => {
+      press(id, true);
+      if (id === 13) startMic();
+    }, () => press(id, false));
     buttons.appendChild(b);
   });
   const enc = document.getElementById("encoders");
@@ -389,6 +455,13 @@ async function selftest() {
   document.querySelector('[data-button="9"]').dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 40 }));
   if (!document.getElementById("status").textContent.includes("PROJECT")) fail("save menu");
   if (document.getElementById("status").textContent.includes("NO FLASH")) fail("flash");
+  const t0 = 9000000;
+  api.sim_button(13, 1, t0);
+  api.sim_poll(t0 + 600000);
+  api.sim_button(13, 0, t0 + 700000);
+  paint();
+  if (!document.getElementById("status").textContent.includes("SAMPLING")) fail("sampling");
+  if (!document.getElementById("status").textContent.includes("CAPTURE")) fail("capture");
   document.title = "PASS";
   document.getElementById("result").textContent = "PASS";
 }

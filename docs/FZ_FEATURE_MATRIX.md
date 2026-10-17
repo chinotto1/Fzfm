@@ -74,7 +74,8 @@ The original FZ-1 manual was not copied into this repository. Where the manual's
 | Chain and queue | Inclusive range in one call. A queued pattern launches at the next bar and does not advance again on that same bar | chain and queue tests | No two-key gesture capture from the matrix |
 | Song | Rows of per-track pattern, mute, repeats | one bar advances to the next row | No insert/reorder UI |
 | Free take | REC arms, first note starts, close infers tempo only when the project has no music and no external clock | 2 s phrase near 120 BPM; existing music stays at 100 | |
-| Retrospective | `fz_seq_capture_history` uses the history slice. Sequencer and menu sources are excluded | one keyboard note kept | |
+| Retrospective | `fz_seq_capture_history` uses the history slice. Sequencer and menu sources are excluded | one keyboard note kept | The panel hold on REC opens sampling. This function stays available to the host |
+| Sampling | Hold REC opens the capture screen, arms a new sample instrument, and listens. K1 selects multi-sample before the first slot. K2 sets the threshold. Tap REC starts or ends a take. OCT+ returns to HOME with the new instrument selected | a loud burst becomes slot 1 and plays at its root. HOME with no slot restores the previous instrument | The panel microphone is the source. There is no iPad USB capture |
 | Undo a take | Sequencer snapshot. The instrument generation is unchanged | seq undo | Six snapshots, 96 events each |
 | Four sends live | `fz_performance_render_sends` / `fz_engine_set_fx`. Wet is added once. One reverb maximum | delay of an impulse appears on time; a second reverb is refused | `fz_performance_render` itself does not attach a rack. CPU cost on the AC79 is unmeasured |
 | Journal | In-memory `FZJR` records. The commit word is written last | a torn tail is dropped | Not flash |

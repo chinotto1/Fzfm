@@ -276,4 +276,55 @@ void test_sim(void)
         EXPECT(strstr(sim_status(), "E1") != 0);
         EXPECT(strstr(sim_status(), "LOADED") != 0);
     }
+
+    sim_boot();
+    sim_button(13, 1, 1000);
+    sim_button(13, 0, 4000);
+    EXPECT(strstr(sim_status(), "CAPTURE") == 0);
+    sim_button(13, 1, 10000);
+    sim_poll(10000 + 600000);
+    sim_button(13, 0, 10000 + 700000);
+    EXPECT(strstr(sim_status(), "CAPTURE") != 0);
+    EXPECT(strstr(sim_status(), "SAMPLING SAMPLE") != 0);
+    EXPECT(strstr(sim_status(), "WAIT") != 0);
+    sim_encoder(2, 1);
+    EXPECT(strstr(sim_status(), "SAMPLING MULTI") != 0);
+    sim_encoder(2, -1);
+    EXPECT(strstr(sim_status(), "SAMPLING SAMPLE") != 0);
+    {
+        int16_t *dst = sim_capture_buf();
+        int cap = sim_capture_cap();
+        int sent = 0;
+        while (sent < 12000) {
+            int n = 12000 - sent;
+            int s;
+            if (n > cap)
+                n = cap;
+            for (s = 0; s < n; s++)
+                dst[s] = (sent + s) < 4000 ? 8000 : 0;
+            sim_capture(n);
+            sent += n;
+        }
+    }
+    EXPECT(strstr(sim_status(), "WAIT 2") != 0);
+    sim_button(1, 1, 2000000);
+    sim_button(1, 0, 2004000);
+    EXPECT(strstr(sim_status(), "HOME") != 0);
+    sim_key(7, 1, 2010000);
+    peak = sim_render(buf, 64);
+    EXPECT(peak > 100);
+    sim_key(7, 0, 2020000);
+
+    sim_boot();
+    sim_button(13, 1, 1000);
+    sim_poll(1000 + 600000);
+    sim_button(13, 0, 1000 + 700000);
+    sim_button(8, 1, 800000);
+    sim_button(8, 0, 808000);
+    EXPECT(strstr(sim_status(), "HOME") != 0);
+    EXPECT(strstr(sim_status(), "SAMPLING") == 0);
+    sim_key(7, 1, 900000);
+    peak = sim_render(buf, 64);
+    EXPECT(peak > 100);
+    sim_key(7, 0, 910000);
 }

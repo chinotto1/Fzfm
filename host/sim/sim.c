@@ -20,10 +20,16 @@
 #define SIM_PCM 72000
 #define SIM_KEYS 27
 #define SIM_FILE (256u * 1024u)
+#define SIM_TAKE 65536
+#define SIM_CAP_BLOCK 1024
 
 static FzProject project;
 static int16_t pcm[SIM_PCM];
-static int16_t take[4096];
+static int16_t take[SIM_TAKE];
+static int16_t capblock[SIM_CAP_BLOCK];
+static int sampling;
+static int return_track;
+static int cap_meter;
 static FzSession session;
 static FzInput input;
 static FzSeq seq;
@@ -100,7 +106,7 @@ static void refresh(void)
 {
     const char *msg = project.last_error[0] ? project.last_error : "";
     session.arp = &arp;
-    char wave[32];
+    char wave[48];
     char bpm[32];
     int partial;
     unsigned whole, tenth;
@@ -115,6 +121,15 @@ static void refresh(void)
     if (session.screen == FZ_SCR_ARP)
         snprintf(wave, sizeof wave, "ARP%s %s %s ", session.arp_page ? "2" : "", fz_arp_mode_name(arp.mode),
                  fz_arp_rate_name(arp.rate));
+    else if (session.screen == FZ_SCR_CAPTURE) {
+        char msg[16];
+        int mi;
+        const char *src = capture.message[0] ? capture.message : "READY";
+        for (mi = 0; mi < 15 && src[mi]; mi++)
+            msg[mi] = src[mi];
+        msg[mi] = 0;
+        snprintf(wave, sizeof wave, "SAMPLING %s %s ", session.row[0] ? "MULTI" : "SAMPLE", msg);
+    }
     else if (session.screen == FZ_SCR_SAVE) {
         int evn = 0;
         int ei;
@@ -282,14 +297,117 @@ static void note_off(int index)
     }
 }
 
+static void silence_keys(void);
+static void rebind_capture(void);
+
+static void stop_sounding(void)
+{
+    int i;
+    for (i = 0; i < SIM_KEYS; i++) {
+        if (held_note[i] >= 0 && arp.mode == FZ_ARP_OFF)
+            fz_engine_note_off(&engine, held_note[i]);
+    }
+    if (arp_sounding >= 0)
+        fz_engine_note_off(&engine, arp_sounding);
+    if (step_note >= 0)
+        fz_engine_note_off(&engine, step_note);
+    silence_keys();
+}
+
+static int sampling_committed(void)
+{
+    int i;
+    for (i = 0; i < FZ_MULTI_SLOTS; i++)
+        if (capture.committed[i])
+            return 1;
+    return 0;
+}
+
+static void sampling_thresholds(void)
+{
+    int stop = session.cap_db - 6;
+    if (stop < -66)
+        stop = -66;
+    fz_capture_set_thresholds(&capture, session.cap_db, stop, 360, (FZ_ENGINE_RATE_HZ * 200u) / 1000u, 1);
+}
+
+static void begin_sampling(void)
+{
+    FzId inst, track;
+    if (sampling)
+        return;
+    return_track = project.selected_track;
+    session.row[0] = 0;
+    session.cap_db = -36;
+    if (fz_project_new_instrument(&project, FZ_INST_SAMPLE, &inst, &track) != FZ_OK) {
+        snprintf(hint, sizeof hint, "FULL ");
+        return;
+    }
+    stop_sounding();
+    cap_meter = 0;
+    fz_capture_init(&capture, &project, inst, track, take, SIM_TAKE);
+    sampling_thresholds();
+    fz_capture_arm(&capture);
+    sampling = 1;
+}
+
+static void sampling_apply_kind(void)
+{
+    FzInstrument *cur;
+    FzId inst, track;
+    FzInstKind kind = session.row[0] ? FZ_INST_MULTI : FZ_INST_SAMPLE;
+    if (!sampling || sampling_committed() || capture.state == FZ_CAP_CAPTURING) {
+        cur = fz_instrument(&project, capture.instrument);
+        if (cur)
+            session.row[0] = cur->kind == FZ_INST_MULTI ? 1 : 0;
+        return;
+    }
+    cur = fz_instrument(&project, capture.instrument);
+    if (cur && cur->kind == kind)
+        return;
+    if (cur && cur->region_count == 0)
+        fz_project_delete_instrument(&project, capture.instrument);
+    if (fz_project_new_instrument(&project, kind, &inst, &track) != FZ_OK) {
+        snprintf(hint, sizeof hint, "FULL ");
+        return;
+    }
+    fz_capture_init(&capture, &project, inst, track, take, SIM_TAKE);
+    sampling_thresholds();
+    fz_capture_arm(&capture);
+}
+
+static void leave_sampling(int keep)
+{
+    FzId id;
+    int any;
+    if (!sampling)
+        return;
+    any = sampling_committed();
+    id = capture.instrument;
+    sampling = 0;
+    if (!keep && !any) {
+        fz_project_delete_instrument(&project, id);
+        if (return_track >= 0 && return_track < FZ_MAX_TRACKS && project.track[return_track].alive)
+            project.selected_track = return_track;
+    }
+    rebind_capture();
+}
+
 static void apply_cmd(const FzCommand *cmd)
 {
     if (!cmd || cmd->kind == FZ_CMD_NONE)
         return;
     if (cmd->kind == FZ_CMD_REC_HOLD)
-        fz_seq_capture_history(&seq, &project, &history, 0, cmd->at_us, 2000000u);
-    else
+        begin_sampling();
+    else if (cmd->kind == FZ_CMD_REC_TAP && session.screen == FZ_SCR_CAPTURE) {
+        fz_capture_punch(&capture);
+        fz_capture_service(&capture);
+    } else
         fz_session_apply(&session, &project, &capture, &seq, cmd);
+    if (cmd->kind == FZ_CMD_HOME && sampling)
+        leave_sampling(0);
+    if (cmd->kind == FZ_CMD_CAPTURE_FINISH && sampling)
+        leave_sampling(1);
     if (cmd->kind == FZ_CMD_CONFIRM && session.screen == FZ_SCR_SAVE) {
         if (session.row[0] == 0) {
             uint32_t n = 0;
@@ -348,7 +466,10 @@ void sim_boot(void)
     fz_seq_set_tempo(&seq, 120000);
     fz_arp_init(&arp);
     arp_sounding = -1;
-    fz_capture_init(&capture, &project, inst, track, take, 4096);
+    fz_capture_init(&capture, &project, inst, track, take, SIM_TAKE);
+    sampling = 0;
+    cap_meter = 0;
+    return_track = project.selected_track;
     fz_engine_init(&engine);
     fz_fx_init(&rack);
     fz_history_init(&history);
@@ -405,7 +526,13 @@ void sim_encoder(int encoder, int detents)
     }
     if (encoder >= 2 && encoder <= 5) {
         int was = arp.mode;
+        int kind = session.row[0];
+        int db = session.cap_db;
         fz_session_knob(&session, &project, encoder - 2, detents);
+        if (session.screen == FZ_SCR_CAPTURE && encoder == 2 && session.row[0] != kind)
+            sampling_apply_kind();
+        if (session.screen == FZ_SCR_CAPTURE && encoder == 3 && session.cap_db != db)
+            sampling_thresholds();
         if (was == FZ_ARP_OFF && arp.mode != FZ_ARP_OFF)
             release_direct_keys();
     }
@@ -536,7 +663,7 @@ static void rebind_capture(void)
             break;
         }
     }
-    fz_capture_init(&capture, &project, inst, track, take, 4096);
+    fz_capture_init(&capture, &project, inst, track, take, SIM_TAKE);
 }
 
 uint8_t *sim_file_ptr(void)
@@ -578,6 +705,7 @@ int sim_load(uint32_t len)
         return (int)st;
     }
     file_len = len;
+    sampling = 0;
     fz_engine_init(&engine);
     fz_arp_init(&arp);
     silence_keys();
@@ -585,6 +713,45 @@ int sim_load(uint32_t len)
     snprintf(hint, sizeof hint, "LOADED ");
     refresh();
     return FZ_OK;
+}
+
+int16_t *sim_capture_buf(void)
+{
+    return capblock;
+}
+
+int sim_capture_cap(void)
+{
+    return SIM_CAP_BLOCK;
+}
+
+void sim_capture(int frames)
+{
+    int i;
+    int block = 0;
+    if (!booted)
+        sim_boot();
+    if (session.screen != FZ_SCR_CAPTURE || !sampling || frames <= 0)
+        return;
+    if (frames > SIM_CAP_BLOCK)
+        frames = SIM_CAP_BLOCK;
+    fz_capture_accept(&capture, capblock, (uint32_t)frames);
+    fz_capture_service(&capture);
+    for (i = 0; i < frames; i++) {
+        int a = capblock[i] < 0 ? -capblock[i] : capblock[i];
+        if (a > block)
+            block = a;
+    }
+    if (block > cap_meter)
+        cap_meter = block;
+    else
+        cap_meter = cap_meter * 3 / 4;
+    if (cap_meter < 0)
+        cap_meter = 0;
+    if (cap_meter > 32767)
+        cap_meter = 32767;
+    capture.peak = (uint16_t)cap_meter;
+    refresh();
 }
 
 int sim_render(int16_t *stereo, int frames)

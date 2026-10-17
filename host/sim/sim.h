@@ -26,6 +26,10 @@ uint32_t sim_file_len(void);
 uint32_t sim_file_gen(void);
 int sim_file_kind(void);
 int sim_load(uint32_t len);
+/* 36 kHz mono for the open sampling screen. Write sim_capture_buf() first. */
+int16_t *sim_capture_buf(void);
+int sim_capture_cap(void);
+void sim_capture(int frames);
 int16_t *sim_mix(void);
 uint16_t *sim_lcd(void);
 char *sim_status(void);

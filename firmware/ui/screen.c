@@ -655,9 +655,28 @@ void fz_screen_draw(uint16_t *rgb565, const FzProject *project, const FzSession 
         text(rgb565, 4, 72, "KEYS PERC LOOP", fg);
         text(rgb565, 4, 110, "LOW 9 KEYS", fg);
     } else if (screen == FZ_SCR_CAPTURE && capture) {
-        text(rgb565, 4, 48, capture->message, fg);
+        int peak = capture->peak;
+        int width = peak * 200 / 32767;
+        const char *kind = session && session->row[0] ? "MULTI" : "SAMPLE";
+        text(rgb565, 4, 40, "SAMPLING", head);
+        text(rgb565, 4, 64, kind, fg);
         snprintf(line, sizeof line, "SLOT %d", capture->slot + 1);
-        text(rgb565, 4, 72, line, fg);
+        text(rgb565, 120, 64, line, fg);
+        text(rgb565, 4, 88, capture->message[0] ? capture->message : "READY", fg);
+        if (width < 0)
+            width = 0;
+        if (width > 200)
+            width = 200;
+        rect(rgb565, 4, 112, 200, 10, hi);
+        if (width > 0)
+            rect(rgb565, 4, 112, width, 10, on);
+        if (session)
+            snprintf(line, sizeof line, "THR %d", session->cap_db);
+        text(rgb565, 4, 136, line, fg);
+        text(rgb565, 4, 168, "K1 KIND", fg);
+        text(rgb565, 120, 168, "K2 LEVEL", fg);
+        text(rgb565, 4, 192, "TAP REC", fg);
+        text(rgb565, 120, 192, "OCT+ PLAY", head);
     } else if (screen == FZ_SCR_PICK_NOTE || screen == FZ_SCR_PICK_RANGE) {
         text(rgb565, 4, 48, "PICK A KEY", fg);
     } else if (screen == FZ_SCR_CONFIRM) {
