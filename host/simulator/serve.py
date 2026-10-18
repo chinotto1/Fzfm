@@ -93,7 +93,7 @@ def main():
                     return self.send(C.string_at(data, length.value), 'application/octet-stream')
                 finally:
                     lib.fm_sim_free(data)
-            paths = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css'}
+            paths = {'/': 'index.html', '/app.js': 'app.js', '/backend.js': 'backend.js', '/style.css': 'style.css'}
             if route not in paths:
                 return self.send({'error': 'not found'}, code=404)
             name = paths[route]

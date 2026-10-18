@@ -78,7 +78,7 @@ void *fm_sim_create(const char *directory)
         free(s);
         return NULL;
     }
-    fclose(s->wave);
+    if (s->wave) fclose(s->wave);
     s->wave = NULL;
     s->ui.load = load_project;
     return s;
@@ -255,6 +255,8 @@ double fm_sim_metric(void *handle, unsigned field)
         return in ? in->base_note : 36;
     case 33:
         return s->ui.octave;
+    case 34:
+        return s->project.generation;
     default:
         return 0;
     }
@@ -352,4 +354,15 @@ int fm_sim_demo(void *handle)
     s->ui.screen = FM_SCREEN_HOME;
     snprintf(s->ui.status, sizeof(s->ui.status), "DEMO READY - PLAY / EDIT / SEQ");
     return r ? FM_ERR_FORMAT : FM_OK;
+}
+
+/* Browser durability is confirmed only after IndexedDB's async commit. */
+void fm_sim_persistence_error(void *handle)
+{
+    Simulator *s=handle;
+    if (!s)return;
+    s->project.dirty=true;
+    s->project.volatile_audio=true;
+    s->ui.last_result=FM_ERR_STORAGE;
+    snprintf(s->ui.status,sizeof(s->ui.status),"LOCAL SAVE FAILED - EXPORT BACKUP");
 }

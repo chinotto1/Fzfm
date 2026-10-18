@@ -11,3 +11,5 @@ Other sources in `third_party/sources.lock` were inspected as behavioral/hardwar
 The AC79 boot/config resources are not shipped or used by the target builder. Any future distribution containing them must retain their separate licenses and prove update/recovery compatibility.
 
 Casio, Adventure Kid, M-VAVE, JieLi and ALM names identify references or compatibility; no endorsement is implied.
+
+The public WebAssembly emulator builds the project-owned C core with Emscripten 3.1.69; the native FM-1 SDK, board layer and proprietary engines are not linked into it. Retained compiler/system-library notices are in `third_party/notices/emscripten-web.txt` (the Debian 3.1.69 source distribution's component notice inventory). The static site includes that file and the GPL text; complete application source and the web build script are in this repository. GitHub Actions used for deployment are pinned by commit in `.github/workflows/pages.yml`.

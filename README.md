@@ -1,5 +1,7 @@
 # FM1 FZ-inspired sampler
 
+**[Open the public iPad emulator](https://chinotto1.github.io/Fzfm/)** — tap **Explore demo**, then **Enable sound**. No computer or account is needed. [Browser saves and controls](docs/WEB_EMULATOR.md).
+
 A 36 kHz sampling synthesizer and groovebox for the M-VAVE FM-1. The portable application now connects sampling, synthesis, editing, sequencing, arrangement, mixing and project saves. A local simulator runs that same C application with its actual 240×240 display and physical controls.
 
 ```sh
@@ -17,6 +19,8 @@ The application **builds and links for PI32v2**, producing a range-checked raw d
 Other commands:
 
 ```sh
+make web                         # static C/WebAssembly emulator (Emscripten 3.1.69)
+make web-test                    # static-site touch/audio/local-save tests
 make demo                        # native controls -> WAV + display fixtures
 make benchmark                   # host timing/memory for two explicit profiles
 make browser-test                # optional Playwright + Chromium end-to-end checks

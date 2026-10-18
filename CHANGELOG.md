@@ -30,3 +30,7 @@ Target firmware, USB device code, flash storage, the filter, effects, the sequen
 Added the shared workstation application, deep nine-tab UI, capture controls, additive/preset/draw/extract workflows, real filter/four sends, recorder/steps/chains/song/live arrangement, pattern actions and persistent sample unbake. Added validated FM1P v2 projects, fault-tested host saves, native CLI/browser simulator with responsive physical controls and local import/export, workflow/heap/SRC regressions and browser checks. Pinned/vendored the MPL board layer and external compiler/runtime inputs; baseline and sampler now cross-compile/link. Device flash persistence, recovery, clocks/USB qualification and optional EPROM support remain open. Nothing was flashed.
 
 Follow-up workflow verification added real step ties, confirmed anchor deletion, atomic FX undo/redo admission with preserved bypass tails, and history/reader-aware superseded-cycle collection. Six hundred live waveform edits no longer exhaust asset slots; undo/redo and crossfade readers remain valid.
+
+## Public iPad emulator
+
+Added a static WebAssembly build of the actual C instrument with module-worker ownership, touch controls, Safari audio unlock/interruption handling, browser-local two-generation saves and automatic reload. Project restore saves locally; import/export stays on the device. Content-hashed assets and a pinned/tested GitHub Pages deployment workflow publish the emulator directly from main.

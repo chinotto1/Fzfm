@@ -90,3 +90,9 @@ baseline:
 .PHONY: native-test
 native-test: build/libfm1_sim.so
 	python3 tests/native/test_bridge.py
+
+.PHONY: web web-test
+web:
+	python3 host/wasm/build.py
+web-test: web
+	python3 tests/browser/test_static_emulator.py

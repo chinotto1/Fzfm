@@ -8,3 +8,4 @@
 .file{position:relative}
 .key-scroll{max-width:100%;border-radius:4px}.key-scroll:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 @media(max-width:430px){.key-scroll{overflow-x:auto;overscroll-behavior-x:contain;padding-bottom:6px}.keyboard{min-width:640px}.keyboard button{touch-action:pan-x}.key-scroll::-webkit-scrollbar{height:6px}.key-scroll::-webkit-scrollbar-thumb{background:#71815e;border-radius:3px}}
+#runtime-message{max-width:1112px;margin:18px auto 0;padding:10px 16px;background:#253424;border:1px solid #526747;color:var(--accent);border-radius:6px;font-size:12px}#runtime-message:empty{display:none}body.loading .panel{pointer-events:none;opacity:.6}.source-link{font-size:11px;color:var(--dim);margin-top:24px}.source-link a{color:var(--accent)}

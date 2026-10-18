@@ -116,12 +116,14 @@ static int init(Simulator *s, const char *dir)
     fm_ui_callbacks(&s->ui, save_project, capture_command, s);
     s->ui.capture_monitor = &s->capture;
     fm_midi_init(&s->midi, &s->project, &s->engine, s->sequence);
+#ifndef __EMSCRIPTEN__
     char path[512];
     snprintf(path, sizeof(path), "%s/audio.wav", dir);
     s->wave = fopen(path, "wb+");
     if (!s->wave)
         return 1;
     wave_header(s->wave, 0);
+#endif
     return 0;
 }
 static void render_frames(Simulator *s, uint32_t frames)
@@ -197,9 +199,14 @@ static int screenshot(Simulator *s, const char *path)
 }
 static int shot(Simulator *s, const char *dir, const char *name)
 {
+#ifdef __EMSCRIPTEN__
+    (void)s; (void)dir; (void)name;
+    return 0;
+#else
     char path[1024];
     snprintf(path, sizeof(path), "%s/%s.pgm", dir, name);
     return screenshot(s, path);
+#endif
 }
 /* Deterministic 44.1 kHz host stereo PCM passes through the actual streaming
  * boundary SRC into capture. Quiet time lets the detector finalize/service. */
