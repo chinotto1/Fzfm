@@ -242,6 +242,7 @@ static void note_on(FmEngine *engine, const FmEvent *event, FmTrack *track, FmTr
     voice->identity = event->identity;
     voice->serial = ++engine->serial;
     voice->velocity = (float)event->velocity / 127.0f;
+    fm_sample_hold_init(&voice->sample_hold, region->id);
     voice->phase = region->reverse ? (double)(region->end - 1u) : (double)region->start;
     voice->step = voice_step(voice, state->bend[event->channel]);
     voice->stolen[0] = stolen[0];
@@ -590,12 +591,35 @@ void fm_engine_render(FmEngine *engine, float *stereo, size_t frames)
                 voice->active = false;
                 continue;
             }
-            if (voice->region.lfo_shape & 0x80u)
-                voice->lfo_phase = (float)fmod(
-                    (double)engine->frame / (double)FM_RATE * (double)voice->region.lfo_rate, 1);
-            float lfo = fm_lfo_tick(&voice->lfo_phase, voice->region.lfo_rate,
-                                    voice->region.lfo_shape & 0x7fu) *
-                        voice->region.lfo_depth;
+            float lfo;
+            if ((voice->region.lfo_shape & 0x7fu) == FM_LFO_SAMPLE_HOLD)
+            {
+                if (voice->region.lfo_shape & 0x80u)
+                {
+                    /* Shared region seed + global cycle: new notes join the
+                     * running sequence instead of restarting its random steps. */
+                    uint64_t cycle = (uint64_t)((double)engine->frame / FM_RATE *
+                                                clamp(voice->region.lfo_rate, 0, 100));
+                    if (cycle != voice->sample_hold.cycle)
+                    {
+                        voice->sample_hold.cycle = cycle;
+                        voice->sample_hold.held = fm_lfo_sample((double)cycle, FM_LFO_SAMPLE_HOLD,
+                                                                voice->sample_hold.seed);
+                    }
+                    lfo = voice->sample_hold.held;
+                }
+                else
+                    lfo = fm_sample_hold_tick(&voice->sample_hold, voice->region.lfo_rate);
+            }
+            else
+            {
+                if (voice->region.lfo_shape & 0x80u)
+                    voice->lfo_phase =
+                        (float)fmod((double)engine->frame / FM_RATE * voice->region.lfo_rate, 1);
+                lfo = fm_lfo_tick(&voice->lfo_phase, voice->region.lfo_rate,
+                                  voice->region.lfo_shape & 0x7fu);
+            }
+            lfo *= voice->region.lfo_depth;
             float cutoff =
                 (state ? state->cutoff : track->cutoff) + voice->region.cutoff - 1 +
                 voice->region.filter_env * env +

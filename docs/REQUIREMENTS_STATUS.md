@@ -25,7 +25,7 @@ Current implementation extends the reviewed Cursor commit `ffc0576`. The executa
 | R19 | Host + compiled | 48 editable levels and harmonic bar graph, touch/number editing and recipes, saved recipe, immutable regeneration, phase-preserving 64-frame held-note table crossfade |
 | R20 | Host + compiled | Sine/triangle/saw/square selection, waveform preview, cycle extraction, physical point drawing and touch draft/apply/smooth/clear with whole-stroke undo, shared asset library |
 | R21 | Host + compiled | HOME tracks and four working smoothed performance controls |
-| R22 | Host + compiled; fidelity partial | Per-voice driven TPT resonant filter, amp/filter envelopes/LFO/key scaling, stability/response tests. Original custom model, no FZ chip-fit claim |
+| R22 | Host + compiled; fidelity partial | Per-voice driven TPT resonant filter, amp/filter envelopes/LFO/key scaling, including clocked Sample & Hold with per-note retrigger or shared free-run, stability/response tests. Original custom model, no FZ chip-fit claim |
 | R23 | Host + compiled | Shared level/pan fields, sends, mute/solo; FX return level/pan/mute. Master ADC pot uncalibrated |
 | R24 | Host + compiled; device budget pending | Four simultaneous shared wet processors with named parameter rows, input bypass/tails, return mute, admission/reclaim tests |
 | R25 | Host; compiled with RAM limits | Atomic isolated sample bake/pattern freeze, persistent unbake recipes and scoped unsend. All active sends required; finite tail/warmups; target temporary-RAM admission may reject |
@@ -58,7 +58,7 @@ These results identify host coverage, not a declaration that the specification's
 | T23–T25 | Nine tabs, remembered row/scope, modal interception/cancel, naming. Playwright desktop/iPad/390/320 px, graphical modulation and synthesis editors, discoverable track creation/cancellation and WAV/microphone capture with no JS errors |
 | T26–T28 | PCM edit/mix/cross-mix fixtures, loop transitions/crossfades, scope safety, envelope release/scaling tests; reverse-loop limitation above |
 | T29–T30 | 48-level recipes/reload and live table publication; 600/1,024 cycles near A4 |
-| T31–T32 | Stable resonant response across test sweeps and actual HOME/GLO shared controls; no hardware FZ reference matching |
+| T31–T32 | Stable resonant response across test sweeps and actual HOME/GLO shared controls; S&H hold-duration/range/zero-rate, staggered-note phase-mode and project roundtrip tests; no hardware FZ reference matching |
 | T33–T34 | Four wet processors run together in two host budget profiles, tails/sends/mute/frozen bypass checks; device CPU/deadline pending |
 | T35–T38 | ONE/ALL routing, pattern freeze/unfreeze, explicit shared/nonlinear limits, persistent unbake, future-automation/reader-aware actual buffer release |
 | T39 | Budget/cancel rejection retains prior audio/routing; host journal interruption tests. Physical power-cut pending |

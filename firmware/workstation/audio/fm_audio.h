@@ -24,6 +24,7 @@ typedef struct
     uint64_t serial;
     double phase, step;
     float velocity, lfo_phase;
+    FmSampleHold sample_hold;
     FmFilter filters[2];
     FmEnvState amp, filter;
     float last[2], stolen[2];

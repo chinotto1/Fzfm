@@ -129,3 +129,34 @@ float fm_lfo_tick(float *phase, float rate, uint8_t shape)
         return sinf(2 * FM_PI * (*phase));
     }
 }
+float fm_lfo_sample(double cycles, uint8_t shape, uint32_t seed)
+{
+    if (shape == FM_LFO_SAMPLE_HOLD)
+    {
+        uint64_t cycle = (uint64_t)cycles;
+        uint32_t value = (uint32_t)cycle ^ ((uint32_t)(cycle >> 32) * 0x9e3779b9u) ^ seed;
+        value += 0x9e3779b9u;
+        value = (value ^ (value >> 16)) * 0x85ebca6bu;
+        value = (value ^ (value >> 13)) * 0xc2b2ae35u;
+        value ^= value >> 16;
+        return (float)(value >> 8) / 8388607.5f - 1;
+    }
+    float phase = (float)fmod(cycles, 1);
+    return fm_lfo_tick(&phase, 0, shape);
+}
+void fm_sample_hold_init(FmSampleHold *state, uint32_t seed)
+{
+    *state = (FmSampleHold){0, 0, seed, fm_lfo_sample(0, FM_LFO_SAMPLE_HOLD, seed)};
+}
+float fm_sample_hold_tick(FmSampleHold *state, float rate)
+{
+    float value = state->held;
+    state->phase += (double)limit(rate, 0, 100) / FM_RATE;
+    if (state->phase >= 1)
+    {
+        state->phase -= 1;
+        state->cycle++;
+        state->held = fm_lfo_sample((double)state->cycle, FM_LFO_SAMPLE_HOLD, state->seed);
+    }
+    return value;
+}

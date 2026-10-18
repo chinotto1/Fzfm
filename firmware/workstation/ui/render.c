@@ -513,14 +513,16 @@ static void edit_value(FmUi *u, unsigned tab, unsigned row, char *out, size_t si
     }
     else if (tab == 5)
     {
-        static const char *const shapes[] = {"SINE", "TRIANGLE", "SQUARE", "SAW"};
+        static const char *const shapes[] = {"SINE", "TRIANGLE", "SQUARE", "SAW", "SAMPLE & HOLD"};
         static const char *const dest[] = {"CUTOFF", "AMPLITUDE", "PITCH", "PAN"};
         if (row == 0)
             snprintf(out, size, "%.2f HZ", (double)r->lfo_rate);
         else if (row == 1)
             snprintf(out, size, "%.3f", (double)r->lfo_depth);
         else if (row == 2)
-            snprintf(out, size, "%s", shapes[r->lfo_shape % 4]);
+            snprintf(
+                out, size, "%s",
+                shapes[(r->lfo_shape & 0x7fu) <= FM_LFO_SAMPLE_HOLD ? r->lfo_shape & 0x7fu : 0]);
         else if (row == 3)
             snprintf(out, size, "%s", dest[r->lfo_destination % 4]);
         else
@@ -622,10 +624,19 @@ static void edit_graph(FmUi *u, unsigned tab)
         int previous = 85;
         for (int x = 0; x < 220; x++)
         {
-            float phase = fmodf((float)x / 219 * r->lfo_rate, 1);
-            int y = 85 - (int)(27 * r->lfo_depth * fm_lfo_tick(&phase, 0, r->lfo_shape & 3));
+            double cycles = (double)x / 219 * r->lfo_rate;
+            int y =
+                85 - (int)(27 * r->lfo_depth * fm_lfo_sample(cycles, r->lfo_shape & 0x7fu, r->id));
             if (x)
-                line(u, 9 + x - 1, previous, 9 + x, y);
+            {
+                if ((r->lfo_shape & 0x7fu) == FM_LFO_SAMPLE_HOLD)
+                {
+                    line(u, 9 + x - 1, previous, 9 + x, previous);
+                    line(u, 9 + x, previous, 9 + x, y);
+                }
+                else
+                    line(u, 9 + x - 1, previous, 9 + x, y);
+            }
             previous = y;
         }
         text(u, 12, 55, "1 SECOND", 10, 1);

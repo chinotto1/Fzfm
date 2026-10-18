@@ -98,6 +98,10 @@ try:
     number('lfo-depth',.75);wait('fm1.state().editor.lfo.depth===.75')
     page.locator('#lfo-shape').select_option('2');wait('fm1.state().editor.lfo.shape===2')
     samples=state()['editor']['lfo']['samples'];assert max(samples)>24000 and min(samples)<-24000
+    page.locator('#lfo-shape').select_option('4');wait('fm1.state().editor.lfo.shape===4')
+    samples=state()['editor']['lfo']['samples']
+    assert len(set(samples))==3 and samples[0]==samples[50] and samples[90]!=samples[0],samples
+    page.locator('#lfo-phase').select_option('1');wait('fm1.state().editor.lfo.free===true && fm1.state().editor.lfo.shape===4')
     page.screenshot(path=str(ROOT/'build/ui/workspace-ipad-lfo.png'),full_page=True)
     # Drum kit sampling is discoverable and uses real capture, not a JS mock.
     create(0);wait('fm1.state().tracks===2 && fm1.state().screen===7')
@@ -140,7 +144,7 @@ try:
     wait('fm1.state().instrumentType===1 && fm1.state().editor.additive===true')
     assert state()['editor']['amp']['stages'][0][0]==700
     assert state()['editor']['filter']['stages'][0][0]==420
-    assert state()['editor']['lfo']['shape']==2
+    assert state()['editor']['lfo']['shape']==4 and state()['editor']['lfo']['free']
     assert state()['editor']['harmonics'][2]>0 and state()['editor']['harmonics'][1]==0
     assert not errors,errors
     assert not any('/api/' in r for r in requests),requests

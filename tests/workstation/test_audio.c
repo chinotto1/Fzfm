@@ -408,12 +408,95 @@ static int test_additive(void)
     fm_project_destroy(&project);
     return 0;
 }
+static int test_sample_hold(void)
+{
+    FmSampleHold state;
+    fm_sample_hold_init(&state, 123);
+    float initial = state.held;
+    for (unsigned i = 0; i < 500; i++)
+        CHECK(fm_sample_hold_tick(&state, 0) == initial);
+    unsigned changes = 0, last_change = 0;
+    float previous = initial;
+    for (unsigned frame = 0; frame < FM_RATE / 2; frame++)
+    {
+        float value = fm_sample_hold_tick(&state, 10);
+        CHECK(isfinite(value) && value >= -1 && value <= 1);
+        if (value != previous)
+        {
+            CHECK(frame - last_change >= 3599 && frame - last_change <= 3601);
+            last_change = frame;
+            changes++;
+        }
+        previous = value;
+    }
+    CHECK(changes == 4);
+    float low = 1, high = -1;
+    for (unsigned cycle = 0; cycle < 4096; cycle++)
+    {
+        float value = fm_lfo_sample(cycle + .1, FM_LFO_SAMPLE_HOLD, 123);
+        CHECK(value == fm_lfo_sample(cycle + .99, FM_LFO_SAMPLE_HOLD, 123));
+        CHECK(value >= -1 && value <= 1);
+        low = fminf(low, value);
+        high = fmaxf(high, value);
+    }
+    CHECK(low < -.5 && high > .5);
+    /* Exercise actual voices: staggered note-ons restart independent clocks
+     * in retrigger mode and share the region's global clock in free-run mode. */
+    FmProject project;
+    CHECK(fm_project_init(&project, NULL) == FM_OK);
+    FmId tid, rid;
+    CHECK(fm_instrument_create(&project, FM_SAMPLE, &tid) == FM_OK);
+    FmTrack *track = fm_track(&project, tid);
+    CHECK(fm_synthesis_preset(&project, track->instrument, FM_WAVE_SINE, 600, &rid) == FM_OK);
+    FmRegion *region = fm_region(&project, rid);
+    region->lfo_rate = 10;
+    region->lfo_depth = .5;
+    region->lfo_destination = 2;
+    for (unsigned free_run = 0; free_run < 2; free_run++)
+    {
+        region->lfo_shape = FM_LFO_SAMPLE_HOLD | (free_run ? 0x80u : 0);
+        FmEngine engine;
+        CHECK(fm_engine_init(&engine, &project, 2) == FM_OK);
+        FmEvent event = {.kind = FM_EVENT_NOTE_ON,
+                         .track = tid,
+                         .identity = 1,
+                         .origin = FM_ORIGIN_LOCAL,
+                         .note = 60,
+                         .velocity = 100,
+                         .probability = 1};
+        CHECK(fm_engine_event(&engine, &event) == FM_OK);
+        event.frame = 1800;
+        event.identity = 2;
+        CHECK(fm_engine_event(&engine, &event) == FM_OK);
+        float output[256];
+        double energy = 0;
+        for (unsigned at = 0; at < 3700;)
+        {
+            unsigned n = 3700 - at < 128 ? 3700 - at : 128;
+            fm_engine_render(&engine, output, n);
+            for (unsigned i = 0; i < n * 2; i++)
+            {
+                CHECK(isfinite(output[i]));
+                energy += fabs(output[i]);
+            }
+            at += n;
+        }
+        CHECK(energy > 1 && engine.voices[0].sample_hold.cycle == 1);
+        CHECK(engine.voices[1].sample_hold.cycle == (free_run ? 1u : 0u));
+        CHECK((engine.voices[0].sample_hold.held == engine.voices[1].sample_hold.held) ==
+              !!free_run);
+        fm_engine_destroy(&engine);
+    }
+    fm_project_destroy(&project);
+    return 0;
+}
 int test_audio(void)
 {
     CHECK(test_src() == 0);
     CHECK(test_pitch_and_notes() == 0);
     CHECK(test_rate_and_loop() == 0);
     CHECK(test_envelopes_filter_fx() == 0);
+    CHECK(test_sample_hold() == 0);
     CHECK(test_additive() == 0);
     CHECK(test_send_routing_and_frozen() == 0);
     CHECK(test_fx_safe_reclaim() == 0);

@@ -110,11 +110,11 @@ export function initWorkspace({request, update, getState, stopSound, showError})
     if(signed) {ctx.strokeStyle='#738466';ctx.beginPath();ctx.moveTo(12,h/2);ctx.lineTo(w-12,h/2);ctx.stroke();}
     ctx.strokeStyle='#d3e8a0'; ctx.lineWidth=2; return ctx;
   }
-  function plotWave(canvas, samples) {
+  function plotWave(canvas, samples, stepped=false) {
     const ctx=graphBase(canvas,true),w=canvas.width,h=canvas.height;
     if(!samples?.length) return;
     ctx.beginPath();
-    samples.forEach((v,i)=>{ const x=12+i*(w-24)/Math.max(1,samples.length-1),y=h/2-v/32768*(h/2-14); if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y); });
+    samples.forEach((v,i)=>{ const x=12+i*(w-24)/Math.max(1,samples.length-1),y=h/2-v/32768*(h/2-14); if(i){if(stepped)ctx.lineTo(x,h/2-samples[i-1]/32768*(h/2-14));ctx.lineTo(x,y);}else ctx.moveTo(x,y); });
     ctx.stroke();
   }
   function plotEnvelope(envelope, stage) {
@@ -140,7 +140,7 @@ export function initWorkspace({request, update, getState, stopSound, showError})
       if(tab===5&&lfo) {
         field('Rate (Hz)','lfo-rate',{min:0,max:50,step:.1},lfo.rate,v=>parameter(5,0,v));
         field('Depth (0–1)','lfo-depth',{min:0,max:1,step:.01},lfo.depth,v=>parameter(5,1,v));
-        field('Shape','lfo-shape',{options:['Sine','Triangle','Square','Saw']},lfo.shape,v=>parameter(5,2,v));
+        field('Shape','lfo-shape',{options:['Sine','Triangle','Square','Saw','Sample & Hold']},lfo.shape,v=>parameter(5,2,v));
         field('Destination','lfo-destination',{options:['Filter cutoff','Amplitude','Pitch','Pan']},lfo.destination,v=>parameter(5,3,v));
         field('Phase mode','lfo-phase',{options:['Retrigger on each note','Free running']},+lfo.free,v=>parameter(5,4,v));
       } else if(env) {
@@ -155,7 +155,7 @@ export function initWorkspace({request, update, getState, stopSound, showError})
     }
     if(tab===5) {
       $('mod-graph').setAttribute('aria-label','LFO waveform graph');
-      plotWave($('mod-graph'),lfo?.samples);
+      plotWave($('mod-graph'),lfo?.samples,lfo?.shape===4);
       $('graph-caption').textContent=lfo?`One second · ${lfo.rate.toFixed(2)} Hz · depth ${lfo.depth.toFixed(2)} · ${lfo.rate?`period ${(1000/lfo.rate).toFixed(1)} ms`:'stopped'}`:'Capture a sound first to edit its LFO.';
       if(lfo) for(const [id,v] of [['rate',lfo.rate],['depth',lfo.depth],['shape',lfo.shape],['destination',lfo.destination],['phase',+lfo.free]]) syncInput('lfo-'+id,v);
     } else {

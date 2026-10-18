@@ -60,6 +60,14 @@ typedef struct
 } FmEnvelope;
 typedef enum
 {
+    FM_LFO_SINE,
+    FM_LFO_TRIANGLE,
+    FM_LFO_SQUARE,
+    FM_LFO_SAW,
+    FM_LFO_SAMPLE_HOLD
+} FmLfoShape;
+typedef enum
+{
     FM_LOOP_CONTINUE,
     FM_LOOP_JUMP,
     FM_LOOP_END

@@ -43,6 +43,9 @@ int test_storage(void)
     FmRegion *r = fm_region(&p, rid);
     r->sends[2] = 0.125f;
     r->pan = -0.25f;
+    r->lfo_shape = 0x80u | FM_LFO_SAMPLE_HOLD;
+    r->lfo_rate = 7.5f;
+    r->lfo_depth = .75f;
     r->baked_mask = 2;
     r->loop_enabled = true;
     r->loop_count = 2;
@@ -84,6 +87,11 @@ int test_storage(void)
     CHECK(fm_project_encode(&q, &round, &nround) == FM_OK);
     CHECK(nround == n && !memcmp(round, b, n));
     CHECK(fm_region(&q, rid)->sends[2] == 0.125f);
+    CHECK(fm_region(&q, rid)->lfo_shape == (0x80u | FM_LFO_SAMPLE_HOLD));
+    CHECK(fm_region(&q, rid)->lfo_rate == 7.5f && fm_region(&q, rid)->lfo_depth == .75f);
+    r->lfo_shape = FM_LFO_SAMPLE_HOLD + 1;
+    CHECK(fm_project_validate(&p) == FM_ERR_FORMAT);
+    r->lfo_shape = 0x80u | FM_LFO_SAMPLE_HOLD;
     CHECK(fm_instrument(&q, s->id)->harmonics[47] == 209);
     CHECK(!memcmp(fm_asset(&q, aid)->pcm, pcm, sizeof pcm));
     free(round);

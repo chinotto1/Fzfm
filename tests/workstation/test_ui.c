@@ -52,6 +52,12 @@ static int test_graphical_parameters(FmUi *u, FmInstrument *in)
     CHECK(fm_ui_set_parameter(u, 5, 2, 1, 2) == FM_OK);
     CHECK(graph_hash(u) != old);
     CHECK(in->regions[0].lfo_shape == 2);
+    CHECK(fm_ui_set_parameter(u, 5, 2, 1, FM_LFO_SAMPLE_HOLD) == FM_OK);
+    CHECK(in->regions[0].lfo_shape == FM_LFO_SAMPLE_HOLD);
+    CHECK(fm_ui_set_parameter(u, 5, 4, 1, 1) == FM_OK);
+    CHECK(in->regions[0].lfo_shape == (0x80u | FM_LFO_SAMPLE_HOLD));
+    CHECK(fm_ui_set_parameter(u, 5, 4, 1, 0) == FM_OK);
+    CHECK(in->regions[0].lfo_shape == FM_LFO_SAMPLE_HOLD);
     CHECK(fm_ui_set_parameter(u, 6, 1, 0, 47) == FM_OK);
     CHECK(u->harmonic == 47);
     CHECK(fm_ui_set_parameter(u, 6, 1, 1, 128) == FM_OK);

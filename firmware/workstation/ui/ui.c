@@ -467,14 +467,15 @@ static FmResult scope_value(FmUi *u, double value, bool relative, unsigned field
                     break;
                 case 2:
                     a->lfo_shape = (a->lfo_shape & 0x80u) |
-                                   (uint8_t)bound(relative ? (a->lfo_shape & 3u) + v : v, 0, 3);
+                                   (uint8_t)bound(relative ? (a->lfo_shape & 0x7fu) + v : v, 0,
+                                                  FM_LFO_SAMPLE_HOLD);
                     break;
                 case 3:
                     a->lfo_destination =
                         (uint8_t)bound(relative ? a->lfo_destination + v : v, 0, 3);
                     break;
                 case 4:
-                    a->lfo_shape = (a->lfo_shape & 3u) | (v > 0 ? 0x80u : 0);
+                    a->lfo_shape = (a->lfo_shape & 0x7fu) | (v > 0 ? 0x80u : 0);
                     break;
                 default:
                     break;
@@ -812,7 +813,7 @@ static void numeric_confirm(FmUi *u)
     }
     else if (u->tab == 5)
     {
-        hi = row == 0 ? 50 : row == 2 || row == 3 ? 3 : 1;
+        hi = row == 0 ? 50 : row == 2 ? FM_LFO_SAMPLE_HOLD : row == 3 ? 3 : 1;
     }
     else if (u->tab == 6)
     {

@@ -108,13 +108,14 @@ const char *fm_sim_editor(void *handle)
     {
         editor_write(
             "{\"rate\":%g,\"depth\":%g,\"shape\":%u,\"destination\":%u,\"free\":%s,\"samples\":[",
-            (double)r->lfo_rate, (double)r->lfo_depth, r->lfo_shape & 3u, r->lfo_destination,
+            (double)r->lfo_rate, (double)r->lfo_depth, r->lfo_shape & 0x7fu, r->lfo_destination,
             r->lfo_shape & 128 ? "true" : "false");
         for (unsigned i = 0; i < 224; i++)
         {
-            float phase = fmodf((float)i / 223 * r->lfo_rate, 1);
-            editor_write("%s%d", i ? "," : "",
-                         (int)(32767 * r->lfo_depth * fm_lfo_tick(&phase, 0, r->lfo_shape & 3u)));
+            double cycles = (double)i / 223 * r->lfo_rate;
+            editor_write(
+                "%s%d", i ? "," : "",
+                (int)(32767 * r->lfo_depth * fm_lfo_sample(cycles, r->lfo_shape & 0x7fu, r->id)));
         }
         editor_write("]}");
     }

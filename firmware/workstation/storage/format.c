@@ -541,8 +541,8 @@ static bool region_valid(FmProject *p, const FmRegion *r)
         !bounded(r->cutoff, 0, 200000) || !bounded(r->resonance, 0, 8) ||
         !bounded(r->drive, 0, 64) || !bounded(r->filter_env, -32, 32) ||
         !bounded(r->keytrack, -16, 16) || !bounded(r->lfo_rate, 0, 1000) ||
-        !bounded(r->lfo_depth, -128, 128) || (r->lfo_shape & 0x7f) > 3 || r->lfo_destination > 8 ||
-        !envelope_valid(&r->amp) || !envelope_valid(&r->filter))
+        !bounded(r->lfo_depth, -128, 128) || (r->lfo_shape & 0x7f) > FM_LFO_SAMPLE_HOLD ||
+        r->lfo_destination > 8 || !envelope_valid(&r->amp) || !envelope_valid(&r->filter))
         return false;
     for (unsigned k = 0; k < FM_FX_SLOTS; k++)
         if (!bounded(r->sends[k], 0, 8))

@@ -667,7 +667,7 @@ The original manual is the reference for the FZ-1 feature audit. Build `docs/FZ_
 
 - Cutoff, resonance, model/character, drive where supported, envelope amount/polarity, velocity and keyboard tracking.
 - Per-region adjustments plus common track performance control.
-- LFO rate/depth, destinations, basic shapes, free/retrigger behavior; optional tempo sync after core timing is proven.
+- LFO rate/depth, destinations, sine/triangle/square/saw/sample-and-hold shapes, free/retrigger behavior; optional tempo sync after core timing is proven.
 - Smooth audible controls without excessively smearing deliberately fast envelope behavior.
 
 ### MAP

@@ -4,6 +4,8 @@
 
 ### Added
 
+- Sample & Hold LFO with one random level per cycle, stopped-rate hold, per-note retrigger/shared free-run, stepped C/browser graphs and saved project settings. Added timing, phase-mode, validation, roundtrip and browser regressions.
+
 - Hardware and source audit for the FM-1 (JieLi AC79 / pi32v2) from pinned felucca-bsp, Melodee, Felucca, SLOOP, X0X, FM1 Open, and fm1-base commits. No device was attached. Reference commits are locked and not vendored.
 - Host-tested 36 kHz engine: variable-speed samples, single-cycle pitch, 16-voice mix, 44.1/48 kHz boundary conversion.
 - Multi-sample capture state machine with a RAM store, 16-slot advance, undo of the last slot, and OCT+ into the performance state.
