@@ -26,6 +26,9 @@ typedef struct
     FILE *wave;
     uint64_t frames;
     char prefix[512];
+    bool capture_targeted, capture_replace;
+    unsigned capture_target;
+    FmEvent audition, performed[128];
 } Simulator;
 static void put16(FILE *f, uint16_t v)
 {
@@ -200,7 +203,9 @@ static int screenshot(Simulator *s, const char *path)
 static int shot(Simulator *s, const char *dir, const char *name)
 {
 #ifdef __EMSCRIPTEN__
-    (void)s; (void)dir; (void)name;
+    (void)s;
+    (void)dir;
+    (void)name;
     return 0;
 #else
     char path[1024];

@@ -850,7 +850,7 @@ static void numeric_confirm(FmUi *u)
     if (r == FM_OK)
         u->picker = FM_PICK_NONE;
 }
-static FmResult history_edit(FmUi *u, bool redo)
+FmResult fm_ui_history(FmUi *u, bool redo)
 {
     FmFxConfig before[FM_FX_SLOTS];
     memcpy(before, u->project->fx, sizeof(before));
@@ -916,7 +916,7 @@ static void confirm(FmUi *u)
             u->source = 0;
         }
         else if (u->command == 1)
-            result(u, history_edit(u, true));
+            result(u, fm_ui_history(u, true));
         else if (u->command == 2)
         {
             if (u->engine)
@@ -1238,7 +1238,7 @@ static void hold(FmUi *u, FmButton button, const FmButtonState *state)
             return;
         }
         FmResult r = state->screen == FM_SCREEN_CAPTURE ? capture(u, 2, state->down_ms)
-                                                        : history_edit(u, false);
+                                                        : fm_ui_history(u, false);
         result(u, r);
         return;
     }

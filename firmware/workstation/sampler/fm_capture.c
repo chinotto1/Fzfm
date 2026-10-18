@@ -16,8 +16,8 @@ static void reset_take(FmCapture *c)
     c->quiet = 0;
     c->peak = 0;
 }
-FmResult fm_capture_begin(FmCapture *c, FmProject *p, FmId tid, uint8_t root,
-                          const FmCaptureConfig *config)
+static FmResult begin_slot(FmCapture *c, FmProject *p, FmId tid, uint8_t root,
+                           const FmCaptureConfig *config, int target, bool replace)
 {
     FmTrack *t = fm_track(p, tid);
     if (!c || !t || root > 127)
@@ -35,11 +35,20 @@ FmResult fm_capture_begin(FmCapture *c, FmProject *p, FmId tid, uint8_t root,
     FmInstrument *in = fm_instrument(p, t->instrument);
     if (!in)
         return FM_ERR_NOT_FOUND;
-    unsigned slot = 0;
-    while (slot < FM_ANCHORS && in->regions[slot].id)
-        slot++;
+    unsigned slot = target < 0 ? 0 : (unsigned)target;
+    if (target < 0)
+        while (slot < FM_ANCHORS && in->regions[slot].id)
+            slot++;
     if (slot == FM_ANCHORS)
         return FM_ERR_STORAGE;
+    if (slot > FM_ANCHORS || (in->regions[slot].id && (!replace || in->regions[slot].baked_mask)))
+        return FM_ERR_BUSY;
+    if (replace && in->regions[slot].id)
+        root = in->regions[slot].root;
+    if (in->type == FM_SAMPLE)
+        for (unsigned i = 0; i < FM_ANCHORS; i++)
+            if (i != slot && in->regions[i].id && in->regions[i].root == root)
+                return FM_ERR_RANGE;
     /* Reserve one bounded staging take, never sixteen equal recording buffers. */
     int16_t *buffer = fm_alloc(p, FM_MEM_AUDIO, (size_t)cfg.maximum_frames * sizeof(*buffer));
     if (!buffer)
@@ -52,9 +61,22 @@ FmResult fm_capture_begin(FmCapture *c, FmProject *p, FmId tid, uint8_t root,
     c->buffer = buffer;
     c->root = root;
     c->slot = (uint8_t)slot;
+    c->replace = replace;
     c->state = FM_CAPTURE_WAIT_INPUT;
     c->listening = !cfg.manual;
     return FM_OK;
+}
+FmResult fm_capture_begin(FmCapture *c, FmProject *p, FmId tid, uint8_t root,
+                          const FmCaptureConfig *config)
+{
+    return begin_slot(c, p, tid, root, config, -1, false);
+}
+FmResult fm_capture_begin_slot(FmCapture *c, FmProject *p, FmId tid, uint8_t root,
+                               const FmCaptureConfig *config, uint8_t slot, bool replace)
+{
+    if (slot >= FM_ANCHORS)
+        return FM_ERR_ARGUMENT;
+    return begin_slot(c, p, tid, root, config, slot, replace);
 }
 void fm_capture_destroy(FmCapture *c)
 {
@@ -193,7 +215,21 @@ FmResult fm_capture_service(FmCapture *c)
     FmId asset = 0, region = 0;
     r = fm_asset_create(c->project, c->buffer, c->frames, 1, FM_RATE, false, FM_SOURCE_CAPTURE,
                         &asset);
-    if (r == FM_OK)
+    if (r == FM_OK && c->replace && in->regions[c->slot].id)
+    {
+        FmRegion *old = &in->regions[c->slot];
+        old->asset = asset;
+        old->start = 0;
+        old->end = c->frames;
+        old->loop_count = 0;
+        old->loop_enabled = false;
+        fm_asset(c->project, asset)->published = true;
+        region = old->id;
+        in->revision++;
+        in->additive = false;
+        fm_map_automatic(in);
+    }
+    else if (r == FM_OK)
         r = fm_region_attach(c->project, in->id, asset, c->root, c->slot, &region);
     if (r != FM_OK)
     {
@@ -207,6 +243,7 @@ FmResult fm_capture_service(FmCapture *c)
     c->state = FM_CAPTURE_COMMIT_OR_PIN;
     r = fm_edit_commit(c->project);
     c->last_region = region;
+    c->replace = false;
     c->state = FM_CAPTURE_ADVANCE;
     c->slot++;
     while (c->slot < FM_ANCHORS && in->regions[c->slot].id)

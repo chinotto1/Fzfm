@@ -57,7 +57,13 @@ self.onmessage = ({data:{id,path,body}}) => {
     await ready;
     const before = core._fm_sim_metric(handle,34);
     let result;
-    if(path==='/api/state') result = state();
+    if(path==='/api/notes') {
+      const c=JSON.parse(body);
+      if(!Number.isFinite(c.from)||!Number.isFinite(c.to))throw new Error('Invalid note window');
+      const p=core._fm_sim_notes(handle,c.from,c.to);
+      if(!p)throw new Error('The note view could not allocate working memory');
+      result=JSON.parse(core.UTF8ToString(p));
+    } else if(path==='/api/state') result = state();
     else if(path==='/api/screen.png') {
       const p = core._fm_sim_pixels(handle);
       const pixels = core.HEAPU8.slice(p,p+240*240).buffer;
@@ -80,6 +86,14 @@ self.onmessage = ({data:{id,path,body}}) => {
         const c=JSON.parse(body);
         if(!Number.isInteger(c.action)||!Number.isInteger(c.value)||c.action<0||c.value<0) throw new Error('Invalid action');
         code=core._fm_sim_action(handle,c.action,c.value);
+      } else if(path==='/api/sequence') {
+        const c=JSON.parse(body);
+        if(!['operation','index','note','velocity','pattern'].every(k=>Number.isInteger(c[k])&&c[k]>=0)||!['a','b','revision'].every(k=>Number.isFinite(c[k])))throw new Error('Invalid sequencer command');
+        code=core._fm_sim_sequence(handle,c.operation,c.index,c.a,c.b,c.note,c.velocity,c.revision,c.pattern);
+      } else if(path==='/api/sampling') {
+        const c=JSON.parse(body);
+        if(!['operation','slot','value'].every(k=>Number.isInteger(c[k])&&c[k]>=0))throw new Error('Invalid sample command');
+        code=core._fm_sim_sampling(handle,c.operation,c.slot,c.value);
       } else if(path==='/api/parameter') {
         const c=JSON.parse(body);
         if(!['tab','row','field'].every(k=>Number.isInteger(c[k])&&c[k]>=0)||!Number.isFinite(c.value)) throw new Error('Invalid parameter');

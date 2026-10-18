@@ -61,7 +61,7 @@ demo: build/fm1-sim
 	./build/fm1-sim --demo build/workstation-demo
 test: workstation-test
 
-build/libfm1_sim.so: host/simulator/bridge.c host/simulator/main.c host/simulator/editor.inc.c $(WS_SRC) $(WS_HEADERS)
+build/libfm1_sim.so: host/simulator/bridge.c host/simulator/main.c host/simulator/editor.inc.c host/simulator/workflow.inc.c $(WS_SRC) $(WS_HEADERS)
 	mkdir -p build
 	$(CC) $(CFLAGS) -I firmware/workstation -O2 -fPIC -shared -o $@ host/simulator/bridge.c $(WS_SRC) $(LDFLAGS)
 .PHONY: serve
@@ -97,3 +97,4 @@ web:
 web-test: web
 	python3 tests/browser/test_static_emulator.py
 	python3 tests/browser/test_workspace.py
+	python3 tests/browser/test_piano_sampler.py

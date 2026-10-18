@@ -47,17 +47,18 @@ $('preview-note').onkeyup=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault
 $('preview-note').onblur=previewUp;
 
 $('demo').onclick=async()=>{try{$('runtime-message').textContent='Preparing your demo kit and synth…';const r=await(await request('/api/demo',{method:'POST',body:''})).json();update(r.state);$('runtime-message').textContent=isBrowser?'Your projects stay on this device. Export important projects to Files.':'';}catch(e){showError(e);}};
+$('quick-save').onclick=()=>command(0,9,1).then(()=>command(0,9,0));
 $('test-hit').onclick=()=>$('capture-test').click();
 for(const type of ['wave','cycle','restore'])$(type).onchange=async e=>{const file=e.target.files[0];if(!file)return;if(file.size>32*1024*1024){showError(new Error('Maximum file size is 32 MB'));return;}if(type==='restore'&&!confirm('Replace the current project with this backup?'))return;try{const r=await(await request('/api/'+type,{method:'POST',body:await file.arrayBuffer()})).json();update(r.state);if(r.result)showError(new Error('Import rejected; previous project retained (code '+r.result+')'));}catch(error){showError(error);}e.target.value='';};
 $('backup').onclick=async()=>{try{const b=await(await request('/api/backup')).blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='fm1-project.fm1p';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}catch(e){showError(e);}};
 const controlKeys={Escape:8,Enter:3,' ':12,e:6,r:13,g:7,f:2,a:10,s:9};const noteKeys={z:0,x:2,c:4,v:6,b:7,n:9,m:11,',':12,'.':14,'/':16};
-window.onkeydown=e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;if(e.target.matches('input,select,textarea'))return;if(e.key in controlKeys){e.preventDefault();const i=controlKeys[e.key];activeButtons.add(i);command(0,i,1);}else if(e.key in noteKeys){e.preventDefault();const i=noteKeys[e.key];activeKeys.add(i);command(1,i,1);}};
+window.onkeydown=e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;if(e.target.matches('input,select,textarea,button,a')||e.target.closest('[role=application]'))return;if(e.key in controlKeys){e.preventDefault();const i=controlKeys[e.key];activeButtons.add(i);command(0,i,1);}else if(e.key in noteKeys){e.preventDefault();const i=noteKeys[e.key];activeKeys.add(i);command(1,i,1);}};
 window.onkeyup=e=>{if(e.key in controlKeys){const i=controlKeys[e.key];if(activeButtons.delete(i))command(0,i,0);}if(e.key in noteKeys){const i=noteKeys[e.key];if(activeKeys.delete(i))command(1,i,0);}};
 function releaseInputs(){previewUp();for(const i of activeKeys)command(1,i,0);for(const i of activeButtons)command(0,i,0);activeKeys.clear();activeButtons.clear();}
 window.addEventListener('blur',releaseInputs);
 window.addEventListener('pagehide',()=>{releaseInputs();stopSound();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){releaseInputs();stopSound();}});
 window.fm1={request,state:()=>state,backend:isBrowser?'wasm':'native',stopSound};
-renderWorkspace=initWorkspace({request,update,getState:()=>state,stopSound,showError});
+renderWorkspace=initWorkspace({request,update,getState:()=>state,stopSound,enableSound,showError});
 setInterval(poll,33);setInterval(audioLoop,12);
 request('/api/state').then(r=>r.json()).then(s=>{update(s);initialized=true;document.body.classList.remove('loading');$('runtime-message').textContent=isBrowser?(s.persistence?'Your projects stay on this device. Export important projects to Files.':'Local saving is unavailable. Export project to Files before leaving.') : '';}).catch(e=>{document.body.classList.remove('loading');showError(e);});

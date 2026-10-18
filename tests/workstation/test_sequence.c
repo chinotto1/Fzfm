@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
+#include "../../firmware/workstation/sequence/fm_actions.h"
 #include "../../firmware/workstation/sequence/fm_sequence.h"
 #include "test.h"
 #include <string.h>
 
 typedef struct
 {
-    FmFrame base, frames[2048];
+    FmFrame base, frames[2048], off_frames[2048];
     uint8_t notes[2048];
     unsigned on, off, active, peak, controls;
 } Log;
@@ -47,6 +48,8 @@ static void log_event(void *user, const FmEvent *e, uint32_t offset)
     }
     else if (e->kind == FM_EVENT_NOTE_OFF)
     {
+        if (log->off < 2048)
+            log->off_frames[log->off] = log->base + offset;
         ++log->off;
         if (log->active)
             --log->active;
@@ -351,6 +354,77 @@ static int sustain_motion_frozen(void)
     fm_project_destroy(&p);
     return 0;
 }
+static int note_edit_quantization(void)
+{
+    FmProject p;
+    CHECK(fm_project_init(&p, NULL) == FM_OK);
+    FmId tid;
+    CHECK(fm_instrument_create(&p, FM_SAMPLE, &tid) == FM_OK);
+    FmPattern *pat = fm_pattern(&p, fm_track(&p, tid)->patterns[0]);
+    CHECK(fm_pattern_note_edit(&p, pat->id, 0, 0, 10, 30, 60, 100) == FM_OK);
+    CHECK(fm_pattern_note_edit(&p, pat->id, 0, 0, 251, 20, 62, 90) == FM_OK);
+    CHECK(fm_pattern_note_edit(&p, pat->id, 0, 0, 3810, 20, 64, 80) == FM_OK);
+    pat->events[0].frame = 101;
+    pat->events[1].frame = 102;
+    FmEvent original[6];
+    memcpy(original, pat->events, sizeof(original));
+    FmEvent *raw = pat->events;
+    CHECK(fm_pattern_quantize(&p, pat->id, 240) == FM_OK);
+    CHECK(pat->events == raw && !memcmp(pat->events, original, sizeof(original)));
+    NEAR(fm_pattern_view_tick(pat, 10), 0, 1e-9);
+    NEAR(fm_pattern_view_tick(pat, 3810), 3600, 1e-9);
+    FmSequencer *s = fm_sequence_create(&p, 128, 128);
+    CHECK(s);
+    Log log = {0};
+    fm_sequence_start(s);
+    advance(s, &log, 72000);
+    CHECK(log.on == 3 && log.off == 3 && log.active == 0);
+    CHECK(log.frames[0] == 0 && log.frames[1] == 4500 && log.frames[2] == 67500);
+    CHECK(log.off_frames[0] > log.frames[0] && log.off_frames[0] < log.frames[1]);
+    CHECK(log.off_frames[0] >= 562 && log.off_frames[0] <= 564);
+    fm_sequence_stop(s, log_event, &log);
+    CHECK(fm_pattern_quantize(&p, pat->id, 0) == FM_OK);
+    CHECK(!memcmp(pat->events, original, sizeof(original)));
+    CHECK(fm_undo(&p) == FM_OK && pat->quantize == 240);
+    CHECK(fm_pattern_note_edit(&p, pat->id, 1, 0, 120, 150, 65, 77) == FM_OK);
+    CHECK(pat->events[0].note == 65 && pat->events[0].velocity == 77 &&
+          pat->events[0].frame == 101);
+    unsigned off = fm_pattern_note_off(pat, 0);
+    CHECK(off != UINT32_MAX);
+    CHECK(pat->events[off].note == 65 && pat->events[off].frame == 102);
+    NEAR(pat->events[off].tick, 270, 1e-9);
+    CHECK(fm_undo(&p) == FM_OK && !memcmp(pat->events, original, sizeof(original)));
+    CHECK(fm_pattern_note_edit(&p, pat->id, 2, 0, 10, 30, 60, 100) == FM_OK && pat->count == 4);
+    CHECK(fm_undo(&p) == FM_OK && pat->count == 6);
+    size_t limit = p.budget.limit[FM_MEM_EVENTS];
+    p.budget.limit[FM_MEM_EVENTS] = p.budget.used[FM_MEM_EVENTS];
+    raw = pat->events;
+    CHECK(fm_pattern_note_edit(&p, pat->id, 0, 0, 480, 240, 67, 100) == FM_ERR_MEMORY &&
+          pat->events == raw);
+    p.budget.limit[FM_MEM_EVENTS] = limit;
+    CHECK(fm_sequence_record_arm(s, tid) == FM_OK);
+    FmFrame start = fm_sequence_frame(s);
+    FmEvent e = note(tid, start, 91, 60, true);
+    CHECK(fm_sequence_live(s, &e) == FM_OK);
+    advance(s, &log, 3000);
+    e = note(tid, fm_sequence_frame(s), 91, 60, false);
+    CHECK(fm_sequence_live(s, &e) == FM_OK);
+    advance(s, &log, 3711);
+    e = note(tid, fm_sequence_frame(s), 92, 64, true);
+    CHECK(fm_sequence_live(s, &e) == FM_OK);
+    advance(s, &log, 2000);
+    e = note(tid, fm_sequence_frame(s), 92, 64, false);
+    CHECK(fm_sequence_live(s, &e) == FM_OK);
+    advance(s, &log, 5089);
+    CHECK(fm_sequence_record_close(s, fm_sequence_frame(s)) == FM_OK && pat->quantize == 240);
+    CHECK(pat->events[0].frame == start);
+    fm_sequence_stop(s, log_event, &log);
+    CHECK(fm_sequence_retrospective(s, tid, fm_sequence_frame(s), FM_RATE) == FM_OK &&
+          pat->quantize == 240);
+    fm_sequence_destroy(s);
+    fm_project_destroy(&p);
+    return 0;
+}
 int test_sequence(void)
 {
     CHECK(free_take() == 0);
@@ -358,5 +432,6 @@ int test_sequence(void)
     CHECK(timing_patterns_song() == 0);
     CHECK(external_and_budget() == 0);
     CHECK(sustain_motion_frozen() == 0);
+    CHECK(note_edit_quantization() == 0);
     return 0;
 }

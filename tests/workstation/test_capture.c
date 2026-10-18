@@ -41,6 +41,23 @@ int test_capture(void)
     }
     CHECK(c.state == FM_CAPTURE_FINISHED && in->count == 16 && p.track_count == 1);
     fm_capture_destroy(&c);
+    FmId old_region = in->regions[5].id, old_asset = in->regions[5].asset;
+    CHECK(fm_capture_begin_slot(&c, &p, tid, 36, &cfg, 5, false) == FM_ERR_BUSY);
+    CHECK(fm_capture_begin_slot(&c, &p, tid, 36, &cfg, 5, true) == FM_OK);
+    CHECK(in->regions[5].asset == old_asset);
+    size_t audio_limit = p.budget.limit[FM_MEM_AUDIO];
+    p.budget.limit[FM_MEM_AUDIO] = p.budget.used[FM_MEM_AUDIO];
+    hit(&c, &time);
+    CHECK(fm_capture_service(&c) == FM_ERR_STORAGE);
+    CHECK(in->regions[5].asset == old_asset && in->count == 16);
+    p.budget.limit[FM_MEM_AUDIO] = audio_limit;
+    fm_capture_destroy(&c);
+    CHECK(fm_capture_begin_slot(&c, &p, tid, 36, &cfg, 5, true) == FM_OK);
+    hit(&c, &time);
+    CHECK(fm_capture_service(&c) == FM_OK);
+    CHECK(in->regions[5].id == old_region && in->regions[5].asset != old_asset && in->count == 16);
+    CHECK(fm_undo(&p) == FM_OK && in->regions[5].asset == old_asset);
+    fm_capture_destroy(&c);
     fm_project_destroy(&p);
     CHECK(fm_project_init(&p, NULL) == FM_OK);
     CHECK(fm_instrument_create(&p, FM_MULTI_SAMPLE, &tid) == FM_OK);

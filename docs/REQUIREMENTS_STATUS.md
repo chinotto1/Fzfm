@@ -8,14 +8,14 @@ Current implementation extends the reviewed Cursor commit `ffc0576`. The executa
 | R02 | Compiled; device pending | BSP UAC OUT raw packets + `platform/fm_usb.c`, MIDI coexistence, lifecycle/ring tests. No iPad enumeration/drift evidence |
 | R03 | Host + compiled | `audio/src.c` boundary conversion, immutable PCM16 captures, stereo 36 kHz rendering. Physical codec rate pending |
 | R04 | Host + compiled | Variable-rate readers, pitch/duration and 600/1,024-cycle tests |
-| R05 | Host + compiled | `sampler/fm_capture.c`: sixteen logical slots, pretrigger/manual/retry/skip/resume; native demo fills all sixteen |
+| R05 | Host + compiled | `sampler/fm_capture.c`: sixteen logical slots, pretrigger/manual/retry/skip/resume; direct selected-slot capture and atomic replacement/undo, including full kits; native demo fills all sixteen |
 | R06 | Host + compiled | Root anchors, automatic zones, manual range priority, mapping UI and confirmed ONE deletion with zone recomputation/undo |
 | R07 | Host + compiled | Atomic instrument+track+empty-pattern creation, undoable removal of empty tracks |
 | R08 | Host + compiled | OCT+ down-edge finish; UI tests preserve octave/track and partial takes |
-| R09 | Host + compiled | `sequence/fm_sequence.c`: free takes, raw timestamps, ranked timing/correction, preserved existing/external tempo |
+| R09 | Host + compiled | `sequence/fm_sequence.c`: free takes, raw timestamps, ranked timing/correction, preserved existing/external tempo and selected quantization across free/retro takes; reversible nearest-grid timing with short-gate protection |
 | R10 | Host + compiled | Bounded live-only history, held/sustained boundary reconstruction, REC hold down-edge slice |
 | R11 | Host + compiled | Single tap/hold arbiter; transactional undo/redo and knob gesture coalescing; SCL explicitly mapped as logical SEL |
-| R12 | Host + compiled | Sparse steps/chords, probability/microtime/locks, queued changes/scenes, saved ordered/range chains, independent lengths/rates, song editing/playback and live arrangement and same-pitch step ties without retriggers |
+| R12 | Host + compiled | Sparse steps/chords, probability/microtime/locks, queued changes/scenes, saved ordered/range chains, independent lengths/rates, song editing/playback and live arrangement and same-pitch step ties without retriggers; transactional paired-note add/move/resize/velocity/delete with raw-frame retention |
 | R13 | Host + compiled | Nine real edit tabs, hold naming; native UI and browser regression |
 | R14 | Host + compiled | Persistent ALL/ONE scope and per-instrument view cache; isolated batch transactions |
 | R15 | Host + compiled | Lists scroll, knob 1 row, knobs 2–4 explicit footer fields; reviewed native screenshots |
@@ -36,7 +36,7 @@ Current implementation extends the reviewed Cursor commit `ffc0576`. The executa
 | R30 | Partial | Baseline and sampler actually link, source/dependency hashes, range checks, deterministic source archive. No installable update, device backup tool, authorized flash or tested recovery |
 | R31 | Host + compiled | Common FM1P v2 container includes audio, synthesis, regions, patterns, chains, song, mixer, FX and bake originals |
 | R32 | Host + compiled; partial | USB packet parser, local/USB/TRS identities, sustain/bend, transport/Continue, external tempo estimation/timeout, no incoming echo. Target TRS TX/RX and outgoing clock/drift qualification incomplete |
-| R33 | Host + browser | Real 240×240 framebuffer and 14 buttons/27 keys/7 relative encoders; CLI demo, desktop/mobile browser workflows and native integration tests. Static WebAssembly deployment runs the same C core on iPad-sized touch screens with IndexedDB saves, explicit New track/track selection, named envelope/LFO editors, and discoverable test-hit/file/microphone sampling. New workspace tests use a synthetic browser microphone; actual panel calibration pending |
+| R33 | Host + browser | Real 240×240 framebuffer and 14 buttons/27 keys/7 relative encoders; CLI demo, desktop/mobile browser workflows and native integration tests. Static WebAssembly deployment runs the same C core on iPad-sized touch screens with IndexedDB saves, explicit New track/track selection, named envelope/LFO editors, a touch piano roll with direct recording/quantization controls, and a single-page Simple/Multi sampler with 16 waveform slots, test-hit/file/microphone inputs and a live meter. New workspace tests use a synthetic browser microphone; actual panel calibration pending |
 | R34 | Partial release | Complete project/BSP source, per-file provenance locks, retained notices, pinned compiler/runtime inputs, reproducible commands. Vendor runtime complete-source provenance and distributable binary qualification remain release gates |
 
 ## Acceptance cases
@@ -52,10 +52,10 @@ These results identify host coverage, not a declaration that the specification's
 | T07–T10 | Sixteen/partial capture/retry/finish tests and real-control native demo; browser capture→OCT+→audio |
 | T11–T13 | Sample/anchor mapping, manual priority, dynamic allocation/admission. Explicit target resource profile |
 | T14 | REC/EDIT/SCL tap/hold across screens and delayed release; browser naming hold/fast-click regression |
-| T15–T18 | Free/retro timing, sparse ambiguity/correction, retained raw event times, existing/external tempo ownership |
+| T15–T18 | Free/retro timing, sparse ambiguity/correction, retained raw event times, existing/external tempo ownership; grid/Off/undo raw-timing checks, retained take grid, nearest-grid playback and audible collapsed gates |
 | T19–T20 | Repeated notes, sustain/source identity, same-frame press/release, stop/loop releases; scoped transactions/redo and persisted unbake |
 | T21–T22 | Queued scenes/patterns, repeated ordered chains and reload, independent lengths/rates, song operations/live arrangement |
-| T23–T25 | Nine tabs, remembered row/scope, modal interception/cancel, naming. Playwright desktop/iPad/390/320 px, graphical modulation and synthesis editors, discoverable track creation/cancellation and WAV/microphone capture with no JS errors |
+| T23–T25 | Nine tabs, remembered row/scope, modal interception/cancel, naming. Playwright desktop/iPad/390/320 px, graphical modulation and synthesis editors, discoverable track creation/cancellation and WAV/microphone capture, touch piano-roll editing, reversible quantization and explicit-slot sampler replacement/undo with no JS errors |
 | T26–T28 | PCM edit/mix/cross-mix fixtures, loop transitions/crossfades, scope safety, envelope release/scaling tests; reverse-loop limitation above |
 | T29–T30 | 48-level recipes/reload and live table publication; 600/1,024 cycles near A4 |
 | T31–T32 | Stable resonant response across test sweeps and actual HOME/GLO shared controls; S&H hold-duration/range/zero-rate, staggered-note phase-mode and project roundtrip tests; no hardware FZ reference matching |
@@ -72,6 +72,6 @@ These results identify host coverage, not a declaration that the specification's
 
 ## Verification commands
 
-`./scripts/check.sh`: original **330 assertions**, **12 workstation suites**, ASan/UBSan and strict GCC warnings, pitch WAVs, integrated demo and stdlib-only native bridge/import/save/rebind checks. `make benchmark`: two host-only configurations, eight voices/two tracks/four effects. `make browser-test`: isolated native-server workflows and screenshots. `make web-test`: static C/WASM touch/audio, queued saves, IndexedDB reload and subpath tests without server API calls. `scripts/build-target.sh --baseline` and without that flag: actual PI32v2 links/range checks. `scripts/verify_sources.py`: 64 vendored BSP files. `scripts/package_source.py`: reproducible source snapshot. See BUILD.md for dependencies and MEMORY_MAP.md for measured values.
+`./scripts/check.sh`: original **330 assertions**, **12 workstation suites**, ASan/UBSan and strict GCC warnings, pitch WAVs, integrated demo and stdlib-only native bridge/import/save/rebind checks. `make benchmark`: two host-only configurations, eight voices/two tracks/four effects. `make browser-test`: isolated native-server workflows and screenshots. `make web-test`: static C/WASM touch/audio, queued saves, IndexedDB reload and subpath tests without server API calls, plus piano-roll/quantized recording/visual sampler/mobile persistence regressions. `scripts/build-target.sh --baseline` and without that flag: actual PI32v2 links/range checks. `scripts/verify_sources.py`: 64 vendored BSP files. `scripts/package_source.py`: reproducible source snapshot. See BUILD.md for dependencies and MEMORY_MAP.md for measured values.
 
 Unfinished work remains visible above: physical USB/codec/panel/resource/recovery qualification, safe flash persistence/transfer, optional EPROM support, and the documented reverse-loop limitation. The historical REVIEW.md describes the earlier Cursor-only milestone.

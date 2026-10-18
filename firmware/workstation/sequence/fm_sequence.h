@@ -65,5 +65,7 @@ FmResult fm_sequence_song_queue(FmSequencer *, uint16_t index);
  * after 0.5 seconds without a pulse playback freezes and reports sync loss. */
 FmResult fm_sequence_clock_pulse(FmSequencer *, FmClockSource, FmFrame);
 void fm_sequence_seed(FmSequencer *, uint32_t seed);
+double fm_pattern_view_tick(const FmPattern *, double raw_tick);
+double fm_sequence_pattern_tick(const FmSequencer *, FmId pattern);
 void fm_sequence_set_frozen_callback(FmSequencer *, FmSequenceFrozen, void *user);
 #endif

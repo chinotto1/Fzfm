@@ -65,6 +65,9 @@ static FmResult load_project(void *user, FmProject *old)
     s->ui.capture_monitor = &s->capture;
     fm_midi_init(&s->midi, &s->project, &s->engine, sequence);
     s->frames = 0;
+    s->capture_targeted = s->capture_replace = false;
+    memset(&s->audition, 0, sizeof(s->audition));
+    memset(s->performed, 0, sizeof(s->performed));
     return FM_OK;
 }
 void *fm_sim_create(const char *directory)
@@ -78,7 +81,8 @@ void *fm_sim_create(const char *directory)
         free(s);
         return NULL;
     }
-    if (s->wave) fclose(s->wave);
+    if (s->wave)
+        fclose(s->wave);
     s->wave = NULL;
     s->ui.load = load_project;
     return s;
@@ -337,6 +341,9 @@ int fm_sim_restore(void *handle, const uint8_t *bytes, size_t length)
     s->ui.capture_monitor = &s->capture;
     fm_midi_init(&s->midi, &s->project, &s->engine, sequence);
     s->frames = 0;
+    s->capture_targeted = s->capture_replace = false;
+    memset(&s->audition, 0, sizeof(s->audition));
+    memset(s->performed, 0, sizeof(s->performed));
     return FM_OK;
 }
 int fm_sim_demo(void *handle)
@@ -359,12 +366,14 @@ int fm_sim_demo(void *handle)
 /* Browser durability is confirmed only after IndexedDB's async commit. */
 void fm_sim_persistence_error(void *handle)
 {
-    Simulator *s=handle;
-    if (!s)return;
-    s->project.dirty=true;
-    s->project.volatile_audio=true;
-    s->ui.last_result=FM_ERR_STORAGE;
-    snprintf(s->ui.status,sizeof(s->ui.status),"LOCAL SAVE FAILED - EXPORT BACKUP");
+    Simulator *s = handle;
+    if (!s)
+        return;
+    s->project.dirty = true;
+    s->project.volatile_audio = true;
+    s->ui.last_result = FM_ERR_STORAGE;
+    snprintf(s->ui.status, sizeof(s->ui.status), "LOCAL SAVE FAILED - EXPORT BACKUP");
 }
 
 #include "editor.inc.c"
+#include "workflow.inc.c"

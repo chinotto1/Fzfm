@@ -1,12 +1,15 @@
+import {initSequencer} from './sequencer.js';
+import {initSampler} from './sampler.js';
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Touch editors display the C model. Drawing is a draft until explicitly applied.
 const $ = id => document.getElementById(id);
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
-export function initWorkspace({request, update, getState, stopSound, showError}) {
+export function initWorkspace({request, update, getState, stopSound, enableSound, showError}) {
   let model = {}, busy = false, synthMode = 'additive', drawing = null, drawingTrack = 0;
   let drawingDirty = false, gesture = null, partials = null;
   let recorder = null, micStream = null, micTimer = null, micPending = false, discardRecording = false, recordingTrack = 0;
   let controlKey = '', trackKey = '', scopeKey = '';
+  let sampler,renderSequencer=()=>{},micVisual=null;
   const creation = $('new-track-dialog');
   const errors = {1:'Choose a compatible instrument or check the entered value.',2:'There is not enough working memory for this sound.',3:'Sample storage is full. Export a backup before removing unused sounds.',4:'This file or value is invalid.',5:'This value is outside the supported range.',6:'Finish the current take, stop playback or close the open picker, then try again.',7:'Choose a track with audio first.',8:'This operation is unavailable for the selected instrument.'};
   const liveMic = () => micPending || (recorder && recorder.state !== 'inactive');
@@ -21,7 +24,7 @@ export function initWorkspace({request, update, getState, stopSound, showError})
   async function run(task) {
     if (busy) return;
     busy = true;
-    const controls=[...document.querySelectorAll('.workspace-actions,.workspace-top,#mod-controls,#synth-editor')];
+    const controls=[...document.querySelectorAll('.workspace-actions,.workspace-top,#mod-controls,#synth-editor,#sequencer-editor,.sampling-selectors,#sample-slots')];
     controls.forEach(element=>element.inert=true);
     $('visual-editor').setAttribute('aria-busy','true');
     try { return await task(); } catch (error) { fail(error); }
@@ -51,7 +54,7 @@ export function initWorkspace({request, update, getState, stopSound, showError})
   creation.querySelectorAll('[data-create]').forEach(button => button.onclick = () => run(async () => {
     button.disabled = true;
     try {
-      synthMode = +button.dataset.create >= 3 ? 'draw' : 'additive';
+      sampler.close();synthMode = +button.dataset.create >= 3 ? 'draw' : 'additive';
       await action(0, +button.dataset.create);
       creation.close(); reveal();
     } catch (error) { $('creation-error').textContent = error.message; }
@@ -59,24 +62,24 @@ export function initWorkspace({request, update, getState, stopSound, showError})
   }));
   $('track-choice').onchange = event => run(async () => {
     if (liveMic() || !discardDraft()) { event.target.value = model.selected; return; }
-    await action(2, +event.target.value);
+    sampler.close();await action(2, +event.target.value);
   });
   $('sample-audio').onclick = () => run(async () => {
-    if (!getState().tracks) { openCreation(true); return; }
     if (liveMic() || !discardDraft()) return;
-    await action(3); reveal();
+    if(![0,7].includes(getState().screen)){await send('/api/command',{type:0,index:8,value:1});await send('/api/command',{type:0,index:8,value:0});}
+    sampler.open();update(getState());reveal();
   });
   for (const [id,tab] of [['open-envelope',3],['open-filter-envelope',4],['open-lfo',5],['open-synthesis',6]]) {
     $(id).onclick = () => run(async () => {
       if (!getState().tracks) { openCreation(); return; }
       if (liveMic() || !discardDraft()) return;
       if (tab === 6 && getState().instrumentType !== 1) { openCreation(); return; }
-      await action(1,tab); reveal();
+      sampler.close();await action(1,tab); reveal();
     });
   }
   $('close-editor').onclick = () => run(async () => {
     if (liveMic() || !discardDraft()) return;
-    if(getState().screen===7) await action(4);
+    sampler.close();if(getState().screen===7) await action(4);
     else {
       await send('/api/command',{type:0,index:8,value:1});
       await send('/api/command',{type:0,index:8,value:0});
@@ -246,12 +249,13 @@ export function initWorkspace({request, update, getState, stopSound, showError})
   }
   $('capture-test').onclick=()=>run(async()=>{
     if(liveMic())return;
-    await action(3);
+    await sampler.ensure();
     await send('/api/command',{type:4,index:getState().captureSlot%16,value:0});
+    sampler.completed();
   });
   $('finish-sampling').onclick=()=>run(async()=>{
     if(liveMic())return;
-    await action(4);
+    sampler.close();await action(4);
     document.querySelector('.key-scroll').scrollIntoView({behavior:'smooth',block:'center'});
   });
   async function sampleAudio(bytes, recorded=false) {
@@ -268,13 +272,13 @@ export function initWorkspace({request, update, getState, stopSound, showError})
     const rendered=await offline.startRendering(),input=rendered.getChannelData(0),pcm=new Int16Array(input.length);
     for(let i=0;i<input.length;i++)pcm[i]=Math.round(clamp(input[i],-1,1)*(input[i]<0?32768:32767));
     if(document.hidden||getState().editor.selected!==track||getState().screen!==7)throw new Error('Sampling was cancelled because the selected track or page changed.');
-    await send('/api/input',pcm.buffer);
+    await send('/api/input',pcm.buffer);sampler.completed();
   }
   $('sample-file').onchange=event=>run(async()=>{
     const file=event.target.files[0]; if(!file)return;
     try {
       if(file.size>32*1024*1024)throw new Error('Maximum file size is 32 MB.');
-      $('mic-status').textContent='Decoding the take on this device…';
+      await sampler.ensure();$('mic-status').textContent='Decoding the take on this device…';
       await sampleAudio(await file.arrayBuffer());
       $('mic-status').textContent='Take captured. Finish sampling to play it.';
     } finally {event.target.value='';}
@@ -283,20 +287,23 @@ export function initWorkspace({request, update, getState, stopSound, showError})
     discardRecording=discard;clearTimeout(micTimer);
     if(recorder&&recorder.state!=='inactive')recorder.stop();
     micStream?.getTracks().forEach(track=>track.stop());micStream=null;
+    stopMicVisual();
   }
   $('record-mic').onclick=async()=>{
     if(micPending||busy)return;
     if(recorder?.state==='recording'){stopMic();return;}
     if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){fail(new Error('Microphone recording is unavailable here. Open in Safari, or use Sample from Files.'));return;}
-    micPending=true;discardRecording=false;recordingTrack=getState().editor.selected;stopSound();
+    micPending=true;discardRecording=false;recordingTrack=0;stopSound();
     $('record-mic').disabled=true;$('mic-status').textContent='Allow microphone access to record a take.';
     try {
+      await sampler.ensure();recordingTrack=getState().editor.selected;
       micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
       if(discardRecording||document.hidden||getState().screen!==7){stopMic(true);return;}
-      const chunks=[];recorder=new MediaRecorder(micStream);
+      startMicVisual(micStream);const chunks=[];recorder=new MediaRecorder(micStream);
       recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};
       recorder.onerror=()=>{stopMic(true);fail(new Error('Microphone recording failed. Try Sample from Files.'));};
       recorder.onstop=()=>{
+        stopMicVisual();
         micStream?.getTracks().forEach(track=>track.stop());micStream=null;
         $('record-mic').textContent='Record microphone';
         if(discardRecording){$('mic-status').textContent='Recording cancelled. Tap Record microphone to try again.';return;}
@@ -313,17 +320,29 @@ export function initWorkspace({request, update, getState, stopSound, showError})
   };
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stopMic(true);});
   window.addEventListener('pagehide',()=>stopMic(true));
+  function startMicVisual(stream) {
+    try {
+      const Audio=window.AudioContext||window.webkitAudioContext,context=new Audio(),source=context.createMediaStreamSource(stream),analyser=context.createAnalyser(),silent=context.createGain();
+      analyser.fftSize=256;silent.gain.value=0;source.connect(analyser);analyser.connect(silent);silent.connect(context.destination);
+      const data=new Float32Array(256);micVisual={context,frame:0};context.resume().catch(()=>{});
+      const paint=()=>{if(!micVisual)return;analyser.getFloatTimeDomainData(data);sampler.microphone(Array.from(data));micVisual.frame=requestAnimationFrame(paint);};paint();
+    } catch(error) { /* Recording/files still work if live metering is unavailable. */ }
+  }
+  function stopMicVisual(){if(micVisual){cancelAnimationFrame(micVisual.frame);micVisual.context.close().catch(()=>{});micVisual=null;}sampler.stopMicrophone();}
+  sampler=initSampler({send,run,action,getState,enableSound,showError,liveMic,isBusy:()=>busy});
+  renderSequencer=initSequencer({request,send,run,action,getState,enableSound,showError,openCreation});
   return function render(s) {
     if(!s.editor)return;
     model=s.editor;
-    if(liveMic()&&(s.screen!==7||model.selected!==recordingTrack))stopMic(true);
+    if(liveMic()&&recordingTrack&&(s.screen!==7||model.selected!==recordingTrack))stopMic(true);
     const key=JSON.stringify([model.selected,model.tracks]);
     if(trackKey!==key){trackKey=key;$('track-choice').replaceChildren(...model.tracks.map(track=>new Option(`${track.name} · ${track.type===0?'kit':'instrument'}`,track.id)));$('track-choice').value=model.selected;}
     $('track-choice').disabled=!s.tracks||liveMic();$('new-track').disabled=liveMic()||!!s.picker||!!s.playing;
     $('sample-file').disabled=liveMic()||busy;
     $('record-mic').disabled=micPending||busy;
     $('getting-started').textContent=s.tracks?'Choose a track to play or edit. Add another sound with New track.':'Create your first track, or try Explore demo below.';
-    const isMod=s.screen===1&&[3,4,5].includes(s.tab),isSynth=s.screen===1&&s.tab===6,isCapture=s.screen===7;
+    const isCapture=sampler.render(s);renderSequencer(s);
+    const isMod=s.screen===1&&[3,4,5].includes(s.tab),isSynth=s.screen===1&&s.tab===6;
     const visible=isMod||isSynth||isCapture;
     $('visual-editor').hidden=!visible;
     $('mod-editor').hidden=!isMod;$('synth-editor').hidden=!isSynth;$('sampling-editor').hidden=!isCapture;
@@ -334,7 +353,7 @@ export function initWorkspace({request, update, getState, stopSound, showError})
     if(scope!==scopeKey){scopeKey=scope;$('edit-scope').replaceChildren(new Option('All samples',0),...model.slots.map(slot=>new Option(`Sample ${slot}`,slot)));$('edit-scope').value=s.scope;}
     if(isMod){$('editor-title').textContent=s.tab===3?'Amplitude envelope':s.tab===4?'Filter envelope':'Low frequency oscillator';$('editor-help').textContent=`${s.instrument} · Changes apply to the selected scope. ${s.scope?'The graph shows this sample.':'The graph shows the first sample.'} Use Hold to hear to audition.`;modEditor(s);}
     if(isSynth){$('editor-title').textContent='FZ-inspired wave synthesis';$('editor-help').textContent='48 sine harmonics, each with a level from 0 to 256. Presets and applied drawings replace this instrument’s C4 cycle; Undo restores the previous sound.';syncSynth();}
-    if(isCapture){$('editor-title').textContent='Sample into '+s.instrument;$('editor-help').textContent=s.instrumentType===0?'Drum kit: each take occupies the next free slot.':'Pitched instrument: each take becomes a root anchor.';$('capture-progress').textContent=`${s.regions} captured · ${s.captureSlot>=16?'all slots filled':`next slot ${s.captureSlot+1}`} · Finish sampling to play your sounds.`;}
-    for(const id of ['sample-audio','open-synthesis','open-envelope','open-filter-envelope','open-lfo','finish-sampling','capture-test'])$(id).disabled=liveMic()||!!s.picker;
+    if(isCapture){$('editor-title').textContent='Sampler';$('editor-help').textContent='Choose Simple or Multi, then select a slot and capture. Switching types selects another instrument; your existing sounds stay in the project.';}
+    for(const id of ['sample-audio','open-sequencer','open-synthesis','open-envelope','open-filter-envelope','open-lfo','finish-sampling'])$(id).disabled=liveMic()||!!s.picker;
   };
 }

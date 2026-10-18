@@ -46,13 +46,16 @@ typedef struct
     uint8_t slot, root;
     FmFrame first_frame, clock;
     float peak;
-    bool finish_requested, listening;
+    bool finish_requested, listening, replace;
 } FmCapture;
 FmCaptureConfig fm_capture_defaults(void);
 /* begin/destroy/service/finish/retry are non-RT. accept never allocates or
  * persists: FINALIZE is visibly BUSY until service commits a pinned RAM asset. */
 FmResult fm_capture_begin(FmCapture *, FmProject *, FmId track, uint8_t root,
                           const FmCaptureConfig *);
+/* Explicit slot targeting; replacing retains the old region until commit. */
+FmResult fm_capture_begin_slot(FmCapture *, FmProject *, FmId track, uint8_t root,
+                               const FmCaptureConfig *, uint8_t slot, bool replace);
 void fm_capture_destroy(FmCapture *);
 void fm_capture_accept(FmCapture *, const int16_t *mono, size_t frames, FmFrame first_frame);
 void fm_capture_accept_stereo(FmCapture *, const float *stereo, size_t frames, FmFrame first_frame);

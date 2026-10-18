@@ -141,6 +141,7 @@ void fm_ui_render(FmUi *);
  * and ALL/ONE scope as the physical encoders. Selectors are zero based. */
 FmResult fm_ui_set_parameter(FmUi *, unsigned tab, unsigned row, unsigned field, double value);
 FmResult fm_ui_use_source(FmUi *, unsigned source);
+FmResult fm_ui_history(FmUi *, bool redo);
 #define FM_UI_COMMAND_COUNT 28u
 const char *fm_ui_command_label(unsigned);
 FmResult fm_ui_workspace_action(FmUi *, unsigned, bool confirmed);

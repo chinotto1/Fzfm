@@ -3,8 +3,10 @@
  * All mutations run on its single non-real-time owner. No JS DSP/state model. */
 #include "../../firmware/workstation/dsp/fm_synthesis.h"
 #include <stdarg.h>
-static char editor_json[131072];
+static void workflow_editor(Simulator *s);
+static char editor_json[1048576];
 static size_t editor_at;
+static void editor_write(const char *format, ...) __attribute__((format(printf, 1, 2)));
 static void editor_write(const char *format, ...)
 {
     if (editor_at >= sizeof(editor_json) - 1)
@@ -121,6 +123,7 @@ const char *fm_sim_editor(void *handle)
     }
     else
         editor_write("null");
+    workflow_editor(s);
     editor_write("}");
     return editor_json;
 }
@@ -136,6 +139,7 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     FmInstrument *in = t ? fm_instrument(&s->project, t->instrument) : NULL;
     if (action == 0 && value <= 4)
     {
+        s->capture_targeted = s->capture_replace = false;
         if (fm_sequence_playing(s->sequence))
             return FM_ERR_BUSY;
         FmId previous = s->project.selected_track, id;
@@ -172,6 +176,7 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     {
         if (!fm_track(&s->project, value))
             return FM_ERR_NOT_FOUND;
+        s->capture_targeted = s->capture_replace = false;
         s->project.selected_track = value;
         fm_ui_sync_view(&s->ui);
         s->ui.screen = FM_SCREEN_HOME;
@@ -187,7 +192,10 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     else if (action == 4)
     {
         if (!s->capture.buffer)
-            return FM_ERR_NOT_FOUND;
+        {
+            s->ui.screen = FM_SCREEN_HOME;
+            return FM_OK;
+        }
         result = fm_capture_finish(&s->capture);
         s->ui.screen = FM_SCREEN_HOME;
     }
@@ -214,12 +222,10 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     }
     else if (action == 7)
     {
-        /* Use the existing hold arbiter, including FX-safe undo. */
-        fm_ui_button(&s->ui, FM_BUTTON_SCL, true, s->frames / 36);
-        render_frames(s, 18036);
-        fm_ui_button(&s->ui, FM_BUTTON_SCL, false, s->frames / 36);
-        result = s->ui.last_result;
+        result = fm_ui_history(&s->ui, false);
     }
+    else if (action == 9)
+        s->ui.screen = FM_SCREEN_STEP;
     else if (action == 8 && value <= FM_ANCHORS)
         s->ui.scope = value;
     else
@@ -264,8 +270,12 @@ int fm_sim_input(void *handle, const int16_t *pcm, unsigned count)
     cfg.manual = true;
     cfg.maximum_frames = FM_RATE * 10;
     fm_capture_destroy(&s->capture);
-    FmResult result = fm_capture_begin(&s->capture, &s->project, s->project.selected_track,
-                                       s->ui.step_note, &cfg);
+    FmResult result = s->capture_targeted
+                          ? fm_capture_begin_slot(&s->capture, &s->project,
+                                                  s->project.selected_track, s->ui.step_note, &cfg,
+                                                  (uint8_t)s->capture_target, s->capture_replace)
+                          : fm_capture_begin(&s->capture, &s->project, s->project.selected_track,
+                                             s->ui.step_note, &cfg);
     if (result == FM_OK)
         result = fm_capture_manual_start(&s->capture);
     for (unsigned at = 0; result == FM_OK && at < count; at += 128)
@@ -277,6 +287,8 @@ int fm_sim_input(void *handle, const int16_t *pcm, unsigned count)
     if (result == FM_OK)
         result = fm_capture_finish(&s->capture);
     s->ui.last_result = result;
+    if (result == FM_OK)
+        s->capture_targeted = s->capture_replace = false;
     fm_ui_tick(&s->ui, s->frames / 36);
     snprintf(s->ui.status, sizeof(s->ui.status), "%s",
              result == FM_OK ? "TAKE CAPTURED - FINISH TO PLAY" : fm_result_string(result));

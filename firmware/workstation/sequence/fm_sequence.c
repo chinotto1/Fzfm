@@ -30,11 +30,13 @@ typedef struct
     bool launched, frozen_active;
     const FmEvent *events_seen;
     FmId frozen_seen;
+    double quantize_seen, swing_seen;
 } TrackRun;
 typedef struct
 {
     FmEvent source;
     uint32_t identity;
+    double release_at;
 } PlayingNote;
 struct FmSequencer
 {
@@ -349,7 +351,8 @@ static void dispatch_event(FmSequencer *s, const FmEvent *source, uint32_t offse
         e.identity = ++s->identity;
         if (!e.identity)
             e.identity = ++s->identity;
-        s->playing_notes[s->playing_count++] = (PlayingNote){*source, e.identity};
+        s->playing_notes[s->playing_count++] =
+            (PlayingNote){.source = *source, .identity = e.identity};
     }
     else if (note_off(source))
     {
@@ -395,16 +398,55 @@ static void apply_song(FmSequencer *s, uint16_t index, double at, uint32_t offse
     s->song_end = at + e->bars * bar_ticks(s);
 }
 static void arrangement_observe(FmSequencer *s);
-static double view_tick(const FmPattern *p, double tick)
+double fm_pattern_view_tick(const FmPattern *p, double tick)
 {
     if (p->quantize > 0 && isfinite(p->quantize))
-        tick = round(tick / p->quantize) * p->quantize;
+    {
+        if (tick >= p->length_ticks)
+            tick = p->length_ticks;
+        else
+            tick = fmin(round(tick / p->quantize) * p->quantize,
+                        fmax(0, (ceil(p->length_ticks / p->quantize) - 1) * p->quantize));
+    }
     double pair = FM_PPQN / 2.0, x = fmod(fmax(tick, 0), pair);
     double swing = fmax(-0.49, fmin(0.49, p->swing));
     /* A monotonic piecewise warp retains event order and the raw tick/frame. */
     double shifted = x < pair / 2 ? x * (1 + 2 * swing)
                                   : pair / 2 * (1 + 2 * swing) + (x - pair / 2) * (1 - 2 * swing);
     return tick - x + shifted;
+}
+double fm_sequence_pattern_tick(const FmSequencer *s, FmId pattern)
+{
+    if (!s || !s->running)
+        return -1;
+    for (unsigned i = 0; i < s->track_count; i++)
+    {
+        const TrackRun *r = &s->tracks[i];
+        if (r->pattern && r->pattern->id == pattern && r->pattern->length_ticks > 0)
+            return fmod((s->tick - r->start) * r->pattern->rate, r->pattern->length_ticks);
+    }
+    return -1;
+}
+static void dispatch_pattern(FmSequencer *s, const FmPattern *p, const FmEvent *event,
+                             uint32_t offset, FmSequenceDispatch cb, void *user)
+{
+    if (p->quantize > 0 && note_off(event))
+        for (unsigned i = 0; i < s->playing_count; i++)
+        {
+            PlayingNote *n = &s->playing_notes[i];
+            if (same_note(&n->source, event))
+            {
+                /* A short gate may round onto its onset. Preserve its raw
+                 * duration instead of sending on/off together and losing it. */
+                if (fm_pattern_view_tick(p, event->tick) <= fm_pattern_view_tick(p, n->source.tick))
+                {
+                    n->release_at = s->tick + fmax(1, event->tick - n->source.tick) / p->rate;
+                    return;
+                }
+                break;
+            }
+        }
+    dispatch_event(s, event, offset, cb, user);
 }
 void fm_sequence_advance(FmSequencer *s, uint32_t frames, FmSequenceDispatch cb, void *user)
 {
@@ -429,6 +471,19 @@ void fm_sequence_advance(FmSequencer *s, uint32_t frames, FmSequenceDispatch cb,
         }
         if (!(bpm >= 20 && bpm <= 400) || !isfinite(bpm))
             continue;
+        for (unsigned i = 0; i < s->playing_count;)
+        {
+            PlayingNote *n = &s->playing_notes[i];
+            if (n->release_at > 0 && n->release_at <= s->tick + 1e-8)
+            {
+                FmEvent off = n->source;
+                off.kind = FM_EVENT_NOTE_OFF;
+                off.velocity = 0;
+                dispatch_event(s, &off, f, cb, user);
+            }
+            else
+                i++;
+        }
         if (s->tick + 1e-8 >= s->next_bar)
         {
             double boundary = s->next_bar;
@@ -482,11 +537,14 @@ void fm_sequence_advance(FmSequencer *s, uint32_t frames, FmSequenceDispatch cb,
             FmPattern *p = r->pattern;
             if (!p || p->length_ticks < 1 || !isfinite(p->length_ticks))
                 continue;
-            if (p->events != r->events_seen || p->frozen_asset != r->frozen_seen)
+            if (p->events != r->events_seen || p->frozen_asset != r->frozen_seen ||
+                p->quantize != r->quantize_seen || p->swing != r->swing_seen)
             {
                 release_track(s, r->track->id, f, cb, user);
                 r->events_seen = p->events;
                 r->frozen_seen = p->frozen_asset;
+                r->quantize_seen = p->quantize;
+                r->swing_seen = p->swing;
                 r->cursor = 0;
                 r->start = s->tick;
                 r->launched = false;
@@ -497,7 +555,7 @@ void fm_sequence_advance(FmSequencer *s, uint32_t frames, FmSequenceDispatch cb,
             for (unsigned wrap = 0; wrap < 4 && local + 1e-8 >= p->length_ticks; wrap++)
             {
                 while (r->cursor < p->count &&
-                       view_tick(p, p->events[r->cursor].tick) <= p->length_ticks + 1e-8)
+                       fm_pattern_view_tick(p, p->events[r->cursor].tick) <= p->length_ticks + 1e-8)
                 {
                     const FmEvent *e = &p->events[r->cursor++];
                     if (note_off(e) || e->kind == FM_EVENT_SUSTAIN)
@@ -537,11 +595,12 @@ void fm_sequence_advance(FmSequencer *s, uint32_t frames, FmSequenceDispatch cb,
                 continue;
             }
             r->launched = true;
-            while (r->cursor < p->count && view_tick(p, p->events[r->cursor].tick) <= local + 1e-8)
+            while (r->cursor < p->count &&
+                   fm_pattern_view_tick(p, p->events[r->cursor].tick) <= local + 1e-8)
             {
                 const FmEvent *e = &p->events[r->cursor++];
                 if (!r->track->mute && (!any_solo || r->track->solo))
-                    dispatch_event(s, e, f, cb, user);
+                    dispatch_pattern(s, p, e, f, cb, user);
                 else if (note_off(e))
                     dispatch_event(s, e, f, cb, user);
             }
@@ -825,7 +884,6 @@ static FmResult publish(FmSequencer *s, uint8_t candidate)
     pat->count = n;
     pat->capacity = capacity;
     pat->length_ticks = length;
-    pat->quantize = 0;
     if (adopt)
         p->bpm = bpm;
     p->tempo_established = true;

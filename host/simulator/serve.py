@@ -36,6 +36,10 @@ def native():
     lib.fm_sim_parameter.argtypes = [C.c_void_p, C.c_uint, C.c_uint, C.c_uint, C.c_double]
     for name in ['draw', 'input', 'harmonics']:
         getattr(lib, 'fm_sim_'+name).argtypes = [C.c_void_p, C.c_void_p, C.c_uint]
+    lib.fm_sim_sequence.argtypes = [C.c_void_p,C.c_uint,C.c_uint,C.c_double,C.c_double,C.c_uint,C.c_uint,C.c_double,C.c_uint]
+    lib.fm_sim_notes.argtypes = [C.c_void_p,C.c_double,C.c_double]
+    lib.fm_sim_notes.restype = C.c_char_p
+    lib.fm_sim_sampling.argtypes = [C.c_void_p,C.c_uint,C.c_uint,C.c_uint]
     return lib
 
 
@@ -100,7 +104,7 @@ def main():
                     return self.send(C.string_at(data, length.value), 'application/octet-stream')
                 finally:
                     lib.fm_sim_free(data)
-            paths = {'/': 'index.html', '/app.js': 'app.js', '/backend.js': 'backend.js', '/workspace.js': 'workspace.js', '/style.css': 'style.css'}
+            paths = {'/': 'index.html', '/app.js': 'app.js', '/backend.js': 'backend.js', '/workspace.js': 'workspace.js', '/sequencer.js': 'sequencer.js', '/sampler.js': 'sampler.js', '/style.css': 'style.css'}
             if route not in paths:
                 return self.send({'error': 'not found'}, code=404)
             name = paths[route]
@@ -129,6 +133,19 @@ def main():
                         raise ValueError('PCM16 data required')
                     buf = C.create_string_buffer(body)
                     result = getattr(lib, 'fm_sim_'+route[5:])(handle, buf, len(body)//2)
+                elif route in {'/api/notes','/api/sequence','/api/sampling'}:
+                    data=json.loads(body)
+                    if not isinstance(data,dict): raise ValueError('object required')
+                    if route=='/api/notes':
+                        if any(type(data.get(k)) not in {int,float} or not 0 <= data[k] <= 1000000 for k in ['from','to']): raise ValueError('invalid note window')
+                        notes=lib.fm_sim_notes(handle,data['from'],data['to'])
+                        return self.send(json.loads(notes) if notes else {'error':'note view unavailable'},code=200 if notes else 409)
+                    fields=['operation','slot','value'] if route=='/api/sampling' else ['operation','index','note','velocity','pattern']
+                    if any(type(data.get(k)) is not int or not 0<=data[k]<=4294967295 for k in fields):raise ValueError('integer fields required')
+                    if route=='/api/sampling':result=lib.fm_sim_sampling(handle,data['operation'],data['slot'],data['value'])
+                    else:
+                        if any(type(data.get(k)) not in {int,float} or not -1<=data[k]<=1e15 for k in ['a','b','revision']):raise ValueError('finite values required')
+                        result=lib.fm_sim_sequence(handle,data['operation'],data['index'],data['a'],data['b'],data['note'],data['velocity'],data['revision'],data['pattern'])
                 elif route in {'/api/action', '/api/parameter'}:
                     data = json.loads(body)
                     fields = ['action','value'] if route.endswith('action') else ['tab','row','field']
