@@ -366,3 +366,5 @@ void fm_sim_persistence_error(void *handle)
     s->ui.last_result=FM_ERR_STORAGE;
     snprintf(s->ui.status,sizeof(s->ui.status),"LOCAL SAVE FAILED - EXPORT BACKUP");
 }
+
+#include "editor.inc.c"

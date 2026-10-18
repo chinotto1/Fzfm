@@ -24,6 +24,50 @@ static void tap_button(FmUi *u, FmButton b, uint64_t *ms)
     fm_ui_button(u, b, false, *ms);
     *ms += 10;
 }
+static unsigned graph_hash(FmUi *u)
+{
+    fm_ui_render(u);
+    unsigned hash = 2166136261u;
+    for (unsigned y = 53; y < 117; y++)
+        for (unsigned x = 7; x < 233; x++)
+            hash = (hash ^ u->pixels[y * FM_DISPLAY_WIDTH + x]) * 16777619u;
+    return hash;
+}
+static int test_graphical_parameters(FmUi *u, FmInstrument *in)
+{
+    /* Graphs must change with the real envelope/LFO/partial parameters. */
+    CHECK(fm_ui_set_parameter(u, 3, 0, 0, 0) == FM_OK);
+    unsigned old = graph_hash(u);
+    CHECK(fm_ui_set_parameter(u, 3, 1, 1, 700) == FM_OK);
+    CHECK(fm_ui_set_parameter(u, 3, 2, 1, .6) == FM_OK);
+    CHECK(graph_hash(u) != old);
+    NEAR(in->regions[0].amp.stage[0].milliseconds, 700, .001);
+    NEAR(in->regions[0].amp.stage[0].level, .6, .001);
+    CHECK(fm_ui_set_parameter(u, 4, 6, 1, 420) == FM_OK);
+    NEAR(in->regions[0].filter.stage[0].milliseconds, 420, .001);
+    NEAR(in->regions[0].amp.stage[0].milliseconds, 700, .001);
+    CHECK(fm_ui_set_parameter(u, 5, 0, 1, 2.5) == FM_OK);
+    CHECK(fm_ui_set_parameter(u, 5, 1, 1, .75) == FM_OK);
+    old = graph_hash(u);
+    CHECK(fm_ui_set_parameter(u, 5, 2, 1, 2) == FM_OK);
+    CHECK(graph_hash(u) != old);
+    CHECK(in->regions[0].lfo_shape == 2);
+    CHECK(fm_ui_set_parameter(u, 6, 1, 0, 47) == FM_OK);
+    CHECK(u->harmonic == 47);
+    CHECK(fm_ui_set_parameter(u, 6, 1, 1, 128) == FM_OK);
+    CHECK(in->harmonics[47] == 128 && in->additive);
+    old = graph_hash(u);
+    CHECK(fm_ui_set_parameter(u, 6, 1, 1, 256) == FM_OK);
+    CHECK(graph_hash(u) != old);
+    CHECK(fm_ui_set_parameter(u, 3, 0, 0, 3) == FM_OK);
+    CHECK(fm_ui_set_parameter(u, 3, 0, 0, 1) == FM_OK && u->stage == 1);
+    CHECK(fm_ui_set_parameter(u, 5, 1, 1, NAN) == FM_ERR_ARGUMENT);
+    CHECK(fm_ui_set_parameter(u, 3, 5, 1, 8) == FM_OK);
+    CHECK(fm_ui_set_parameter(u, 3, 0, 0, 7) == FM_OK);
+    CHECK(fm_ui_set_parameter(u, 3, 5, 1, 3) == FM_OK && u->stage == 2);
+    CHECK(fm_ui_use_source(u, 0) == FM_OK && u->step_note == 72);
+    return 0;
+}
 int test_ui(void)
 {
     /* T14/T23/T24/T25/T32: actual physical events through central arbiter. */
@@ -42,6 +86,12 @@ int test_ui(void)
     FmUi u;
     fm_ui_init(&u, &p, &engine, seq);
     fm_ui_callbacks(&u, NULL, capture_command, NULL);
+    CHECK(test_graphical_parameters(&u, in) == 0);
+    /* Restore the initial page for the physical-control regressions below. */
+    u.screen = FM_SCREEN_HOME;
+    u.tab = u.stage = u.harmonic = 0;
+    u.step_note = 60;
+    memset(u.rows, 0, sizeof(u.rows));
     uint64_t ms = 10;
     tap_button(&u, FM_BUTTON_EDIT, &ms);
     CHECK(u.screen == FM_SCREEN_EDIT && u.tab == 0);

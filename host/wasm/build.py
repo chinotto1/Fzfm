@@ -15,7 +15,7 @@ args=parser.parse_args()
 out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
 emcc=os.environ.get('EMCC','emcc')
 sources=sorted((ROOT/'firmware/workstation').glob('*/*.c'))
-exports=['create','destroy','command','render','pixels','text','metric','import_wave','backup','free','restore','demo','persistence_error']
+exports=['create','destroy','command','render','pixels','text','metric','import_wave','backup','free','restore','demo','persistence_error','editor','action','parameter','draw','input','harmonics']
 command=[emcc,'-std=c11','-O2','-Wall','-Wextra','-Werror','-Wno-unused-function',
  '-I'+str(ROOT/'firmware/workstation'),str(ROOT/'host/simulator/bridge.c'),
  *map(str,sources),'-lm','--no-entry','-lidbfs.js',
@@ -41,7 +41,9 @@ worker=(ROOT/'web/simulator/emulator-worker.js').read_text().replace('./fm1-core
 worker_name=publish('emulator-worker.js',worker.encode())
 backend=(ROOT/'web/simulator/backend.js').read_text().replace('./emulator-worker.js','./'+worker_name)
 backend_name=publish('backend.js',backend.encode())
+workspace_name=publish('workspace.js',(ROOT/'web/simulator/workspace.js').read_bytes())
 app=(ROOT/'web/simulator/app.js').read_text().replace('./backend.js','./'+backend_name)
+app=app.replace('./workspace.js','./'+workspace_name)
 app_name=publish('app.js',app.encode())
 css_name=publish('style.css',(ROOT/'web/simulator/style.css').read_bytes())
 index=(ROOT/'web/simulator/index.html').read_text().replace('data-runtime="native"','data-runtime="wasm"')
@@ -49,7 +51,7 @@ index=index.replace('NATIVE CORE · PANEL SIMULATOR','INSTRUMENT · WEB EMULATOR
 index=index.replace('./app.js','./'+app_name).replace('./style.css','./'+css_name)
 (out/'index.html').write_text(index)
 # Remove superseded outputs, including unversioned compiler intermediates.
-keep={wasm_name,core_name,worker_name,backend_name,app_name,css_name,'index.html','.nojekyll','LICENSE.txt','THIRD_PARTY_NOTICES.md','THIRD_PARTY_WEB_NOTICES.txt','USER_MANUAL.md','build-info.json'}
+keep={wasm_name,core_name,worker_name,backend_name,workspace_name,app_name,css_name,'index.html','.nojekyll','LICENSE.txt','THIRD_PARTY_NOTICES.md','THIRD_PARTY_WEB_NOTICES.txt','USER_MANUAL.md','build-info.json'}
 for path in out.iterdir():
  if path.is_file() and path.name not in keep:path.unlink()
 (out/'.nojekyll').write_text('')

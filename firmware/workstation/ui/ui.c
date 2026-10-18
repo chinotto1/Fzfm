@@ -223,27 +223,32 @@ static FmResult scope_value(FmUi *u, double value, bool relative, unsigned field
     }
     if (u->tab == 6 && u->rows[6] == 0)
     {
-        u->source = index_delta(u->source, (int)value, 5);
+        u->source =
+            relative ? index_delta(u->source, (int)value, 5) : (unsigned)bound((float)value, 0, 5);
         return FM_OK;
     }
     if (u->tab == 6 && u->rows[6] == 1 && field == 0)
     {
-        u->harmonic = index_delta(u->harmonic, (int)value, 47);
+        u->harmonic = relative ? index_delta(u->harmonic, (int)value, 47)
+                               : (unsigned)bound((float)value, 0, 47);
         return FM_OK;
     }
     if (u->tab == 3 && u->rows[3] == 0)
     {
-        u->stage = index_delta(u->stage, (int)value, 7);
+        u->stage =
+            relative ? index_delta(u->stage, (int)value, 7) : (unsigned)bound((float)value, 0, 7);
         return FM_OK;
     }
     if (u->tab == 4 && u->rows[4] == 5)
     {
-        u->stage = index_delta(u->stage, (int)value, 7);
+        u->stage =
+            relative ? index_delta(u->stage, (int)value, 7) : (unsigned)bound((float)value, 0, 7);
         return FM_OK;
     }
     if (u->tab == 1 && u->rows[1] == 1)
     {
-        u->loop_section = index_delta(u->loop_section, (int)value, 7);
+        u->loop_section = relative ? index_delta(u->loop_section, (int)value, 7)
+                                   : (unsigned)bound((float)value, 0, 7);
         return FM_OK;
     }
     if (u->tab == 6 && u->rows[6] == 1)
@@ -500,7 +505,37 @@ static FmResult scope_value(FmUi *u, double value, bool relative, unsigned field
             }
 #undef SET
         }
+    if ((u->tab == 3 && row == 5) || (u->tab == 4 && row == 10))
+    {
+        FmRegion *current = region(u);
+        if (current)
+        {
+            const FmEnvelope *e = u->tab == 3 ? &current->amp : &current->filter;
+            if (u->stage >= e->count)
+                u->stage = e->count - 1;
+        }
+    }
     return finish_scope(u);
+}
+FmResult fm_ui_set_parameter(FmUi *u, unsigned tab, unsigned row, unsigned field, double value)
+{
+    if (!u || !isfinite(value) || fabs(value) > 1000000 || tab >= 9 || row >= row_counts[tab] ||
+        field > 1 || u->picker != FM_PICK_NONE)
+        return FM_ERR_ARGUMENT;
+    fm_ui_sync_view(u);
+    unsigned previous_tab = u->tab, previous_row = u->rows[tab];
+    u->tab = tab;
+    u->rows[tab] = row;
+    if (action_row(u))
+    {
+        u->tab = previous_tab;
+        u->rows[tab] = previous_row;
+        return FM_ERR_UNSUPPORTED;
+    }
+    FmResult r = scope_value(u, value, false, field);
+    u->screen = FM_SCREEN_EDIT;
+    result(u, r);
+    return r;
 }
 static FmResult source_apply(FmUi *u)
 {
@@ -512,6 +547,24 @@ static FmResult source_apply(FmUi *u)
     switch (u->source)
     {
     case 0:
+        /* A source can be reopened on an existing pitched instrument. Select
+         * an unused octave anchor rather than failing on its existing C4. */
+        if (in->type == FM_SAMPLE)
+        {
+            bool free_root = false;
+            for (unsigned attempt = 0; attempt < FM_ANCHORS; attempt++)
+            {
+                free_root = true;
+                for (unsigned i = 0; i < FM_ANCHORS; i++)
+                    if (in->regions[i].id && in->regions[i].root == u->step_note)
+                        free_root = false;
+                if (free_root)
+                    break;
+                u->step_note = u->step_note <= 115 ? u->step_note + 12 : u->step_note % 12;
+            }
+            if (!free_root)
+                return FM_ERR_RANGE;
+        }
         u->screen = FM_SCREEN_CAPTURE;
         return capture(u, 0, u->now_ms);
     case 1:
@@ -551,9 +604,23 @@ static FmResult source_apply(FmUi *u)
     }
     if (r == FM_OK)
     {
-        u->screen = FM_SCREEN_HOME;
+        u->screen = u->source == 4 ? FM_SCREEN_EDIT : FM_SCREEN_HOME;
+        if (u->source == 4)
+        {
+            u->tab = 6;
+            u->rows[6] = 4;
+        }
         snprintf(u->status, sizeof(u->status), "SOURCE READY - VOLATILE");
     }
+    return r;
+}
+FmResult fm_ui_use_source(FmUi *u, unsigned source)
+{
+    if (!u || source > 5 || u->picker != FM_PICK_NONE)
+        return FM_ERR_ARGUMENT;
+    u->source = source;
+    FmResult r = source_apply(u);
+    result(u, r);
     return r;
 }
 static FmResult edit_action(FmUi *u)

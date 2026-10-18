@@ -137,6 +137,10 @@ void fm_ui_key(FmUi *, unsigned physical_index, bool down, uint64_t time_ms);
 void fm_ui_encoder(FmUi *, unsigned physical_index, int delta, uint64_t time_ms);
 void fm_ui_tick(FmUi *, uint64_t time_ms);
 void fm_ui_render(FmUi *);
+/* Absolute values from the accessible host editor use the same transactions
+ * and ALL/ONE scope as the physical encoders. Selectors are zero based. */
+FmResult fm_ui_set_parameter(FmUi *, unsigned tab, unsigned row, unsigned field, double value);
+FmResult fm_ui_use_source(FmUi *, unsigned source);
 #define FM_UI_COMMAND_COUNT 28u
 const char *fm_ui_command_label(unsigned);
 FmResult fm_ui_workspace_action(FmUi *, unsigned, bool confirmed);

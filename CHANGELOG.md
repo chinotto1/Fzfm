@@ -34,3 +34,7 @@ Follow-up workflow verification added real step ties, confirmed anchor deletion,
 ## Public iPad emulator
 
 Added a static WebAssembly build of the actual C instrument with module-worker ownership, touch controls, Safari audio unlock/interruption handling, browser-local two-generation saves and automatic reload. Project restore saves locally; import/export stays on the device. Content-hashed assets and a pinned/tested GitHub Pages deployment workflow publish the emulator directly from main.
+
+## Graphical iPad workflows
+
+Added visible track creation/selection and sampling controls; test sounds, local audio takes and microphone recording use the real C capture owner. Added amp/filter envelope curves, LFO rate/depth/shape plots and harmonic/waveform views on the instrument framebuffer, with larger touch editors and named parameter fields. All 48 partials, harmonic recipes and sine/triangle/saw/square presets are directly accessible. Touch wave drawing has an explicit draft/apply/discard workflow and whole-apply undo. Added graphical-parameter host regressions and static-browser creation/drawing/envelope/LFO/file/microphone checks to Pages CI.

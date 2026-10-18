@@ -54,6 +54,8 @@ static FmResult attach(FmProject *project, FmId instrument, const int16_t *pcm, 
         memcpy(inst->harmonics, recipe, sizeof(inst->harmonics));
         inst->additive = true;
     }
+    else if (result == FM_OK)
+        inst->additive = false;
     if (result == FM_OK)
         result = fm_edit_commit(project);
     if (result != FM_OK)

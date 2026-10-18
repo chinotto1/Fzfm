@@ -8,6 +8,7 @@ function state() {
   s.title = core.UTF8ToString(core._fm_sim_text(handle,0));
   s.status = core.UTF8ToString(core._fm_sim_text(handle,1));
   s.instrument = core.UTF8ToString(core._fm_sim_text(handle,2));
+  s.editor = JSON.parse(core.UTF8ToString(core._fm_sim_editor(handle)));
   s.browser = true; s.persistence = persistent;
   return s;
 }
@@ -75,6 +76,17 @@ self.onmessage = ({data:{id,path,body}}) => {
         const c=JSON.parse(body);
         if(!['type','index','value'].every(k=>Number.isInteger(c[k]))) throw new Error('Invalid control command');
         code=core._fm_sim_command(handle,c.type,c.index,c.value);
+      } else if(path==='/api/action') {
+        const c=JSON.parse(body);
+        if(!Number.isInteger(c.action)||!Number.isInteger(c.value)||c.action<0||c.value<0) throw new Error('Invalid action');
+        code=core._fm_sim_action(handle,c.action,c.value);
+      } else if(path==='/api/parameter') {
+        const c=JSON.parse(body);
+        if(!['tab','row','field'].every(k=>Number.isInteger(c[k])&&c[k]>=0)||!Number.isFinite(c.value)) throw new Error('Invalid parameter');
+        code=core._fm_sim_parameter(handle,c.tab,c.row,c.field,c.value);
+      } else if(path==='/api/draw'||path==='/api/input'||path==='/api/harmonics') {
+        if(!(body instanceof ArrayBuffer)||body.byteLength%2) throw new Error('Invalid PCM16 data');
+        code=bytesIn(body,(p,n)=>path==='/api/draw'?core._fm_sim_draw(handle,p,n/2):path==='/api/harmonics'?core._fm_sim_harmonics(handle,p,n/2):core._fm_sim_input(handle,p,n/2));
       } else if(path==='/api/demo') code=core._fm_sim_demo(handle);
       else if(path==='/api/restore') {
         code=bytesIn(body,(p,n)=>core._fm_sim_restore(handle,p,n));

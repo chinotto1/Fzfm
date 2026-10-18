@@ -30,6 +30,12 @@ def native():
     lib.fm_sim_backup.argtypes = [C.c_void_p, C.POINTER(C.c_void_p), C.POINTER(C.c_size_t)]
     lib.fm_sim_free.argtypes = [C.c_void_p]
     lib.fm_sim_demo.argtypes = [C.c_void_p]
+    lib.fm_sim_editor.argtypes = [C.c_void_p]
+    lib.fm_sim_editor.restype = C.c_char_p
+    lib.fm_sim_action.argtypes = [C.c_void_p, C.c_uint, C.c_uint]
+    lib.fm_sim_parameter.argtypes = [C.c_void_p, C.c_uint, C.c_uint, C.c_uint, C.c_double]
+    for name in ['draw', 'input', 'harmonics']:
+        getattr(lib, 'fm_sim_'+name).argtypes = [C.c_void_p, C.c_void_p, C.c_uint]
     return lib
 
 
@@ -55,6 +61,7 @@ def main():
     def state():
         data = {name: lib.fm_sim_metric(handle, i) for i, name in enumerate(metric_names)}
         data.update(title=lib.fm_sim_text(handle, 0).decode(), status=lib.fm_sim_text(handle, 1).decode(), instrument=lib.fm_sim_text(handle, 2).decode())
+        data['editor'] = json.loads(lib.fm_sim_editor(handle))
         return data
 
     class Handler(BaseHTTPRequestHandler):
@@ -93,7 +100,7 @@ def main():
                     return self.send(C.string_at(data, length.value), 'application/octet-stream')
                 finally:
                     lib.fm_sim_free(data)
-            paths = {'/': 'index.html', '/app.js': 'app.js', '/backend.js': 'backend.js', '/style.css': 'style.css'}
+            paths = {'/': 'index.html', '/app.js': 'app.js', '/backend.js': 'backend.js', '/workspace.js': 'workspace.js', '/style.css': 'style.css'}
             if route not in paths:
                 return self.send({'error': 'not found'}, code=404)
             name = paths[route]
@@ -117,6 +124,23 @@ def main():
                 if route in {'/api/wave','/api/cycle','/api/restore'}:
                     buf = C.create_string_buffer(body)
                     result = lib.fm_sim_restore(handle, buf, len(body)) if route.endswith('restore') else lib.fm_sim_import_wave(handle, buf, len(body), route.endswith('cycle'))
+                elif route in {'/api/draw', '/api/input', '/api/harmonics'}:
+                    if len(body) % 2:
+                        raise ValueError('PCM16 data required')
+                    buf = C.create_string_buffer(body)
+                    result = getattr(lib, 'fm_sim_'+route[5:])(handle, buf, len(body)//2)
+                elif route in {'/api/action', '/api/parameter'}:
+                    data = json.loads(body)
+                    fields = ['action','value'] if route.endswith('action') else ['tab','row','field']
+                    if not isinstance(data,dict) or any(type(data.get(k)) is not int or not 0 <= data[k] <= 1000000 for k in fields):
+                        raise ValueError('nonnegative integer fields required')
+                    if route.endswith('action'):
+                        result = lib.fm_sim_action(handle,data['action'],data['value'])
+                    else:
+                        value = data.get('value')
+                        if type(value) not in {int,float} or not -1000000 <= value <= 1000000:
+                            raise ValueError('finite value required')
+                        result = lib.fm_sim_parameter(handle,data['tab'],data['row'],data['field'],value)
                 elif route == '/api/demo':
                     result = lib.fm_sim_demo(handle)
                 elif route == '/api/command':

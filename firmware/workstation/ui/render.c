@@ -2,6 +2,7 @@
 #include "fm_ui.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* R13-R17, R21, R23-R24, R33: the board and simulator draw these exact
@@ -553,11 +554,122 @@ static void edit_value(FmUi *u, unsigned tab, unsigned row, char *out, size_t si
         }
     }
 }
+static void line(FmUi *u, int x0, int y0, int x1, int y1)
+{
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1, error = dx + dy;
+    for (;;)
+    {
+        rectangle(u, x0, y0, 1, 1, 1);
+        if (x0 == x1 && y0 == y1)
+            break;
+        int twice = 2 * error;
+        if (twice >= dy)
+        {
+            error += dy;
+            x0 += sx;
+        }
+        if (twice <= dx)
+        {
+            error += dx;
+            y0 += sy;
+        }
+    }
+}
+/* Graphs are part of the real 240x240 framebuffer, including on the board.
+ * Selected stage/point and exact parameter values remain visible below. */
+static void edit_graph(FmUi *u, unsigned tab)
+{
+    FmRegion *r = selected_region(u);
+    FmInstrument *in = selected_instrument(u);
+    outline(u, 7, 53, 226, 64, 1);
+    if (!r)
+    {
+        text(u, 30, 80, "ADD AUDIO TO SEE GRAPH", 30, 1);
+        return;
+    }
+    if (tab == 3 || tab == 4)
+    {
+        const FmEnvelope *e = tab == 3 ? &r->amp : &r->filter;
+        unsigned count = e->count > FM_ENV_STAGES ? FM_ENV_STAGES : e->count;
+        float total = 0;
+        for (unsigned i = 0; i < count; i++)
+            total += fmaxf(0, e->stage[i].milliseconds);
+        float minimum = fmaxf(1, total * .02f), scale = 0, at = 0;
+        for (unsigned i = 0; i < count; i++)
+            scale += fmaxf(minimum, e->stage[i].milliseconds);
+        int x = 9, y = 113;
+        for (unsigned i = 0; i < count; i++)
+        {
+            at += fmaxf(minimum, e->stage[i].milliseconds);
+            int nx = 9 + (int)(220 * at / fmaxf(1, scale));
+            int ny = 113 - (int)(48 * fminf(1, fmaxf(0, e->stage[i].level)));
+            line(u, x, y, nx, ny);
+            rectangle(u, nx - 1, ny - 1, 3, 3, 1);
+            if (i == u->stage)
+                outline(u, nx - 3, ny - 3, 7, 7, 1);
+            if (i == e->sustain || i == e->release)
+                text(u, nx > 220 ? 220 : nx, 55, i == e->sustain ? "S" : "R", 1, 1);
+            x = nx;
+            y = ny;
+        }
+    }
+    else if (tab == 5)
+    {
+        /* One second at the actual rate/depth. The DSP helper supplies the shape. */
+        for (int x = 10; x < 230; x += 4)
+            rectangle(u, x, 85, 1, 1, 1);
+        int previous = 85;
+        for (int x = 0; x < 220; x++)
+        {
+            float phase = fmodf((float)x / 219 * r->lfo_rate, 1);
+            int y = 85 - (int)(27 * r->lfo_depth * fm_lfo_tick(&phase, 0, r->lfo_shape & 3));
+            if (x)
+                line(u, 9 + x - 1, previous, 9 + x, y);
+            previous = y;
+        }
+        text(u, 12, 55, "1 SECOND", 10, 1);
+    }
+    else if (tab == 6 && u->rows[6] <= 3 && in && in->additive)
+    {
+        for (unsigned h = 0; h < FM_HARMONICS; h++)
+        {
+            int x = 10 + (int)h * 220 / FM_HARMONICS;
+            int height = (int)in->harmonics[h] * 48 / 256;
+            rectangle(u, x, 113 - height, 3, height ? height : 1, 1);
+            if (h == u->harmonic)
+                outline(u, x - 1, 57, 5, 58, 1);
+        }
+    }
+    else
+    {
+        FmAsset *a = fm_asset(u->project, r->asset);
+        if (!a || r->end <= r->start)
+            return;
+        int previous = 85;
+        for (unsigned x = 0; x < 220; x++)
+        {
+            uint32_t n = r->start + (uint32_t)((uint64_t)x * (r->end - r->start - 1) / 219);
+            int y = 85 - (int)(a->pcm[(size_t)n * a->channels] * 27 / 32768);
+            if (x)
+                line(u, 8 + (int)x, previous, 9 + (int)x, y);
+            previous = y;
+        }
+        if (u->rows[6] == 4)
+        {
+            int x = 9 + (int)(220.0 * u->point / (r->end - r->start));
+            for (int y = 55; y < 115; y += 3)
+                rectangle(u, x, y, 1, 1, 1);
+        }
+    }
+}
 static void edit(FmUi *u)
 {
     unsigned tab = u->tab % 9,
              row = u->rows[tab] < row_count[tab] ? u->rows[tab] : row_count[tab] - 1;
-    unsigned first = first_visible(row, row_count[tab], 5);
+    bool graph = tab == 3 || tab == 4 || tab == 5 || tab == 6;
+    unsigned shown = graph ? 3 : 5;
+    unsigned first = first_visible(row, row_count[tab], shown);
     FmInstrument *in = selected_instrument(u);
     char line[64], value[32];
     text(u, 4, 39, in ? in->name : "NO INSTRUMENT", 24, 1);
@@ -566,7 +678,9 @@ static void edit(FmUi *u)
     else
         snprintf(line, sizeof(line), "%s ALL", tabs[tab]);
     right(u, 237, 39, line, 14, 1);
-    for (unsigned i = first; i < row_count[tab] && i < first + 5; i++)
+    if (graph)
+        edit_graph(u, tab);
+    for (unsigned i = first; i < row_count[tab] && i < first + shown; i++)
     {
         value[0] = 0;
         edit_value(u, tab, i, value, sizeof(value));
@@ -582,9 +696,19 @@ static void edit(FmUi *u)
             detail = i == 0   ? "ISOLATED CREATIVE BAKE; USES STORAGE"
                      : i == 1 ? "PATTERN ROUTING ONLY; KEEPS NOTES"
                               : "RESTORE LIVE NOTES AND SENDS";
-        list_row(u, i - first, edit_rows[tab][i], value, detail, i == row);
+        if (graph)
+        {
+            int y = 124 + (int)(i - first) * 18;
+            if (i == row)
+                rectangle(u, 2, y, 232, 16, 1);
+            text(u, 7, y + 4, edit_rows[tab][i], 21, i == row ? 0 : 1);
+            right(u, 230, y + 4, value, 14, i == row ? 0 : 1);
+        }
+        else
+            list_row(u, i - first, edit_rows[tab][i], value, detail, i == row);
     }
-    scroll_mark(u, first, row_count[tab], 5);
+    if (!graph)
+        scroll_mark(u, first, row_count[tab], shown);
     if (u->scope)
         snprintf(line, sizeof(line), "SELECT: SCOPE / SAMPLE %02u", u->scope);
     else
