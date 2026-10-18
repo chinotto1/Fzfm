@@ -11,11 +11,11 @@ export function initSampler({send,run,action,getState,enableSound,showError,live
  function nextRoot(){const used=new Set((model.sampleSlots||[]).filter(s=>s.id).map(s=>s.note));for(const n of [60,72,84,96,108,120,0,12,24,36,48])if(!used.has(n))return n;for(let n=0;n<128;n++)if(!used.has(n))return n;return 60;}
  function waveform(samples,live=false) {
   const canvas=$('sample-waveform'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
-  ctx.fillStyle='#111910';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#3b5032';ctx.lineWidth=1;
+  ctx.fillStyle='#080910';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#38445c';ctx.lineWidth=1;
   for(let x=0;x<w;x+=w/8){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
   ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
   if(!samples?.length)return;
-  ctx.strokeStyle=live?'#efc681':'#cde29b';ctx.lineWidth=2;
+  ctx.strokeStyle=live?'#f4bf35':'#52cb80';ctx.lineWidth=2;
   if(live){ctx.beginPath();samples.forEach((v,i)=>{const x=i/(samples.length-1)*w,y=h/2-v*(h/2-8);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();}
   else for(let i=0;i<samples.length;i++){const x=(i+.5)/samples.length*w,y=samples[i]/32768*(h/2-10);ctx.beginPath();ctx.moveTo(x,h/2-y);ctx.lineTo(x,h/2+y);ctx.stroke();}
  }

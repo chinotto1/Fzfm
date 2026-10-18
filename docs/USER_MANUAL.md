@@ -1,5 +1,8 @@
 # Controls and workflows
 
+Display colors have consistent meanings: blue selects a row or marks an empty cell, green marks filled sounds and meters, amber marks focus/values, and red marks recording or clipping. Primary labels and values use larger bold pixel text. The capture page shows all sixteen slots, the input meter and the current setting together; knob 1 still chooses the setting and knob 2 edits it.
+
+
 The simulator uses the same UI, sequencer and audio engine as the development board adapter. The browser adds a visible New track menu, graphical touch editors, local file import/export, microphone recording and a synthetic test input. Core operation is designed for the physical panel; the browser is optional.
 
 ## Start and play

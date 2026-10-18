@@ -10,7 +10,33 @@
 #define FM_UI_KEYS 27u
 #define FM_UI_HOLD_MS 500u
 /* Physical FM-1 board indexes: SCL is the documented logical SEL. Encoders
- * never have invented push actions. Pixels are 0/1; board converts to RGB565. */
+ * never have invented push actions. Pixels index the shared RGB palette;
+ * the board converts one scanline to RGB565 without another framebuffer. */
+typedef enum
+{
+    FM_UI_BG,
+    FM_UI_TEXT,
+    FM_UI_PANEL,
+    FM_UI_BLUE,
+    FM_UI_GREEN,
+    FM_UI_AMBER,
+    FM_UI_MUTED,
+    FM_UI_RED,
+    FM_UI_GRID,
+    FM_UI_COLOR_COUNT
+} FmUiColor;
+extern const uint32_t fm_ui_palette[FM_UI_COLOR_COUNT];
+static inline uint16_t fm_ui_rgb565(uint8_t index)
+{
+    uint32_t rgb = fm_ui_palette[index < FM_UI_COLOR_COUNT ? index : FM_UI_BG];
+    return (uint16_t)(((rgb >> 8) & 0xf800u) | ((rgb >> 5) & 0x07e0u) | ((rgb >> 3) & 0x001fu));
+}
+static inline void fm_ui_rgb565_bytes(uint8_t index, uint8_t out[2])
+{
+    uint16_t color = fm_ui_rgb565(index);
+    out[0] = (uint8_t)(color >> 8);
+    out[1] = (uint8_t)color;
+}
 typedef enum
 {
     FM_BUTTON_OCT_MINUS,

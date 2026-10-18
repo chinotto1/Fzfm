@@ -39,12 +39,12 @@ export function initSequencer({request,send,run,action,getState,enableSound,show
   ctx.clearRect(0,0,width,canvas.height);
   for(let n=0;n<128;n++) {
    const y=(127-n)*ROW,black=[1,3,6,8,10].includes(n%12);
-   ctx.fillStyle=black?'#151c18':'#1e2820';ctx.fillRect(LEFT,y,width-LEFT,ROW);
-   ctx.strokeStyle=n%12===0?'#59694b':'#303d32';ctx.beginPath();ctx.moveTo(LEFT,y+ROW);ctx.lineTo(width,y+ROW);ctx.stroke();
+   ctx.fillStyle=black?'#10131f':'#1b2030';ctx.fillRect(LEFT,y,width-LEFT,ROW);
+   ctx.strokeStyle=n%12===0?'#657596':'#303b52';ctx.beginPath();ctx.moveTo(LEFT,y+ROW);ctx.lineTo(width,y+ROW);ctx.stroke();
   }
   const grid=snap()||240;
   for(let tick=from();tick<=to()+.001;tick+=grid) {
-   const x=xFor(tick);ctx.strokeStyle=tick%bar()===0?'#a3b488':tick%PPQN===0?'#647451':'#354330';ctx.lineWidth=tick%bar()===0?2:1;
+   const x=xFor(tick);ctx.strokeStyle=tick%bar()===0?'#b9c2d5':tick%PPQN===0?'#657596':'#38445c';ctx.lineWidth=tick%bar()===0?2:1;
    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();
   }
   for(const n of notes) {
@@ -55,15 +55,15 @@ export function initSequencer({request,send,run,action,getState,enableSound,show
   const k=keys.getContext('2d');
   for(let n=0;n<128;n++) {
    const y=(127-n)*ROW,black=[1,3,6,8,10].includes(n%12);
-   k.fillStyle=black?'#19221a':'#c4d0b4';k.fillRect(0,y,LEFT,ROW-1);
-   k.fillStyle=black?'#d0ddbd':'#162214';k.font='11px system-ui';k.fillText(noteName(n),6,y+16);
+   k.fillStyle=black?'#10131f':'#ebedf5';k.fillRect(0,y,LEFT,ROW-1);
+   k.fillStyle=black?'#f5f5ef':'#10131f';k.font='700 11px system-ui';k.fillText(noteName(n),6,y+16);
   }
  }
  function drawNote(ctx,n,isSelected,draft) {
   const x=xFor(n.tick),y=(127-n.note)*ROW+3,w=Math.max(5,n.duration/PPQN*pxBeat()),h=ROW-6;
-  ctx.fillStyle=draft?'#e5ddb0':isSelected?'#e1efa9':`rgba(156,197,130,${.45+n.velocity/127*.5})`;
-  ctx.fillRect(x+1,y,w-2,h);ctx.strokeStyle=isSelected?'#fff':'#92ad78';ctx.strokeRect(x+1,y,w-2,h);
-  if(w>20){ctx.fillStyle='#293622';ctx.font='10px system-ui';ctx.fillText(noteName(n.note),x+5,y+13);}
+  ctx.fillStyle=draft?'#ffe4a1':isSelected?'#f4bf35':`rgba(82,203,128,${.45+n.velocity/127*.5})`;
+  ctx.fillRect(x+1,y,w-2,h);ctx.strokeStyle=isSelected?'#fff':'#87e6a8';ctx.strokeRect(x+1,y,w-2,h);
+  if(w>20){ctx.fillStyle='#080910';ctx.font='700 11px system-ui';ctx.fillText(noteName(n.note),x+5,y+13);}
   if(isSelected){ctx.fillStyle='#fff';ctx.fillRect(x+w-5,y+2,3,h-4);}
  }
  async function refresh() {

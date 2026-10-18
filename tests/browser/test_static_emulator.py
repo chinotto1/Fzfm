@@ -32,6 +32,17 @@ try:
     page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     page.goto(url)
     page.wait_for_function('window.fm1 && !document.body.classList.contains("loading")',timeout=60000)
+    # End-to-end C palette -> worker RGB buffer -> browser PNG, rather than
+    # a grayscale/colorized overlay of the actual display.
+    display_colors=page.evaluate("""async()=>{
+      const response=await fm1.request('/api/screen.png'),bitmap=await createImageBitmap(await response.blob());
+      const canvas=document.createElement('canvas');canvas.width=canvas.height=240;
+      const ctx=canvas.getContext('2d');ctx.drawImage(bitmap,0,0);bitmap.close();
+      const data=ctx.getImageData(0,0,240,240).data,colors=new Set();
+      for(let i=0;i<data.length;i+=4)colors.add((data[i]<<16)|(data[i+1]<<8)|data[i+2]);
+      return [...colors];
+    }""")
+    assert {0x080910,0x294f88,0xf5f5ef}.issubset(display_colors),display_colors
     def api(path,body=None):
         return page.evaluate('''async ([path,body])=>{
           const options=body===null?{}:{method:'POST',body:JSON.stringify(body)};

@@ -151,7 +151,7 @@ static struct
 {
     uint32_t magic, pending, failures;
 } boot __attribute__((section(".noinit")));
-static uint16_t lcd_row[240];
+static uint8_t lcd_row[240 * 2];
 extern void isr_timer5(void), isr_alnk0(void);
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
 extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
@@ -273,7 +273,7 @@ static void display_row(unsigned row)
 {
     uint8_t x[4] = {0, 0, 0, 239}, y[4] = {0, (uint8_t)row, 0, (uint8_t)row};
     for (unsigned i = 0; i < 240; i++)
-        lcd_row[i] = ui.pixels[row * 240u + i] ? 0xffff : 0;
+        fm_ui_rgb565_bytes(ui.pixels[row * 240u + i], &lcd_row[i * 2]);
     lcd_command(0x2a, x, 4);
     lcd_command(0x2b, y, 4);
     lcd_command(0x2c, 0, 0);

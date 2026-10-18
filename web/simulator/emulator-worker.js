@@ -66,7 +66,12 @@ self.onmessage = ({data:{id,path,body}}) => {
     } else if(path==='/api/state') result = state();
     else if(path==='/api/screen.png') {
       const p = core._fm_sim_pixels(handle);
-      const pixels = core.HEAPU8.slice(p,p+240*240).buffer;
+      const palette=core._fm_sim_palette()>>>2, rgb=new Uint8Array(240*240*3);
+      for(let i=0;i<240*240;i++) {
+        const color=core.HEAPU32[palette+core.HEAPU8[p+i]];
+        rgb[i*3]=color>>>16;rgb[i*3+1]=color>>>8;rgb[i*3+2]=color;
+      }
+      const pixels=rgb.buffer;
       self.postMessage({id,result:pixels},[pixels]); return;
     } else if(path==='/api/audio') {
       const code = core._fm_sim_render(handle,audio,512);

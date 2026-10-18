@@ -193,9 +193,14 @@ static int screenshot(Simulator *s, const char *path)
         perror(path);
         return 1;
     }
-    fprintf(f, "P5\n%u %u\n255\n", FM_DISPLAY_WIDTH, FM_DISPLAY_HEIGHT);
+    fprintf(f, "P6\n%u %u\n255\n", FM_DISPLAY_WIDTH, FM_DISPLAY_HEIGHT);
     for (size_t i = 0; i < sizeof(s->ui.pixels); i++)
-        fputc(s->ui.pixels[i] ? 255 : 0, f);
+    {
+        uint32_t rgb = fm_ui_palette[s->ui.pixels[i]];
+        fputc((int)(rgb >> 16), f);
+        fputc((int)((rgb >> 8) & 255), f);
+        fputc((int)(rgb & 255), f);
+    }
     int r = ferror(f);
     fclose(f);
     return r;
@@ -209,7 +214,7 @@ static int shot(Simulator *s, const char *dir, const char *name)
     return 0;
 #else
     char path[1024];
-    snprintf(path, sizeof(path), "%s/%s.pgm", dir, name);
+    snprintf(path, sizeof(path), "%s/%s.ppm", dir, name);
     return screenshot(s, path);
 #endif
 }

@@ -31,8 +31,8 @@ export async function request(path,options={}) {
   if(path==='/api/screen.png') {
     const canvas=document.createElement('canvas');canvas.width=canvas.height=240;
     const ctx=canvas.getContext('2d'),image=ctx.createImageData(240,240),pixels=new Uint8Array(result);
-    for(let i=0;i<pixels.length;i++) {
-      const v=pixels[i]?245:12;image.data[4*i]=image.data[4*i+1]=image.data[4*i+2]=v;image.data[4*i+3]=255;
+    for(let i=0;i<240*240;i++) {
+      image.data[4*i]=pixels[3*i];image.data[4*i+1]=pixels[3*i+1];image.data[4*i+2]=pixels[3*i+2];image.data[4*i+3]=255;
     }
     ctx.putImageData(image,0,0);
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));

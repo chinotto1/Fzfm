@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Shared by the panel adapter, native screenshots and WebAssembly display. */
+const uint32_t fm_ui_palette[FM_UI_COLOR_COUNT] = {0x080910, 0xf5f5ef, 0x1b2030, 0x294f88, 0x52cb80,
+                                                   0xf4bf35, 0xb9c2d5, 0xf27575, 0x38445c};
+
 /* R13-R17, R21, R23-R24, R33: the board and simulator draw these exact
  * 240x240 pixels. This original 5x7 uppercase font has no external assets.
  * Rendering belongs to the non-real-time owner and performs no I/O/allocation. */
@@ -126,6 +130,29 @@ static void text(FmUi *u, int x, int y, const char *s, unsigned limit, uint8_t c
 {
     text_at(u, x, y, s, limit, 1, color);
 }
+/* Larger pixel-aligned 7x10 face derived from our original 5x7 glyphs.
+ * Primary labels use this face; compact legends remain secondary. */
+static void bold(FmUi *u, int x, int y, const char *s, unsigned limit, uint8_t color)
+{
+    if (!s)
+        return;
+    for (unsigned i = 0; i < limit && s[i]; i++)
+    {
+        const uint8_t *rows = glyph(s[i]);
+        static const unsigned column[] = {0, 1, 3, 4, 5};
+        for (unsigned row = 0; row < 10; row++)
+            for (unsigned col = 0; col < 5; col++)
+                if (rows[row * 7 / 10] & (1u << (4u - col)))
+                    rectangle(u, x + (int)(i * 8 + column[col]), y + (int)row, 2, 1, color);
+    }
+}
+static void bold_right(FmUi *u, int x, int y, const char *s, unsigned limit, uint8_t color)
+{
+    unsigned n = 0;
+    while (s && n < limit && s[n])
+        n++;
+    bold(u, x - (int)n * 8, y, s, n, color);
+}
 static void right(FmUi *u, int right_x, int y, const char *s, unsigned limit, uint8_t color)
 {
     unsigned n = 0;
@@ -194,36 +221,45 @@ static void list_row(FmUi *u, unsigned visible, const char *name, const char *va
                      const char *detail, bool selected)
 {
     int y = 52 + (int)visible * 25;
-    uint8_t ink = selected ? 0 : 1;
-    if (selected)
-        rectangle(u, 2, y, 232, 23, 1);
-    text(u, 7, y + 4, name, value && value[0] ? 22u : 37u, ink);
+    uint8_t ink = FM_UI_TEXT;
+    rectangle(u, 2, y, 232, 23, selected ? FM_UI_BLUE : visible % 2 ? FM_UI_PANEL : FM_UI_BG);
+    unsigned n = value ? (unsigned)strlen(value) : 0;
+    if (n > 14)
+        n = 14;
+    bold(u, 7, y + 2, name, n ? 27u - n : 27u, ink);
     if (value)
-        right(u, 230, y + 4, value, 14, ink);
+        bold_right(u, 230, y + 2, value, 14, selected ? FM_UI_AMBER : FM_UI_TEXT);
     if (detail)
-        text(u, 8, y + 14, detail, 36, ink);
+        text(u, 8, y + 15, detail, 36, FM_UI_MUTED);
 }
 static void footer(FmUi *u, const char *a, const char *b, const char *c, const char *d,
                    const char *va, const char *vb, const char *vc, const char *vd)
 {
     const char *labels[] = {a, b, c, d};
     const char *values[] = {va, vb, vc, vd};
-    rectangle(u, 0, 212, 240, 1, 1);
+    rectangle(u, 0, 212, 240, 28, FM_UI_PANEL);
+    rectangle(u, 0, 212, 240, 2, FM_UI_BLUE);
     for (unsigned i = 0; i < 4; i++)
     {
         char label[12];
         snprintf(label, sizeof(label), "%u %s", i + 1, labels[i] ? labels[i] : "-");
         if (i)
-            rectangle(u, (int)i * 60, 213, 1, 27, 1);
-        text(u, (int)i * 60 + 3, 216, label, 9, 1);
-        text(u, (int)i * 60 + 3, 229, values[i] ? values[i] : "", 9, 1);
+            rectangle(u, (int)i * 60, 214, 1, 26, FM_UI_GRID);
+        text(u, (int)i * 60 + 3, 216, label, 9, FM_UI_MUTED);
+        const char *value = values[i] ? values[i] : "";
+        if (!strcmp(value, "RELATIVE"))
+            value = "TURN";
+        if (strlen(value) <= 7)
+            bold(u, (int)i * 60 + 3, 227, value, 7, FM_UI_AMBER);
+        else
+            text(u, (int)i * 60 + 3, 229, value, 9, FM_UI_AMBER);
     }
 }
 static void header(FmUi *u)
 {
     char line[48];
     text_at(u, 4, 4, fm_ui_screen_name(u->screen), 18, 2, 1);
-    rectangle(u, 0, 22, 240, 1, 1);
+    rectangle(u, 0, 22, 240, 2, FM_UI_BLUE);
     bool playing = u->sequence && fm_sequence_playing(u->sequence);
     FmSequenceStatus status = {0};
     if (u->sequence)
@@ -233,9 +269,10 @@ static void header(FmUi *u)
              : status.armed   ? "ARM"
                               : "",
              u->project->dirty ? " *" : "");
-    text(u, 4, 27, line, 38, 1);
+    rectangle(u, 0, 25, 240, 11, FM_UI_PANEL);
+    text(u, 4, 27, line, 38, status.recording ? FM_UI_RED : playing ? FM_UI_GREEN : FM_UI_TEXT);
     if (u->project->volatile_audio)
-        right(u, 237, 27, "VOLATILE", 8, 1);
+        right(u, 237, 27, "VOLATILE", 8, FM_UI_AMBER);
 }
 static unsigned track_list(FmUi *u, FmTrack *list[FM_OBJECT_LIMIT], unsigned *selected)
 {
@@ -319,6 +356,16 @@ static void home(FmUi *u, bool mixer)
             snprintf(b, sizeof(b), "%.3f", (double)t->resonance);
             snprintf(c, sizeof(c), "%.2f", (double)t->volume);
             snprintf(d, sizeof(d), "%+.2f", (double)t->pan);
+        }
+    }
+    if (t && !mixer)
+    {
+        float meters[] = {t->cutoff, t->resonance, t->volume / 4, (t->pan + 1) / 2};
+        for (unsigned i = 0; i < 4; i++)
+        {
+            rectangle(u, 4 + (int)i * 60, 194, 50, 4, FM_UI_BLUE);
+            rectangle(u, 4 + (int)i * 60, 194, (int)(50 * fminf(1, fmaxf(0, meters[i]))), 4,
+                      FM_UI_GREEN);
         }
     }
     if (mixer)
@@ -562,7 +609,7 @@ static void line(FmUi *u, int x0, int y0, int x1, int y1)
     int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1, error = dx + dy;
     for (;;)
     {
-        rectangle(u, x0, y0, 1, 1, 1);
+        rectangle(u, x0, y0, 2, 2, FM_UI_GREEN);
         if (x0 == x1 && y0 == y1)
             break;
         int twice = 2 * error;
@@ -584,7 +631,8 @@ static void edit_graph(FmUi *u, unsigned tab)
 {
     FmRegion *r = selected_region(u);
     FmInstrument *in = selected_instrument(u);
-    outline(u, 7, 53, 226, 64, 1);
+    rectangle(u, 7, 53, 226, 64, FM_UI_PANEL);
+    outline(u, 7, 53, 226, 64, FM_UI_GRID);
     if (!r)
     {
         text(u, 30, 80, "ADD AUDIO TO SEE GRAPH", 30, 1);
@@ -607,9 +655,9 @@ static void edit_graph(FmUi *u, unsigned tab)
             int nx = 9 + (int)(220 * at / fmaxf(1, scale));
             int ny = 113 - (int)(48 * fminf(1, fmaxf(0, e->stage[i].level)));
             line(u, x, y, nx, ny);
-            rectangle(u, nx - 1, ny - 1, 3, 3, 1);
+            rectangle(u, nx - 1, ny - 1, 3, 3, FM_UI_TEXT);
             if (i == u->stage)
-                outline(u, nx - 3, ny - 3, 7, 7, 1);
+                outline(u, nx - 3, ny - 3, 7, 7, FM_UI_AMBER);
             if (i == e->sustain || i == e->release)
                 text(u, nx > 220 ? 220 : nx, 55, i == e->sustain ? "S" : "R", 1, 1);
             x = nx;
@@ -620,7 +668,7 @@ static void edit_graph(FmUi *u, unsigned tab)
     {
         /* One second at the actual rate/depth. The DSP helper supplies the shape. */
         for (int x = 10; x < 230; x += 4)
-            rectangle(u, x, 85, 1, 1, 1);
+            rectangle(u, x, 85, 1, 1, FM_UI_GRID);
         int previous = 85;
         for (int x = 0; x < 220; x++)
         {
@@ -647,9 +695,10 @@ static void edit_graph(FmUi *u, unsigned tab)
         {
             int x = 10 + (int)h * 220 / FM_HARMONICS;
             int height = (int)in->harmonics[h] * 48 / 256;
-            rectangle(u, x, 113 - height, 3, height ? height : 1, 1);
+            rectangle(u, x, 113 - height, 3, height ? height : 1,
+                      h == u->harmonic ? FM_UI_AMBER : FM_UI_GREEN);
             if (h == u->harmonic)
-                outline(u, x - 1, 57, 5, 58, 1);
+                outline(u, x - 1, 57, 5, 58, FM_UI_AMBER);
         }
     }
     else
@@ -710,10 +759,12 @@ static void edit(FmUi *u)
         if (graph)
         {
             int y = 124 + (int)(i - first) * 18;
-            if (i == row)
-                rectangle(u, 2, y, 232, 16, 1);
-            text(u, 7, y + 4, edit_rows[tab][i], 21, i == row ? 0 : 1);
-            right(u, 230, y + 4, value, 14, i == row ? 0 : 1);
+            rectangle(u, 2, y, 232, 16, i == row ? FM_UI_BLUE : FM_UI_PANEL);
+            unsigned n = (unsigned)strlen(value);
+            if (n > 14)
+                n = 14;
+            bold(u, 7, y + 3, edit_rows[tab][i], 27u - n, FM_UI_TEXT);
+            bold_right(u, 230, y + 3, value, 14, i == row ? FM_UI_AMBER : FM_UI_TEXT);
         }
         else
             list_row(u, i - first, edit_rows[tab][i], value, detail, i == row);
@@ -806,15 +857,14 @@ static void steps(FmUi *u)
         int x = 4 + (int)(i % 4) * 59, y = 53 + (int)(i / 4) * 30;
         unsigned step = u->page * 16 + i;
         bool enabled = step_on(pattern, step);
-        uint8_t color = enabled ? 0 : 1;
-        if (enabled)
-            rectangle(u, x, y, 54, 25, 1);
-        else
-            outline(u, x, y, 54, 25, 1);
+        uint8_t color = enabled ? FM_UI_BG : FM_UI_TEXT;
+        rectangle(u, x, y, 54, 25, enabled ? FM_UI_GREEN : FM_UI_BLUE);
         if (u->selected_step % 16 == i)
-            outline(u, x + 2, y + 2, 50, 21, color);
+            outline(u, x, y, 54, 25, FM_UI_AMBER);
+        if (playing == step)
+            rectangle(u, x, y, 54, 3, FM_UI_AMBER);
         snprintf(line, sizeof(line), "%02u%s", step + 1, playing == step ? ">" : "");
-        text(u, x + 11, y + 9, line, 6, color);
+        bold(u, x + 11, y + 8, line, 5, color);
     }
     text(u, 4, 180, "WHITE KEYS 1-16: TOGGLE / SEL: NOTE", 39, 1);
     text(u, 4, 190, "KEY 1: REST / KEY 3: TIE / OCT: PAGE", 39, 1);
@@ -838,14 +888,14 @@ static void patterns(FmUi *u)
         unsigned slot = page * 16 + i;
         int x = 4 + (int)(i % 4) * 59, y = 53 + (int)(i / 4) * 30;
         bool selected = track && track->selected_pattern == slot;
+        bool filled = track && track->patterns[slot];
+        rectangle(u, x, y, 54, 25, filled ? FM_UI_GREEN : FM_UI_BLUE);
         if (selected)
-            rectangle(u, x, y, 54, 25, 1);
-        else
-            outline(u, x, y, 54, 25, 1);
-        uint8_t ink = selected ? 0 : 1;
+            outline(u, x, y, 54, 25, FM_UI_AMBER);
+        uint8_t ink = filled ? FM_UI_BG : FM_UI_TEXT;
         snprintf(line, sizeof(line), "%02u %c", slot + 1,
                  track && track->patterns[slot] ? '*' : '-');
-        text(u, x + 9, y + 9, line, 6, ink);
+        bold(u, x + 7, y + 8, line, 5, ink);
         if (track && track->queued_pattern == (int8_t)slot)
             text(u, x + 42, y + 3, ">", 1, ink);
     }
@@ -935,13 +985,41 @@ static void capture(FmUi *u)
     const FmCapture *c = u->capture_monitor;
     FmCaptureConfig *cfg = &u->capture_config;
     char line[64], value[32], root[20];
-    note(root, sizeof(root), u->step_note);
-    snprintf(line, sizeof(line), "%s / SLOT %u / %s",
-             c && c->state < 14 ? states[c->state] : "NO STREAM", c ? c->slot + 1 : 1,
-             c && c->listening ? "ARMED" : "NOT ARMED");
-    text(u, 4, 39, line, 39, 1);
-    unsigned first = first_visible(u->capture_row, 12, 5);
-    for (unsigned i = first; i < 12 && i < first + 5; i++)
+    FmInstrument *in = selected_instrument(u);
+    unsigned slot = c ? c->slot : 0;
+    if (slot >= FM_ANCHORS)
+        slot = FM_ANCHORS - 1;
+    bool multi = in && in->type == FM_MULTI_SAMPLE;
+    bold(u, 4, 41, "SIMPLE", 6, multi ? FM_UI_MUTED : FM_UI_AMBER);
+    bold(u, 84, 41, "MULTI", 5, multi ? FM_UI_AMBER : FM_UI_MUTED);
+    rectangle(u, multi ? 84 : 4, 54, multi ? 39 : 47, 2, FM_UI_AMBER);
+    snprintf(line, sizeof(line), "%02u/16", in ? in->count : 0);
+    bold_right(u, 236, 41, line, 6, FM_UI_TEXT);
+    unsigned next = multi ? in->base_note + slot : u->step_note;
+    note(root, sizeof(root), next);
+    snprintf(line, sizeof(line), "SLOT %02u  %s", slot + 1, root);
+    bold(u, 4, 62, line, 28, FM_UI_TEXT);
+    for (unsigned n = 0; n < FM_ANCHORS; n++)
+    {
+        int x = 4 + (int)(n % 8) * 29, y = 79 + (int)(n / 8) * 32;
+        bool filled = in && in->regions[n].id;
+        rectangle(u, x, y, 26, 28, filled ? FM_UI_GREEN : FM_UI_BLUE);
+        if (n == slot)
+        {
+            rectangle(u, x, y, 26, 3,
+                      c && c->state == FM_CAPTURE_CAPTURING ? FM_UI_RED : FM_UI_AMBER);
+            outline(u, x, y, 26, 28, FM_UI_AMBER);
+        }
+        snprintf(value, sizeof(value), "%02u", n + 1);
+        bold(u, x + 5, y + 10, value, 2, filled ? FM_UI_BG : FM_UI_TEXT);
+    }
+    float peak = c ? fminf(1, c->peak) : 0;
+    rectangle(u, 4, 146, 230, 6, FM_UI_BLUE);
+    rectangle(u, 4, 146, (int)(peak * 230), 6, c && c->clips ? FM_UI_RED : FM_UI_GREEN);
+    snprintf(line, sizeof(line), "%s%s", c && c->state < 14 ? states[c->state] : "NO STREAM",
+             c && c->clips ? " / CLIP" : "");
+    bold(u, 4, 158, line, 28, c && c->state == FM_CAPTURE_CAPTURING ? FM_UI_RED : FM_UI_AMBER);
+    unsigned i = u->capture_row % 12;
     {
         switch (i)
         {
@@ -975,16 +1053,11 @@ static void capture(FmUi *u)
             snprintf(value, sizeof(value), "SCL >");
             break;
         }
-        list_row(u, i - first, labels[i], value, i < 9 ? "KNOB 2: EDIT / REC: START-END" : "",
-                 i == u->capture_row);
+        rectangle(u, 2, 176, 232, 22, FM_UI_PANEL);
+        bold(u, 7, 178, labels[i], 15, FM_UI_TEXT);
+        bold_right(u, 230, 188, value, 18, FM_UI_AMBER);
     }
-    scroll_mark(u, first, 12, 5);
-    float peak = c ? fminf(1, c->peak) : 0;
-    rectangle(u, 4, 181, (int)(peak * 150), 5, 1);
-    snprintf(line, sizeof(line), "%s %.2f S FREE", c && c->clips ? "CLIP" : "LEVEL",
-             c ? fm_capture_seconds_available(c) : 0);
-    text(u, 4, 190, line, 34, 1);
-    footer(u, "SETTING", "VALUE", "-", (u->now_ms / 350) % 2 ? "" : "OCT+", "", "", "", "PLAY NOW");
+    footer(u, "SETTING", "VALUE", "-", "OCT+", "1-12", "EDIT", "", "PLAY");
 }
 static void workspace(FmUi *u)
 {
@@ -1118,7 +1191,7 @@ static void numeric_legend(FmUi *u)
 static void modal(FmUi *u)
 {
     rectangle(u, 0, 48, 240, 163, 0);
-    outline(u, 2, 48, 236, 162, 1);
+    outline(u, 2, 48, 236, 162, FM_UI_AMBER);
     char line[64];
     const char *title = "PICKER";
     switch (u->picker)
@@ -1147,8 +1220,8 @@ static void modal(FmUi *u)
     default:
         break;
     }
-    text(u, 9, 57, title, 36, 1);
-    rectangle(u, 8, 69, 224, 1, 1);
+    bold(u, 9, 55, title, 27, FM_UI_AMBER);
+    rectangle(u, 8, 69, 224, 1, FM_UI_GRID);
     if (u->picker == FM_PICK_NUMBER)
     {
         text_at(u, 10, 79, u->number_length ? u->number : "_", 18, 2, 1);
@@ -1274,7 +1347,7 @@ void fm_ui_render(FmUi *u)
                              : u->save_pending            ? "SAVE QUEUED"
                              : u->project->volatile_audio ? "VOLATILE AUDIO - SAVE REQUIRED"
                                                           : "";
-        rectangle(u, 0, 199, 240, 11, 0);
-        text(u, 4, 201, status, 39, 1);
+        rectangle(u, 0, 199, 240, 12, FM_UI_PANEL);
+        text(u, 4, 201, status, 39, u->last_result == FM_OK ? FM_UI_MUTED : FM_UI_RED);
     }
 }

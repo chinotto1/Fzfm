@@ -33,6 +33,52 @@ static unsigned graph_hash(FmUi *u)
             hash = (hash ^ u->pixels[y * FM_DISPLAY_WIDTH + x]) * 16777619u;
     return hash;
 }
+static unsigned pixels_with(FmUi *u, unsigned x, unsigned y, unsigned w, unsigned h, unsigned color)
+{
+    unsigned count = 0;
+    for (unsigned row = y; row < y + h; row++)
+        for (unsigned col = x; col < x + w; col++)
+            count += u->pixels[row * FM_DISPLAY_WIDTH + col] == color;
+    return count;
+}
+static int test_display_style(FmUi *u)
+{
+    /* Full-color indexed output remains one byte/pixel. Primary labels reach
+     * ten rows, rather than the old tiny seven-row face. */
+    CHECK(sizeof(u->pixels) == 240 * 240);
+    CHECK(fm_ui_palette[FM_UI_BLUE] == 0x294f88);
+    CHECK(fm_ui_palette[FM_UI_AMBER] == 0xf4bf35);
+    CHECK(fm_ui_rgb565(FM_UI_GREEN) == 0x5650);
+    uint8_t wire[2];
+    fm_ui_rgb565_bytes(FM_UI_GREEN, wire);
+    CHECK(wire[0] == 0x56 && wire[1] == 0x50); /* LCD sends high byte first. */
+    CHECK(fm_ui_rgb565(255) == fm_ui_rgb565(FM_UI_BG));
+    u->screen = FM_SCREEN_HOME;
+    fm_ui_render(u);
+    CHECK(pixels_with(u, 2, 52, 232, 23, FM_UI_BLUE) > 1000);
+    CHECK(pixels_with(u, 7, 63, 100, 1, FM_UI_TEXT) > 0);
+    CHECK(pixels_with(u, 3, 236, 55, 1, FM_UI_AMBER) > 0);
+    FmCapture capture = {.slot = 1, .state = FM_CAPTURE_CAPTURING, .peak = .5f};
+    u->capture_monitor = &capture;
+    u->screen = FM_SCREEN_CAPTURE;
+    fm_ui_render(u);
+    CHECK(u->pixels[84 * 240 + 5] == FM_UI_GREEN);  /* Filled slot. */
+    CHECK(u->pixels[85 * 240 + 34] == FM_UI_BLUE);  /* Empty slot. */
+    CHECK(u->pixels[79 * 240 + 33] == FM_UI_AMBER); /* Target border. */
+    CHECK(u->pixels[80 * 240 + 34] == FM_UI_RED);   /* Recording band. */
+    CHECK(u->pixels[148 * 240 + 50] == FM_UI_GREEN);
+    CHECK(u->pixels[148 * 240 + 220] == FM_UI_BLUE);
+    u->capture_monitor = NULL;
+    for (unsigned screen = FM_SCREEN_HOME; screen <= FM_SCREEN_LIBRARY; screen++)
+    {
+        u->screen = (FmScreen)screen;
+        fm_ui_render(u);
+        for (size_t i = 0; i < sizeof(u->pixels); i++)
+            CHECK(u->pixels[i] < FM_UI_COLOR_COUNT);
+    }
+    u->screen = FM_SCREEN_HOME;
+    return 0;
+}
 static int test_graphical_parameters(FmUi *u, FmInstrument *in)
 {
     /* Graphs must change with the real envelope/LFO/partial parameters. */
@@ -92,6 +138,7 @@ int test_ui(void)
     FmUi u;
     fm_ui_init(&u, &p, &engine, seq);
     fm_ui_callbacks(&u, NULL, capture_command, NULL);
+    CHECK(test_display_style(&u) == 0);
     CHECK(test_graphical_parameters(&u, in) == 0);
     /* Restore the initial page for the physical-control regressions below. */
     u.screen = FM_SCREEN_HOME;
@@ -204,7 +251,7 @@ int test_ui(void)
     CHECK(p.selected_track == second);
     fm_ui_render(&u);
     for (size_t i = 0; i < sizeof(u.pixels); i++)
-        CHECK(u.pixels[i] <= 1);
+        CHECK(u.pixels[i] < FM_UI_COLOR_COUNT);
     fm_sequence_destroy(seq);
     fm_engine_destroy(&engine);
     fm_project_destroy(&p);

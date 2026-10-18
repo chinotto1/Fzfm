@@ -19,6 +19,7 @@ def native():
     for name in ['fm_sim_destroy', 'fm_sim_pixels']:
         getattr(lib, name).argtypes = [C.c_void_p]
     lib.fm_sim_pixels.restype = C.POINTER(C.c_ubyte)
+    lib.fm_sim_palette.restype = C.POINTER(C.c_uint32)
     lib.fm_sim_text.argtypes = [C.c_void_p, C.c_uint]
     lib.fm_sim_text.restype = C.c_char_p
     lib.fm_sim_metric.argtypes = [C.c_void_p, C.c_uint]
@@ -43,11 +44,11 @@ def native():
     return lib
 
 
-def png(pixels):
+def png(pixels, palette):
     def chunk(name, data):
         return struct.pack('!I', len(data)) + name + data + struct.pack('!I', zlib.crc32(name + data))
-    rows = b''.join(b'\0' + bytes(245 if x else 12 for x in pixels[y*240:(y+1)*240]) for y in range(240))
-    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!2I5B', 240, 240, 8, 0, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b'')
+    rows = b''.join(b'\0' + b''.join(int(palette[x]).to_bytes(3,'big') for x in pixels[y*240:(y+1)*240]) for y in range(240))
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!2I5B', 240, 240, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b'')
 
 
 def main():
@@ -90,7 +91,7 @@ def main():
             if route == '/api/state':
                 return self.send(state())
             if route == '/api/screen.png':
-                return self.send(png(C.string_at(lib.fm_sim_pixels(handle), 240*240)), 'image/png')
+                return self.send(png(C.string_at(lib.fm_sim_pixels(handle), 240*240), lib.fm_sim_palette()), 'image/png')
             if route == '/api/audio':
                 samples = (C.c_float * (3600 * 2))()
                 result = lib.fm_sim_render(handle, samples, 3600)

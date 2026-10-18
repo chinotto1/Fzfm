@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 import struct
 import tempfile
+import zlib
 ROOT=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('sim_server',ROOT/'host/simulator/serve.py')
 server=importlib.util.module_from_spec(spec);spec.loader.exec_module(server)
@@ -24,6 +25,24 @@ with tempfile.TemporaryDirectory(prefix='fm1-native-') as directory:
         def imported(payload,cycle=False):
             b=C.create_string_buffer(payload)
             return lib.fm_sim_import_wave(h,b,len(payload),cycle)
+        # The actual native PNG encodes the C palette as RGB, not grayscale.
+        raw=C.string_at(lib.fm_sim_pixels(h),240*240)
+        palette=lib.fm_sim_palette()
+        image=server.png(raw,palette)
+        assert image[:8]==b'\x89PNG\r\n\x1a\n'
+        assert image[25]==2,'screen PNG lost its RGB color type'
+        offset=8;compressed=b''
+        while offset<len(image):
+            size=int.from_bytes(image[offset:offset+4],'big')
+            if image[offset+4:offset+8]==b'IDAT':compressed+=image[offset+8:offset+8+size]
+            offset+=size+12
+        rows=zlib.decompress(compressed)
+        for y in range(240):
+            assert rows[y*721]==0
+            for x in range(240):
+                at=y*721+1+x*3
+                assert rows[at:at+3]==int(palette[raw[y*240+x]]).to_bytes(3,'big')
+        assert bytes.fromhex('294f88') in rows and bytes.fromhex('f5f5ef') in rows
         # Valid PCM16 ordinary WAV import publishes one complete track/region.
         pcm=b''.join(struct.pack('<h',int(12000*math.sin(i*.13))) for i in range(3600))
         header=b'RIFF'+struct.pack('<I',36+len(pcm))+b'WAVEfmt '+struct.pack('<IHHIIHH',16,1,1,36000,72000,2,16)+b'data'+struct.pack('<I',len(pcm))

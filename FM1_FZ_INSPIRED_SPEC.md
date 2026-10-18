@@ -472,6 +472,9 @@ Knob 1 selects; knobs 2-4 edit. Bottom labels show the current assignments. Unus
 
 The list is the primary editor. A small waveform/envelope/harmonic preview is secondary and must not replace readable parameter names with an icon-only interface.
 
+Small-screen visual direction: use a dark background, bold larger primary labels/values, blue selection bands and empty cells, green captured slots/meters, amber focus and values, and red recording/clipping. Keep labels, borders and slot numbers alongside colors. The capture overview should keep its slot grid, input meter and active setting visible together. Apply the same roles in the browser emulator and actual panel renderer.
+
+
 ## 8.4 Keyboard role and numeric entry
 
 Normal keys audition/play the selected instrument, including while scrolling and changing parameters. They change role only in a visibly active picker:

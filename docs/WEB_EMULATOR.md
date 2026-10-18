@@ -8,6 +8,8 @@ SAVE writes the two-generation project journal to IndexedDB on this device, queu
 
 The browser's test hit exercises the capture detector with generated input. The Sampler also offers microphone and local-file takes; it does not receive real USB or another iPad app's internal audio. The emulator does not flash hardware or establish hardware USB/codec/recovery compatibility.
 
+The display and touch workspaces use the same visual roles: white primary text, blue selections/empty cells, green captured audio and meters, amber focus/values, and red recording/clipping. The actual 240×240 C display uses a larger bold pixel font for primary labels and values. The capture screen keeps all sixteen colored slots, its input meter and the selected setting visible together. Filled slots retain their note/slot labels and selection has a border, so color is not the only state cue. These display pixels also drive the RGB565 board adapter; physical panel color/readability remains device validation.
+
 ## Build and publish
 
 Install Emscripten **3.1.69**, then run:

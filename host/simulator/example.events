@@ -15,7 +15,7 @@
 620 button EDIT up
 630 button EDIT down
 640 button EDIT up
-650 screen build/script-output/loop.pgm
+650 screen build/script-output/loop.ppm
 700 button HOME down
 710 button HOME up
 720 button SAVE down

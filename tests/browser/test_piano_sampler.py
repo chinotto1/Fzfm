@@ -46,6 +46,12 @@ try:
   assert state()['tracks']==0,'choosing a type created unwanted empty tracks'
   page.locator('#sample-slots [data-slot="7"]').tap();tap('capture-test')
   wait('fm1.state().tracks===1&&fm1.state().editor.sampleSlots[7].id>0')
+  colors=page.evaluate("""()=>['7','0'].map(slot=>{
+   const e=document.querySelector(`#sample-slots [data-slot="${slot}"]`),s=getComputedStyle(e);return [s.backgroundColor,s.fontWeight];
+  })""")
+  assert colors[0][0]=='rgb(82, 203, 128)' and colors[1][0]=='rgb(41, 79, 136)',colors
+  assert int(colors[0][1])>=700
+  assert page.locator('#sample-audio').get_attribute('aria-pressed')=='true'
   assert state()['regions']==1 and not state()['editor']['sampleSlots'][0]['id']
   assert max(state()['editor']['sampleSlots'][7]['peaks'])>1000
   page.locator('#sample-slots [data-slot="7"]').tap()

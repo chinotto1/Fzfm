@@ -15,7 +15,7 @@ args=parser.parse_args()
 out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
 emcc=os.environ.get('EMCC','emcc')
 sources=sorted((ROOT/'firmware/workstation').glob('*/*.c'))
-exports=['create','destroy','command','render','pixels','text','metric','import_wave','backup','free','restore','demo','persistence_error','editor','action','parameter','draw','input','harmonics','sequence','notes','sampling']
+exports=['create','destroy','command','render','pixels','palette','text','metric','import_wave','backup','free','restore','demo','persistence_error','editor','action','parameter','draw','input','harmonics','sequence','notes','sampling']
 command=[emcc,'-std=c11','-O2','-Wall','-Wextra','-Werror','-Wno-unused-function',
  '-I'+str(ROOT/'firmware/workstation'),str(ROOT/'host/simulator/bridge.c'),
  *map(str,sources),'-lm','--no-entry','-lidbfs.js',

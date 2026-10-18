@@ -106,12 +106,12 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
   }
   function graphBase(canvas, signed = false) {
     const ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
-    ctx.fillStyle='#111710'; ctx.fillRect(0,0,w,h);
-    ctx.strokeStyle='#394632'; ctx.lineWidth=1;
+    ctx.fillStyle='#080910'; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle='#38445c'; ctx.lineWidth=1;
     for(let x=12;x<w;x+=(w-24)/8) { ctx.beginPath();ctx.moveTo(x,12);ctx.lineTo(x,h-12);ctx.stroke(); }
     for(let y=12;y<h;y+=(h-24)/4) { ctx.beginPath();ctx.moveTo(12,y);ctx.lineTo(w-12,y);ctx.stroke(); }
-    if(signed) {ctx.strokeStyle='#738466';ctx.beginPath();ctx.moveTo(12,h/2);ctx.lineTo(w-12,h/2);ctx.stroke();}
-    ctx.strokeStyle='#d3e8a0'; ctx.lineWidth=2; return ctx;
+    if(signed) {ctx.strokeStyle='#657596';ctx.beginPath();ctx.moveTo(12,h/2);ctx.lineTo(w-12,h/2);ctx.stroke();}
+    ctx.strokeStyle='#52cb80'; ctx.lineWidth=2; return ctx;
   }
   function plotWave(canvas, samples, stepped=false) {
     const ctx=graphBase(canvas,true),w=canvas.width,h=canvas.height;
@@ -128,10 +128,10 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
     let x=12,y=h-16;
     envelope.stages.forEach(([ms,level],i)=>{
       const nx=x+Math.max(minimum,ms)/width*(w-24),ny=h-16-level*(h-38);
-      ctx.strokeStyle=i===stage?'#ffffff':'#d3e8a0';ctx.lineWidth=i===stage?3:2;
+      ctx.strokeStyle=i===stage?'#f4bf35':'#52cb80';ctx.lineWidth=i===stage?3:2;
       ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(nx,ny);ctx.stroke();
-      ctx.fillStyle=i===stage?'#fff':'#d3e8a0';ctx.beginPath();ctx.arc(nx,ny,i===stage?5:3,0,Math.PI*2);ctx.fill();
-      ctx.font='12px system-ui';ctx.fillText(`${i+1}${i===envelope.sustain?' S':''}${i===envelope.release?' R':''}`,clamp(nx-8,12,w-36),16);
+      ctx.fillStyle=i===stage?'#f4bf35':'#52cb80';ctx.beginPath();ctx.arc(nx,ny,i===stage?5:3,0,Math.PI*2);ctx.fill();
+      ctx.font='700 12px system-ui';ctx.fillText(`${i+1}${i===envelope.sustain?' S':''}${i===envelope.release?' R':''}`,clamp(nx-8,12,w-36),16);
       x=nx;y=ny;
     });
   }
@@ -170,7 +170,7 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
   }
   function drawBars(values) {
     const canvas=$('harmonic-graph'),ctx=graphBase(canvas),w=canvas.width,h=canvas.height;
-    values.forEach((level,i)=>{const bw=(w-24)/48;ctx.fillStyle=i===model.harmonic?'#fff':'#b7cf88';ctx.fillRect(12+i*bw,h-16-level/256*(h-32),Math.max(1,bw-2),Math.max(2,level/256*(h-32)));});
+    values.forEach((level,i)=>{const bw=(w-24)/48;ctx.fillStyle=i===model.harmonic?'#f4bf35':'#52cb80';ctx.fillRect(12+i*bw,h-16-level/256*(h-32),Math.max(1,bw-2),Math.max(2,level/256*(h-32)));});
   }
   function drawingState() {
     $('apply-drawing').disabled=!drawingDirty;
@@ -340,9 +340,11 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
     $('track-choice').disabled=!s.tracks||liveMic();$('new-track').disabled=liveMic()||!!s.picker||!!s.playing;
     $('sample-file').disabled=liveMic()||busy;
     $('record-mic').disabled=micPending||busy;
+    $('record-mic').classList.toggle('recording',!!liveMic());
     $('getting-started').textContent=s.tracks?'Choose a track to play or edit. Add another sound with New track.':'Create your first track, or try Explore demo below.';
     const isCapture=sampler.render(s);renderSequencer(s);
     const isMod=s.screen===1&&[3,4,5].includes(s.tab),isSynth=s.screen===1&&s.tab===6;
+    for(const [id,active] of [['sample-audio',isCapture],['open-sequencer',[4,5].includes(s.screen)],['open-synthesis',isSynth],['open-envelope',isMod&&s.tab===3],['open-filter-envelope',isMod&&s.tab===4],['open-lfo',isMod&&s.tab===5]])$(id).setAttribute('aria-pressed',String(active));
     const visible=isMod||isSynth||isCapture;
     $('visual-editor').hidden=!visible;
     $('mod-editor').hidden=!isMod;$('synth-editor').hidden=!isSynth;$('sampling-editor').hidden=!isCapture;

@@ -4,6 +4,8 @@
 
 ### Added
 
+- Display-inspired color hierarchy across the real C framebuffer and browser workspaces: larger bold pixel labels/values, blue selection bands, green filled slots/meters, amber focus and red recording/clipping. Capture shows all 16 slots, a meter and the selected setting together. Native RGB PNG, WASM RGB transport and high-byte-first RGB565 output share one palette without increasing framebuffer RAM.
+
 - Touch piano roll with paired-note add/move/resize/velocity/delete and undo; direct record/retro/pattern/tempo/swing controls and reversible quantization, including triplets. Takes retain the chosen grid; Off restores raw timing and short gates remain audible.
 - One-page Simple/Multi sampler with sixteen waveform slots, exact-slot capture, live mic waveform/meter, audition, atomic replacement, deletion and undo. Added iPad/mobile editing, timing, sampler and persistence tests to Pages CI.
 

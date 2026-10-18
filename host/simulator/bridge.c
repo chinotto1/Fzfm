@@ -166,6 +166,10 @@ int fm_sim_render(void *handle, float *stereo, unsigned frames)
     fm_ui_tick(&s->ui, s->frames / 36);
     return FM_OK;
 }
+const uint32_t *fm_sim_palette(void)
+{
+    return fm_ui_palette;
+}
 const uint8_t *fm_sim_pixels(void *handle)
 {
     Simulator *s = handle;
