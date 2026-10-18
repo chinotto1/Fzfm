@@ -13,6 +13,7 @@ int fz_performance_note(FzEngine *engine, FzProject *project, int note, int velo
     FzRegion *region;
     FzAsset *asset;
     FzId id;
+    int voice;
 
     if (!engine || !project)
         return -1;
@@ -35,7 +36,16 @@ int fz_performance_note(FzEngine *engine, FzProject *project, int note, int velo
     asset = fz_asset(project, region->asset);
     if (!asset || !asset->pcm)
         return -1;
-    return fz_engine_note_on_pcm(engine, asset->pcm, asset->frames, asset->native_rate, region->root, note,
+    voice = fz_engine_note_on_pcm(engine, asset->pcm, asset->frames, asset->native_rate, region->root,
+                                 inst->kind == FZ_INST_MULTI ? region->root : note,
                                  region->tune_cents, velocity, tr->volume, tr->pan, region->one_shot, asset->cycle,
                                  asset->tag);
+    if (voice >= 0) {
+        engine->voice[voice].project = project;
+        engine->voice[voice].track = id;
+        /* Playback pitch can differ from the physical key, but note-off must
+         * retain the performed key and the track selected at note-on. */
+        engine->voice[voice].note = note;
+    }
+    return voice;
 }

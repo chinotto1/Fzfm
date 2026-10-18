@@ -1,35 +1,13 @@
-# USB audio
+# USB audio and clock boundary
 
-## What was read
+The device adapter selects one pinned board stack: vendored felucca-bsp `7d8f849`. `chip/usb.c` has optional raw UAC RX packet/reset hooks and full-speed packet-size staging, recorded in its per-file lock with original hashes. MIDI and UAC coexist; CDC/OTA are disabled in the sampler binding. Only 44.1 kHz PCM16 stereo is advertised in this development target. The FM-1 is the peripheral; an iPad/computer is the host.
 
-Melodee `firmware/src/usb_audio_desc.h` at `84e2d97` advertises one UAC1 device:
+`workstation/platform/fm_usb.c` validates packet alignment/size and stream/connection generations before writing a bounded stereo ring. It rejects overrun safely and reports counters. Main drains a bounded block outside IRQ time for conversion/capture. Disconnect/lifecycle generations clear FIR chronology and finalize/flag capture loss rather than joining unrelated streams. USB MIDI packet parsing and panic on RX overflow use the same single render owner; input is never automatically echoed.
 
-- Fixed 44.1 kHz.
-- Playback and capture.
-- 16-bit (alternate 1) and 24-bit (alternate 2).
-- EP2 OUT playback, EP3 IN explicit feedback (3 bytes), EP2 IN capture.
-- 16-bit stereo playback packet up to 180 bytes, which is 45 frames, so a 1 ms microframe is not assumed to hold exactly 44 frames.
-- The descriptor comment says CDC serial shares EP2/EP3 with audio, so both are not on together.
+`workstation/audio/src.c` uses a 32-tap normalized windowed-sinc with sixteen input-frame lookahead and a carried uint64 rational position. Coefficients are computed outside the streaming path; 44.1↔36 kHz and 48→36 kHz have exact cached phases (40/49/3). Other allowed ratios use bounded phase quantization (host 128 phases, board 64), rather than per-frame trigonometry. Input/output chunk size cannot change chronology. Tests check chunk equivalence, an independent direct FIR reference and high-frequency rejection. A single `process` call reports consumed input and produced output; the caller retains unconsumed input.
 
-felucca-bsp `chip/usb.c` is the device stack (MIDI, serial, audio). It was not copied. Its 48 kHz option needs a generated `uac_fir.h` from Felucca. 48 kHz is not part of our first transport.
+The audio engine/mixer stays at 36 kHz. Target output converts nominal 36→44.1 kHz before codec DMA. Capture sums L/R at half gain by default, preserving headroom, and stores PCM16 without destructive normalization. The local simulator's test tone models host PCM through SRC/capture; the system suite separately feeds the raw packet parser.
 
-The FM-1 is the USB device. The iPad, or a computer, is the host. USB host mode in the BSP is unimplemented and possibly impossible on this port.
+The actual iPad connection, codec clock, feedback/drift strategy, long-term occupancy, USB DMA bank behavior and simultaneous audio/MIDI performance remain device gates. The adapter is compiled, not physically qualified. Nominal rate conversion alone cannot correct an unmeasured physical clock error. Do not infer iPad compatibility from a host WAV or packet test.
 
-## What this tree does
-
-`FzSrc` converts interleaved PCM between rates with a carried rational position:
-
-- 44,100 → 36,000
-- 36,000 → 44,100
-- 48,000 → 36,000 (host-tested, not advertised on the wire)
-- equal rates copy
-
-Unequal rates use a 16-tap windowed sinc built at init, normalized per phase so a constant survives. The queue holds 4,096 frames. A write that does not fit counts `overrun_frames` and accepts only what fits. A read that cannot produce a requested frame counts `underrun_events`. `fz_src_reset` clears the state. Chunk boundaries do not change the output; a host test compares 1,000-frame and 17-frame feeds.
-
-Downsampling attenuates a 20 kHz tone at 44.1 kHz relative to a 1 kHz tone. That is the anti-alias check for this kernel. It is not a measured hardware frequency response.
-
-`fz_pcm_mono_sum` is `(left + right) / 2`, so a full-scale mono pair does not jump +6 dB. Equal-amplitude opposite channels cancel. Capture stores the samples it is given; it does not normalize or gate them. The engine does not read the capture buffer, so monitoring is not wired back into the instrument mix.
-
-## What this tree does not do
-
-There is no USB descriptor, no endpoint, no MIDI stream, and no iPad test. A host buffer converted to 36 kHz is not evidence that an iPad can play into the device. That is test T03, and it is pending. See `docs/DEVICE_TESTS.md`.
+The retained `fz_` library separately tests its earlier 16-tap converter and 2^32 chronology regression. It is not the executable board's converter.

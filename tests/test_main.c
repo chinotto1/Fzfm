@@ -653,8 +653,223 @@ static void test_gated_notes(void)
     EXPECT(fz_engine_asset_busy(&engine, 3) == 0);
 }
 
+/* Review regressions: these exercise real paths that passed the original suite. */
+static void test_review_regressions(void)
+{
+    FzInput input;
+    FzAction action;
+    FzReader reader;
+    int16_t ramp[] = {1000, 2000, 3000, 4000, 5000, 6000};
+    int16_t output[16];
+    FzProject p;
+    int16_t store[128], take[32];
+    FzId inst, track, asset, region, other_inst, other_track, other_asset;
+    FzCapture c;
+    int i;
+
+    /* A delayed UI poll must not turn a held REC into a tap on release. */
+    fz_input_init(&input);
+    fz_input_button(&input, FZ_BTN_REC, 1, 100);
+    fz_input_button(&input, FZ_BTN_REC, 0, 100 + FZ_HOLD_US);
+    EXPECT(fz_input_pop(&input, &action) == 1);
+    EXPECT(action.kind == FZ_ACT_HOLD && action.at_us == 100);
+    EXPECT(fz_input_pop(&input, &action) == 0);
+
+    /* Loop markers do not replace the sample's intro with loop-start audio. */
+    EXPECT(fz_reader_start_sample(&reader, ramp, 6, 36000, 60, 60, 0) == 0);
+    fz_reader_set_loop(&reader, 2, 5);
+    for (i = 0; i < 8; i++) output[i] = fz_reader_next(&reader);
+    EXPECT(output[0] == 1000 && output[1] == 2000);
+    EXPECT(output[4] == 5000 && output[5] == 3000);
+    EXPECT(fz_reader_start_sample(&reader, ramp, 6, 36000, 60, 60, 0) == 0);
+    fz_reader_set_reverse(&reader, 1);
+    for (i = 0; i < 6; i++) output[i] = fz_reader_next(&reader);
+    EXPECT(output[0] == 6000 && output[5] == 1000 && !reader.active);
+    EXPECT(fz_reader_start_sample(&reader, ramp, 6, 36000, 60, 60, 0) == 0);
+    fz_reader_set_loop(&reader, 2, 5);
+    fz_reader_set_reverse(&reader, 1);
+    for (i = 0; i < 12; i++) output[i] = fz_reader_next(&reader);
+    EXPECT(reader.active && output[0] == 6000 && output[4] == 5000);
+
+    /* The detector retains the trigger frame even with zero pre-trigger. */
+    fz_project_init(&p, store, 128);
+    EXPECT(fz_project_new_instrument(&p, FZ_INST_MULTI, &inst, &track) == FZ_OK);
+    fz_capture_init(&c, &p, inst, track, take, 32);
+    fz_capture_set_thresholds(&c, -36, -42, 0, 1, 1);
+    c.tail_keep = 0;
+    fz_capture_arm(&c);
+    { int16_t impulse[] = {18000, 0}; fz_capture_accept(&c, impulse, 2); }
+    EXPECT(fz_capture_service(&c) == FZ_OK);
+    EXPECT(fz_instrument(&p, inst)->region_count == 1);
+    if (fz_instrument(&p, inst)->region_count) {
+        FzRegion *r = fz_region(&p, fz_instrument(&p, inst)->region[0]);
+        EXPECT(fz_asset(&p, r->asset)->pcm[0] == 18000);
+    }
+
+    /* Reopening a partial kit must use the next empty logical key. */
+    fz_capture_init(&c, &p, inst, track, take, 32);
+    EXPECT(c.slot == 1);
+    fz_capture_set_thresholds(&c, -36, -42, 0, 1, 1); c.tail_keep = 0;
+    fz_capture_arm(&c); hit(&c, 12000, 4, 1);
+    EXPECT(fz_instrument_region_for_note(&p, inst, 37) != 0);
+
+    /* Newer assets and shared sources survive capture undo and the next take. */
+    EXPECT(fz_project_new_instrument(&p, FZ_INST_SAMPLE, &other_inst, &other_track) == FZ_OK);
+    EXPECT(fz_project_add_pcm(&p, ramp, 6, 36000, 0, &other_asset) == FZ_OK);
+    EXPECT(fz_project_add_region(&p, other_inst, other_asset, 60, 0, &region) == FZ_OK);
+    {
+        uint32_t high_water = p.pcm_used;
+        FzId captured = c.slot_asset[c.slot - 1];
+        EXPECT(fz_project_add_region(&p, other_inst, captured, 72, 1, &region) == FZ_OK);
+        fz_capture_undo_last(&c);
+        EXPECT(p.pcm_used == high_water);
+        EXPECT(fz_asset(&p, captured) != 0);
+        hit(&c, 24000, 4, 1);
+        EXPECT(memcmp(fz_asset(&p, other_asset)->pcm, ramp, sizeof ramp) == 0);
+    }
+
+    /* Manual zones can create holes in an automatic zone's min/max envelope. */
+    fz_project_init(&p, store, 128);
+    EXPECT(fz_project_new_instrument(&p, FZ_INST_SAMPLE, &inst, &track) == FZ_OK);
+    EXPECT(fz_project_add_pcm(&p, ramp, 6, 36000, 0, &asset) == FZ_OK);
+    EXPECT(fz_project_add_region(&p, inst, asset, 48, 0, &region) == FZ_OK);
+    EXPECT(fz_project_add_region(&p, inst, asset, 60, 1, &region) == FZ_OK);
+    { FzRegion *manual = fz_region(&p, region); manual->manual_zone = 1;
+      manual->key_low = 20; manual->key_high = 30; fz_project_recompute_zones(&p, inst);
+      EXPECT(fz_instrument_region_for_note(&p, inst, 25) == manual); }
+
+    /* Versioned imports must leave the previous recipe intact on rejection. */
+    {
+        FzAdditiveRecipe recipe, previous; uint8_t blob[128]; uint32_t len, hash;
+        fz_additive_clear(&recipe); recipe.level[0] = 123; previous = recipe;
+        EXPECT(fz_additive_write(&recipe, blob, sizeof blob, &len) == FZ_OK);
+        blob[8] = 1; blob[9] = 1; /* 257: semantically invalid, valid checksum */
+        hash = 2166136261u;
+        for (i = 0; i < (int)len - 4; i++) {hash ^= blob[i]; hash *= 16777619u;}
+        for (i = 0; i < 4; i++) blob[len - 4 + i] = (uint8_t)(hash >> (8 * i));
+        EXPECT(fz_additive_read(&recipe, blob, len) == FZ_ERR_FORMAT);
+        EXPECT(memcmp(&recipe, &previous, sizeof recipe) == 0);
+        recipe.points = FZ_ADDITIVE_POINTS + 1;
+        EXPECT(fz_additive_write(&recipe, blob, sizeof blob, &len) == FZ_ERR_RANGE);
+    }
+    {
+        double bpm = 120;
+        EXPECT(fz_tempo_apply_policy(0, 0, &bpm, NAN) == 0 && bpm == 120);
+        EXPECT(fz_tempo_apply_policy(0, 0, &bpm, INFINITY) == 0 && bpm == 120);
+    }
+    /* Overflow rejection happens before pointer arithmetic or PCM copying. */
+    fz_project_init(&p, store, 128);
+    p.pcm_used = UINT32_MAX - 2u;
+    EXPECT(fz_project_add_pcm(&p, ramp, 6, 36000, 0, &asset) == FZ_ERR_SAMPLE_STORAGE);
+    EXPECT(p.pcm_used == UINT32_MAX - 2u);
+
+    /* Long-running SRC crosses 2^32 input frames without losing chronology.
+     * Shift an equivalent rational phase; no 27-hour render is needed. */
+    {
+        FzSrc reference, rollover;
+        int16_t input[128], expected[64], actual[64], warmup[32];
+        uint32_t produced;
+        for (i = 0; i < 128; i++) input[i] = (int16_t)(i * 100);
+        EXPECT(fz_src_init(&reference, 48000, 36000, 1) == 0);
+        EXPECT(fz_src_write(&reference, input, 64) == 64);
+        EXPECT(fz_src_read(&reference, warmup, 24) == 24);
+        rollover = reference;
+        rollover.out_i += 3221225439ull; /* divisible by3 */
+        rollover.consumed += 4294967252ull; /* corresponding input shift /4 */
+        produced = fz_src_read(&reference, expected, 64);
+        EXPECT(fz_src_read(&rollover, actual, 64) == produced);
+        EXPECT(memcmp(expected, actual, produced * sizeof expected[0]) == 0);
+    }
+    {
+        FzHistory history; FzHistEvent event = {0}, recent[4];
+        fz_history_init(&history); event.source = FZ_SRC_KEYBOARD;
+        event.time_us = UINT32_MAX - 10u; fz_history_push(&history, event);
+        event.time_us = 3; fz_history_push(&history, event);
+        EXPECT(fz_history_slice(&history, 5, 32, recent, 4) == 2);
+        EXPECT(fz_history_slice(&history, 5, 0, recent, 4) == 0);
+        event.source = FZ_SRC_SEQUENCER;
+        for (i = 0; i < FZ_HIST_CAP + 1; i++) fz_history_push(&history, event);
+        EXPECT(history.count == 2 && history.dropped == 0);
+        EXPECT(fz_history_slice(&history, 5, 32, recent, 4) == 2);
+    }
+    {
+        FzEngine engine; int16_t pcm[32]; int16_t stereo[8]; int voice;
+        fz_engine_init(&engine); engine.age_clock = UINT16_MAX - 2u;
+        for (i = 0; i < 32; i++) pcm[i] = 10000;
+        for (i = 0; i < FZ_MAX_VOICES; i++)
+            EXPECT(fz_engine_note_on_pcm(&engine, pcm, 32, 36000, 60, 60, 0, 100, 100, 64, 0, 1, 1) == i);
+        EXPECT(fz_engine_note_on_pcm(&engine, pcm, 32, 36000, 60, 60, 0, 100, 100, 64, 0, 1, 1) == 0);
+        {
+            FzEngine before = engine;
+            EXPECT(fz_engine_note_on_pcm(&engine, pcm, 32, 0, 60, 60, 0, 100, 100, 64, 0, 0, 1) < 0);
+            EXPECT(memcmp(&engine, &before, sizeof engine) == 0);
+        }
+        fz_project_init(&p, store, 128);
+        EXPECT(fz_project_new_instrument(&p, FZ_INST_MULTI, &inst, &track) == FZ_OK);
+        EXPECT(fz_project_add_pcm(&p, pcm, 32, 36000, 1, &asset) == FZ_OK);
+        EXPECT(fz_project_add_region(&p, inst, asset, 60, 0, &region) == FZ_OK);
+        fz_region(&p, region)->one_shot = 0;
+        fz_engine_init(&engine);
+        voice = fz_performance_note(&engine, &p, 36, 127, 1);
+        EXPECT(voice >= 0);
+        fz_engine_render(&engine, stereo, 4); EXPECT(stereo[0] > 0);
+        fz_track_set_volume(&p, track, 0);
+        fz_engine_render(&engine, stereo, 4); EXPECT(stereo[0] == 0 && stereo[1] == 0);
+        fz_performance_note(&engine, &p, 36, 0, 0);
+        EXPECT(!engine.voice[voice].alive);
+        /* Duplicate logical slots and duplicate pitched roots are rejected. */
+        EXPECT(fz_project_add_region(&p, inst, asset, 72, 0, &region) == FZ_ERR_BUSY);
+    }
+
+    /* Preserve chronological pre-trigger history after wrapping the ring. */
+    fz_project_init(&p, store, 128);
+    EXPECT(fz_project_new_instrument(&p, FZ_INST_MULTI, &inst, &track) == FZ_OK);
+    fz_capture_init(&c, &p, inst, track, take, 32);
+    fz_capture_set_thresholds(&c, -36, -42, 3, 1, 1); c.tail_keep = 0;
+    fz_capture_arm(&c);
+    { int16_t audio[] = {1,2,3,4,5,18000,0}; fz_capture_accept(&c,audio,7); }
+    EXPECT(fz_capture_service(&c) == FZ_OK);
+    {
+        FzRegion *captured = fz_region(&p, fz_instrument(&p,inst)->region[0]);
+        FzAsset *data = fz_asset(&p,captured->asset);
+        EXPECT(data->frames == 4);
+        EXPECT(data->pcm[0] == 3 && data->pcm[1] == 4 && data->pcm[2] == 5 && data->pcm[3] == 18000);
+    }
+    /* Disconnect after end detection finalizes once and advances the slot. */
+    { int16_t audio[] = {19000,19000,0}; fz_capture_accept(&c,audio,3); }
+    EXPECT(c.state == FZ_CAP_END_DETECTED);
+    fz_capture_input_lost(&c);
+    EXPECT(c.state == FZ_CAP_INPUT_LOST && c.slot == 2);
+    EXPECT(fz_instrument(&p,inst)->region_count == 2);
+    fz_capture_input_lost(&c);
+    EXPECT(fz_instrument(&p,inst)->region_count == 2);
+    /* Failed admission keeps the staged take; only explicit cancel drops it. */
+    fz_capture_init(&c,&p,inst,track,take,32); p.pcm_capacity = p.pcm_used;
+    fz_capture_set_thresholds(&c,-36,-42,0,1,1); c.tail_keep = 0;
+    fz_capture_arm(&c); hit(&c,18000,3,1);
+    EXPECT(c.take_pinned && c.take_frames == 3);
+    fz_capture_arm(&c); EXPECT(c.take_pinned && c.take_frames == 3);
+    fz_capture_skip(&c); EXPECT(c.take_pinned && c.take_frames == 3);
+    fz_capture_cancel(&c); EXPECT(!c.take_pinned && c.take_frames == 0);
+
+    {
+        FzTempoCandidate full[8], best; uint32_t onsets[] = {0,36000,72000,108000};
+        EXPECT(fz_tempo_propose(144000,36000,onsets,4,full,8) > 1);
+        EXPECT(fz_tempo_propose(144000,36000,onsets,4,&best,1) == 1);
+        EXPECT(best.bpm == full[0].bpm && best.confidence == full[0].confidence);
+        EXPECT(fz_tempo_propose(144000,36000,onsets,1,&best,1) == 1 && best.confidence <= 25);
+        onsets[0] = 144001;
+        EXPECT(fz_tempo_propose(144000,36000,onsets,1,&best,1) == 1 && best.confidence == 0);
+    }
+    p.pcm_used = 2;
+    EXPECT(fz_project_add_pcm(&p,ramp,UINT32_MAX,36000,0,&asset) == FZ_ERR_SAMPLE_STORAGE);
+    EXPECT(p.pcm_used == 2);
+
+}
+
 int main(void)
 {
+    test_review_regressions();
     test_units();
     test_pitch_ratio();
     test_cycles();

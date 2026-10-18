@@ -11,7 +11,7 @@ void fz_history_init(FzHistory *h)
 
 void fz_history_push(FzHistory *h, FzHistEvent event)
 {
-    if (!h)
+    if (!h || (event.source != FZ_SRC_KEYBOARD && event.source != FZ_SRC_EXTERNAL))
         return;
     if (h->count == FZ_HIST_CAP)
         h->dropped++;
@@ -23,20 +23,20 @@ void fz_history_push(FzHistory *h, FzHistEvent event)
 
 int fz_history_slice(const FzHistory *h, uint32_t end_us, uint32_t window_us, FzHistEvent *out, int max_out)
 {
-    uint32_t start = end_us - window_us;
     uint32_t i, n;
     int written = 0;
-    if (!h || !out || max_out <= 0)
+    if (!h || !out || max_out <= 0 || window_us == 0)
         return 0;
-    if (window_us > end_us)
-        start = 0;
+    /* Unsigned age handles a 32-bit microsecond-clock rollover. Windows
+     * longer than half its period cannot distinguish future events safely. */
+    if (window_us > INT32_MAX)
+        window_us = INT32_MAX;
     n = h->count;
     i = (h->next + FZ_HIST_CAP - n) % FZ_HIST_CAP;
     while (n--) {
         const FzHistEvent *e = &h->ev[i];
         int live = e->source == FZ_SRC_KEYBOARD || e->source == FZ_SRC_EXTERNAL;
-        int in_window = window_us >= end_us ? e->time_us <= end_us
-                                            : (e->time_us <= end_us && e->time_us > start);
+        int in_window = end_us - e->time_us < window_us;
         if (live && in_window) {
             if (written < max_out)
                 out[written] = *e;

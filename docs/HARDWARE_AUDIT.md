@@ -8,7 +8,7 @@ Status of this document: source inspection on 2026-10-17. No FM-1 was attached. 
 |---|---|---|
 | Board | M-VAVE FM-1 | No |
 | Chip family | JieLi AC79-class, pi32v2 | No |
-| ISA / toolchain | pi32v2, JieLi clang 4.0.1, Linux x86-64. Melodee `BUILDING.md` at `84e2d97` | Toolchain not installed in this environment |
+| ISA / toolchain | pi32v2, JieLi clang 4.0.1, Linux x86-64. Melodee `BUILDING.md` at `84e2d97` | Compiler acquired/pinned; baseline and sampler linked; device untested |
 | Clock at the boot loader | 360 MHz, recorded in felucca-bsp `docs/CPU.md` | No |
 | SDK clock table | felucca-bsp `docs/EXPERIMENTAL.md` says the SDK's own maximum system clock is 320 MHz and that raising the clock is not reproduced in the BSP | No |
 | Execution | Code runs from XIP (flash window). Helpers that run while flash is programmed must live in RAM | No |
@@ -64,7 +64,7 @@ SELECT is an encoder. The scanned sources do not show a SEL button and do not sh
 
 ## Flash and RAM
 
-See `docs/MEMORY_MAP.md`. The short version: the upstream hwtest linker uses a 96 KiB general RAM region inside a larger SRAM window, and a 1 MiB XIP window. Those figures belong to that script. They are not this firmware's capacity, and they are not copied into our build.
+See `docs/MEMORY_MAP.md`. The short version: the upstream hwtest linker uses a 96 KiB general RAM region inside a larger SRAM window, and a 1 MiB XIP window. Those figures belong to that source, not a device measurement. The adapter now uses explicitly provisional source-derived windows; its linked sizes and remaining physical gates are recorded in MEMORY_MAP.md.
 
 felucca-bsp `fm1_flash.h` expects JEDEC id `0x856014` and programs the NOR only from RAM with the XIP controller off and interrupts off. That is why capture in this milestone stays in RAM and does not call a flash driver.
 
@@ -75,3 +75,7 @@ A playback endpoint is not, by itself, a persistent sampler. This milestone conv
 ## pi32v2 multiply note
 
 felucca-bsp `docs/CPU.md` reports that an inlined 32×32→64 multiply beside 16-bit loads can leave a register wrong at the boot loader's 360 MHz. The sample reader uses a 16-bit fractional step and an 8-bit interpolator so the inner product stays in 32 bits. The transport FIR keeps its wide accumulation in a `noinline` helper. This is a precaution from the published note, not a measurement of our binary on a chip.
+
+## Current build update
+
+The workstation now has a compiled/linked board adapter under `firmware/workstation/platform/fm1/`. See BUILD.md for exact pinned inputs and MEMORY_MAP.md for actual linked section sizes. Earlier source-audit statements below about missing implementation/compiler describe the initial milestone; none of the physical unknowns are resolved by this build. BSP raw PCM hooks are vendored with their per-file hashes and MPL notices. No installable image or physical recovery claim follows.

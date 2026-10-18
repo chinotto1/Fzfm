@@ -1,0 +1,35 @@
+/* SPDX-License-Identifier: MPL-2.0
+ * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
+/* fm1-fz-sampler development adaptation of the BSP linker file.
+ * POOL is a conservative subset of ordinary SRAM used in pinned donor maps.
+ * A linked sampler fits these ranges; physical bank safety remains unverified.
+ * Memory map of a standalone FM-1 app: code and constants run in place from XIP
+ * (app.bin offset 0 = 0x02000120); .data is copied to RAM by fm1_cstart, and so is .ram_text (code that runs
+ * while the flash is busy: the flash driver) into RAMTEXT, the guard's RAM code window.
+ * Stacks sit above the RAM with 256-byte guard bands; NOINIT survives resets.
+ * 0x01C7FD50.. is reserved (boot info, mailbox, vector table). */
+MEMORY
+{
+    XIP    (rx)  : ORIGIN = 0x02000120, LENGTH = 0x8DFBC
+    RAMTEXT (rwx): ORIGIN = 0x01C00000, LENGTH = 0x6000
+    RAM    (rwx) : ORIGIN = 0x01C08000, LENGTH = 96K
+    POOL (rwx) : ORIGIN = 0x01C20000, LENGTH = 0x50000
+    NOINIT (rw)  : ORIGIN = 0x01C7C000, LENGTH = 0x3D50
+}
+SECTIONS
+{
+    .text : { KEEP(*(.text.crt0)) *(.text*) *(.rodata*) . = ALIGN(4); _etext = .; } > XIP
+    .ram_text : { _rt_start = .; KEEP(*(.ram_text*)) . = ALIGN(4); _rt_end = .; } > RAMTEXT AT > XIP
+    _rt_load = LOADADDR(.ram_text);
+    .data : { . = ALIGN(4); _data_start = .; *(.data*) *(.sdata*) . = ALIGN(4); _data_end = .; } > RAM AT > XIP
+    _data_load = LOADADDR(.data);
+    .bss (NOLOAD) : { _bss_start = .; *(.bss*) *(.sbss*) *(COMMON) . = ALIGN(4); _bss_end = .; } > RAM
+    .pool (NOLOAD) : { _pool_start = .; *(.pool*) . = ALIGN(16); _pool_end = .; } > POOL
+    .noinit (NOLOAD) : { *(.noinit*) } > NOINIT
+    _cpu1_sstack_top = 0x01C71000; _cpu1_ustack_top = 0x01C71300;   /* the second core's stacks (fm1_cpu1.h): 4 KiB + 768 B */
+    _guard0 = 0x01C74000; _ustack_lo = 0x01C74100; _ustack_top = 0x01C7A000;
+    _guard1 = 0x01C7A000; _sstack_lo = 0x01C7A100; _sstack_top = 0x01C7C000;
+    ASSERT(SIZEOF(.pool) <= LENGTH(POOL), "sampler pool exceeds provisional SRAM region")
+    ASSERT(SIZEOF(.bss) + SIZEOF(.data) <= LENGTH(RAM), "sampler ordinary RAM overflow")
+    /DISCARD/ : { *(.comment) *(.note*) }
+}

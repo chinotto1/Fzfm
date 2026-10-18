@@ -30,9 +30,9 @@ static FzId make_id(uint16_t index, uint16_t generation)
 uint32_t fz_pcm_checksum(const int16_t *pcm, uint32_t frames)
 {
     uint32_t h = 2166136261u;
-    uint32_t i;
+    size_t i;
     const uint8_t *b = (const uint8_t *)pcm;
-    uint32_t n = frames * 2u;
+    size_t n = (size_t)frames * sizeof *pcm;
     for (i = 0; i < n; i++) {
         h ^= b[i];
         h *= 16777619u;
@@ -265,7 +265,9 @@ FzStatus fz_project_add_pcm(FzProject *p, const int16_t *pcm, uint32_t frames, u
     FzAsset *a;
     if (!p || !pcm || frames == 0 || !out_asset)
         return FZ_ERR_ARGS;
-    if (!p->pcm_store || p->pcm_used + frames > p->pcm_capacity) {
+    if (!p->pcm_store || p->pcm_used > p->pcm_capacity ||
+        frames > p->pcm_capacity - p->pcm_used ||
+        (uint64_t)frames * sizeof *pcm > SIZE_MAX) {
         set_error(p, "SAMPLE STORAGE FULL");
         return FZ_ERR_SAMPLE_STORAGE;
     }
@@ -306,6 +308,18 @@ FzStatus fz_project_add_region(FzProject *p, FzId inst, FzId asset, uint8_t root
     FzRegion *r;
     if (!it || !a || !out_region)
         return FZ_ERR_BAD_ID;
+    if (root > 127 || slot < -1 || slot >= FZ_MULTI_SLOTS ||
+        (it->kind == FZ_INST_MULTI && (slot < 0 || it->base_note + slot > 127)))
+        return FZ_ERR_RANGE;
+    for (ri = 0; ri < it->region_count; ri++) {
+        FzRegion *existing = fz_region(p, it->region[ri]);
+        if (!existing)
+            continue;
+        if (it->kind == FZ_INST_MULTI && existing->slot == slot)
+            return FZ_ERR_BUSY;
+        if (it->kind == FZ_INST_SAMPLE && existing->root == root)
+            return FZ_ERR_RANGE;
+    }
     if (it->region_count >= FZ_MULTI_SLOTS)
         return FZ_ERR_REGION_CAPACITY;
     ri = alloc_slot(0, reg_alive, p, FZ_MAX_REGIONS);
@@ -325,8 +339,8 @@ FzStatus fz_project_add_region(FzProject *p, FzId inst, FzId asset, uint8_t root
     r->one_shot = it->kind == FZ_INST_MULTI ? 1 : 0;
     r->slot = (uint8_t)slot;
     if (it->kind == FZ_INST_MULTI) {
-        r->key_low = root;
-        r->key_high = root;
+        r->key_low = (uint8_t)(it->base_note + slot);
+        r->key_high = r->key_low;
     }
     it->region[it->region_count++] = make_id((uint16_t)ri, r->generation);
     *out_region = it->region[it->region_count - 1];
@@ -405,6 +419,12 @@ FzRegion *fz_instrument_region_for_note(FzProject *p, FzId inst, int note)
     int i;
     if (!it || note < 0 || note > 127)
         return 0;
+    /* An automatic zone's min/max can straddle an explicitly reserved range. */
+    for (i = 0; i < it->region_count; i++) {
+        FzRegion *r = fz_region(p, it->region[i]);
+        if (r && r->manual_zone && note >= r->key_low && note <= r->key_high)
+            return r;
+    }
     for (i = 0; i < it->region_count; i++) {
         FzRegion *r = fz_region(p, it->region[i]);
         if (!r)

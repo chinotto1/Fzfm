@@ -21,14 +21,14 @@ uint32_t fz_pitch_step_q16(uint32_t native_rate, uint32_t engine_rate, int root,
     double ratio;
     if (engine_rate == 0)
         return 0;
-    semis = (double)(note - root) + (double)cents / 100.0;
+    semis = ((double)note - (double)root) + (double)cents / 100.0;
     ratio = ((double)native_rate / (double)engine_rate) * pow(2.0, semis / 12.0);
     return ratio_q16(ratio);
 }
 
 uint32_t fz_cycle_step_q16(uint32_t points, uint32_t engine_rate, int note, int cents)
 {
-    double semis = (double)(note - 69) + (double)cents / 100.0;
+    double semis = ((double)note - 69.0) + (double)cents / 100.0;
     double freq = 440.0 * pow(2.0, semis / 12.0);
     double ratio;
     if (engine_rate == 0)
@@ -88,8 +88,11 @@ void fz_reader_set_loop(FzReader *r, uint32_t start, uint32_t end_exclusive)
 
 void fz_reader_set_reverse(FzReader *r, int reverse)
 {
-    if (r)
-        r->reverse = reverse ? 1 : 0;
+    if (!r)
+        return;
+    if (reverse && !r->reverse && r->index == 0 && r->frac == 0 && r->frames)
+        r->index = r->frames - 1u;
+    r->reverse = reverse ? 1 : 0;
 }
 
 static int16_t sample_at(const FzReader *r, uint32_t index)
@@ -98,12 +101,10 @@ static int16_t sample_at(const FzReader *r, uint32_t index)
 
     if (r->frames == 0)
         return 0;
-    if ((r->cycle || r->looping) && r->loop_end > r->loop_start) {
+    if ((r->cycle || r->looping) && r->loop_end > r->loop_start && r->index < r->loop_end) {
         span = r->loop_end - r->loop_start;
         if (index >= r->loop_end)
             index = r->loop_start + (index - r->loop_end) % span;
-        else if (index < r->loop_start)
-            index = r->loop_start;
     }
     if (index >= r->frames)
         return 0;
@@ -131,36 +132,18 @@ int16_t fz_reader_next(FzReader *r)
     y = interp(r);
 
     if (r->reverse) {
-        if (r->index == 0 && r->frac <= r->step_f && r->step_i == 0) {
-            r->active = r->looping;
-            if (r->looping) {
-                r->index = r->loop_end > 0 ? r->loop_end - 1u : 0;
-                r->frac = 0;
-            }
-            return y;
-        }
-        if (r->step_i > r->index) {
-            r->active = 0;
-            return y;
-        }
-        r->index -= r->step_i;
-        if (r->frac < r->step_f) {
-            if (r->index == 0) {
-                r->active = 0;
-                return y;
-            }
-            r->index -= 1u;
-            r->frac = (uint16_t)(65536u - (uint32_t)r->step_f + r->frac);
-        } else {
-            r->frac = (uint16_t)(r->frac - r->step_f);
-        }
-        if (r->looping && r->index < r->loop_start) {
+        uint32_t subtract = r->step_i + (r->frac < r->step_f ? 1u : 0u);
+        r->frac = (uint16_t)((uint32_t)r->frac - r->step_f);
+        if (r->looping && r->index >= r->loop_start &&
+            subtract > r->index - r->loop_start) {
             uint32_t span = r->loop_end - r->loop_start;
-            if (span == 0) {
-                r->active = 0;
-                return y;
-            }
-            r->index = r->loop_end - 1u;
+            uint32_t overshoot = subtract - (r->index - r->loop_start);
+            if (!span) { r->active = 0; return y; }
+            r->index = r->loop_end - 1u - (overshoot - 1u) % span;
+        } else if (subtract > r->index) {
+            r->active = 0;
+        } else {
+            r->index -= subtract;
         }
         return y;
     }
@@ -168,24 +151,21 @@ int16_t fz_reader_next(FzReader *r)
     frac = (uint32_t)r->frac + (uint32_t)r->step_f;
     add = r->step_i + (frac >> 16);
     r->frac = (uint16_t)(frac & 0xFFFFu);
-    r->index += add;
-
     if (r->cycle || r->looping) {
         uint32_t span = r->loop_end - r->loop_start;
-        if (span == 0) {
-            r->active = 0;
-            return y;
+        if (!span) { r->active = 0; return y; }
+        if (r->index >= r->loop_end) {
+            r->index = r->loop_start + (r->index - r->loop_end) % span;
         }
-        while (r->index >= r->loop_end) {
-            uint32_t over = r->index - r->loop_end;
-            r->index = r->loop_start + (span ? over % span : 0);
-            if (over < span)
-                break;
-        }
+        if (add >= r->loop_end - r->index)
+            r->index = r->loop_start + (add - (r->loop_end - r->index)) % span;
+        else
+            r->index += add;
         return y;
     }
-
-    if (r->index >= r->frames)
+    if (add >= r->frames - r->index)
         r->active = 0;
+    else
+        r->index += add;
     return y;
 }

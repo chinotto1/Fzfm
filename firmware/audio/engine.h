@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "core/types.h"
+#include "core/project.h"
 #include "audio/reader.h"
 
 #define FZ_MAX_VOICES 16
@@ -21,14 +22,16 @@ typedef struct {
     int velocity;
     int volume; /* 0..127, 127 = unity before pan */
     int pan;    /* 0 left, 64 center, 127 right */
-    uint16_t age;
+    uint64_t age;
     uint16_t asset_tag; /* copied so a freed asset can be refused */
     const int16_t *pcm;
+    FzProject *project; /* optional live track binding; direct PCM is unbound */
+    FzId track;
 } FzVoice;
 
 typedef struct {
     FzVoice voice[FZ_MAX_VOICES];
-    uint16_t age_clock;
+    uint64_t age_clock;
     uint32_t rendered_frames;
     uint32_t stolen;
     int active_notes;

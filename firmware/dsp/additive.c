@@ -26,6 +26,10 @@ FzStatus fz_additive_render(const FzAdditiveRecipe *r, int16_t *dst, uint32_t po
 
     if (!r || !dst || points == 0 || points > FZ_ADDITIVE_POINTS)
         return FZ_ERR_ARGS;
+    for (h = 0; h < FZ_HARMONICS; h++) {
+        if (r->level[h] > 256)
+            return FZ_ERR_RANGE;
+    }
     acc = stack;
     memset(acc, 0, points * sizeof(double));
     for (n = 0; n < points; n++) {
@@ -92,7 +96,7 @@ FzStatus fz_additive_write(const FzAdditiveRecipe *r, uint8_t *dst, uint32_t cap
     uint32_t need = 4u + 2u + 2u + FZ_HARMONICS * 2u + 2u + 4u;
     if (!r || !dst || !out_len)
         return FZ_ERR_ARGS;
-    if (cap < need)
+    if (cap < need || r->points > FZ_ADDITIVE_POINTS)
         return FZ_ERR_RANGE;
     for (i = 0; i < FZ_HARMONICS; i++) {
         if (r->level[i] > 256)
@@ -117,6 +121,7 @@ FzStatus fz_additive_read(FzAdditiveRecipe *r, const uint8_t *src, uint32_t len)
     uint32_t need = 4u + 2u + 2u + FZ_HARMONICS * 2u + 2u + 4u;
     uint32_t i;
     uint16_t count, points;
+    FzAdditiveRecipe decoded;
     if (!r || !src)
         return FZ_ERR_ARGS;
     if (len < need || src[0] != 'F' || src[1] != 'Z' || src[2] != 'H' || src[3] != '1')
@@ -131,13 +136,14 @@ FzStatus fz_additive_read(FzAdditiveRecipe *r, const uint8_t *src, uint32_t len)
     points = get_u16(src + 8 + FZ_HARMONICS * 2u);
     if (points == 0 || points > FZ_ADDITIVE_POINTS)
         return FZ_ERR_FORMAT;
-    memset(r, 0, sizeof *r);
-    r->points = points;
+    memset(&decoded, 0, sizeof decoded);
+    decoded.points = points;
     for (i = 0; i < FZ_HARMONICS; i++) {
         uint16_t level = get_u16(src + 8 + i * 2u);
         if (level > 256)
             return FZ_ERR_FORMAT;
-        r->level[i] = level;
+        decoded.level[i] = level;
     }
+    *r = decoded;
     return FZ_OK;
 }

@@ -1,13 +1,9 @@
 # Filter model
 
-The FZ-inspired filter is **not implemented**.
+The workstation implements an original **FZ-inspired**, driven two-pole resonant lowpass at 36 kHz (`workstation/dsp/dsp.c`). It is a topology-preserving state-variable integrator with independent stereo state per voice. It is not Open303 or a claimed MB87186 circuit emulation. No ALM code or physical-chip model was copied.
 
-HOME cutoff and resonance are stored on the track. They are not read by the renderer. A host test locks that fact: the same note with two cutoff values produces the same samples. That test will have to change when a real model lands. Until then, the controls are not a bypass dressed up as an FZ filter, and the engine is not named bit-exact.
+Cutoff is clamped to 25–15,000 Hz and smoothed by 0.015 per frame. The integrator coefficient is `g = tan(pi * cutoff / 36000)`, updated every eight samples. Resonance maps damping to `k = 2 - 1.92*r`. Driven input is `tanh(input*(1+5*drive))/sqrt(1+5*drive)`. Band/low state bounds and denormal suppression are protection measures, not claims about chip saturation. The lowpass output is the musical path, not a bypass label. Track performance cutoff/resonance, region offset, key tracking, filter envelope and LFO feed each voice's cutoff path. Track controls are smoothed and affect held notes.
 
-## Evidence boundary
+The host tests compare actual response and stability, exercise legal parameter sweeps, envelope release and LFO behavior, and run all four sends after filtering. Waveform tables are immutable and swapped with a phase-preserving crossfade. Deep envelope/region edits generally apply on the next trigger; waveform tables and track performance controls are live.
 
-The Casio manual, published DCF notes, and the ALM Fizzle Guts project (a board that drives a physical MB87186) are references for a later model. Fizzle Guts is not a software filter, and it was not copied. X0X / Open303 is not the main filter.
-
-## Next implementation step, when it starts
-
-A replaceable filter interface at 36 kHz, one state per voice, with cutoff as a sum of the track performance value, the region offset, and modulation. Stability across the legal range has to be tested before any fidelity claim. Matching an FZ-1 recording is a separate measurement and has not been done.
+This supplies a useful custom filter, not a measured match to an FZ-1. No reference-device transfer function, resonance calibration, switching noise or analog tolerance dataset was acquired. Matching those is a separate evidence gate. The initial `fz_` library's no-filter numerical test is retained only as a legacy baseline; the executable application uses this workstation implementation.

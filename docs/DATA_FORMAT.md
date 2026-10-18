@@ -1,26 +1,15 @@
 # Data format
 
-## Project container
+The executable workstation uses **FM1P version 2** (`storage/format.c`), a complete self-contained project container. It is independent of the initial library's `FZH1` additive-only recipe. It contains no pointers, raw C struct layouts, calibration or firmware update addresses.
 
-Not implemented. There is no on-disk project, no journal, and no flash transaction. Saving is a refused operation until the flash rules in `docs/BOOT_RECOVERY.md` are satisfied and a versioned container exists.
+The 24-byte little-endian header contains magic `FM1P`, uint16 version 2, uint16 header length 24, uint32 payload length, uint32 payload CRC32, uint32 generation, and uint32 CRC32 over the first twenty header bytes. Every length must match exactly; unknown versions, noncanonical booleans, invalid references/ranges, duplicate IDs and non-finite numbers reject before publication. IEEE binary32/binary64 scalars are explicit and checked at compile time. The codec in `format.c` defines exact field order; records are length-delimited.
 
-In memory, instruments, regions, tracks, patterns, and assets use index-plus-generation handles. PCM bytes live in a caller-provided store. An asset records a FNV-1a checksum of its PCM. Deleting the last reference does not yet compact the store except for capture undo, which rewinds the store watermark of the last committed slot and retires that asset's generation.
+The payload saves project tempo/clock, four FX configurations (including separate return mute), immutable PCM16 mono/stereo assets with source/rate/cycle/checksum, instruments and all 48 harmonic levels, regions/markers/mapping/envelopes/modulation/loops, track mixer and 64-entry ordered chains, sparse patterns/events/frozen asset routing, song entries, and original sample bake recipes with the exact track sends that ALL bake cleared. Pattern notes and source PCM remain available to unfreeze/unbake after reload. Undo transaction pointers/history and their dependency snapshots are runtime-only. Superseded cycle revisions carry a retired flag; the single owner reclaims them only after current/undo/redo and active reader pins expire. Ordinary retained PCM/event storage stays conservative.
 
-## Additive recipe (version 1)
+IDs are stable uint32 handles; zero is invalid, next-id exhaustion is rejected. Object/region/voice ceilings are distinct from PCM/working-memory budgets. Decoding allocates a staging project from remaining budget, validates everything and only then replaces the old project. The simulator additionally prepares engine/sequencer allocations before swapping owners. Malformed or oversized restore leaves the current project intact. This development v2 format does not silently migrate the unpublished workstation v1 prototype or initial FZH1 recipe; retain old files and use their matching decoder when migration is needed.
 
-Implemented. Little-endian, no struct padding:
+Host saves (`storage/journal.c`) alternate `PREFIX.0` and `PREFIX.1`. A generation is fully written, verified and fsynced with directory durability before success is reported; load picks the newest valid complete generation. Fault tests interrupt each write/durability step. SAVE queues during playback. This POSIX journal is not used as a pretend flash driver; on-device persistence is still pending.
 
-| Offset | Type | Value |
-|---|---|---|
-| 0 | 4 bytes | ASCII `FZH1` |
-| 4 | uint16 | version = 1 |
-| 6 | uint16 | count = 48 |
-| 8 | uint16 × 48 | level of harmonic 1..48, each 0..256 |
-| 104 | uint16 | table points, 1..1024 |
-| 106 | uint32 | FNV-1a of all preceding bytes |
+The transport-independent import receiver accepts bounded, numbered CRC-protected chunks, rejects conflicting duplicates and only publishes a fully validated project after explicit replacement confirmation. USB SysEx framing/device transfer is not implemented. WAV import accepts validated PCM16 RIFF data and performs explicit SRC for ordinary samples. Cycle import uses the point count as its period; it does not infer undocumented EPROM encodings.
 
-`fz_additive_read` rejects a bad magic, version, count, checksum, point count, or level above 256. Rebuild is offline: 48 sines at zero phase, summed in double, then scaled so the peak is 22936 (about 70% of full scale). Partials are not clipped one by one. A zero recipe renders silence. The rendered int16 table is what the 36 kHz cycle reader plays. The recipe is the editable source.
-
-## Rates
-
-Internal musical audio is 36,000 frames/s, 16-bit. A cycle's pitch comes from its point count and the requested note (A4 = 440 Hz at MIDI 69), not from a WAV header.
+Legacy `FZH1` remains tested in `firmware/dsp/additive.c`: magic, version 1, count 48, uint16 levels 0..256, uint16 point count and FNV-1a checksum. It is an additive recipe, not a complete workstation backup.

@@ -20,7 +20,7 @@ typedef struct {
     int16_t coeff[FZ_SRC_PHASES][FZ_SRC_TAPS];
     int16_t hist[2][FZ_SRC_TAPS];
     uint64_t out_i;
-    uint32_t consumed; /* input frames shifted into history */
+    uint64_t consumed; /* input frames shifted into history */
     int16_t queue[2][FZ_SRC_QUEUE];
     uint32_t q_r, q_n;
     uint32_t overrun_frames;

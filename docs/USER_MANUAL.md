@@ -1,0 +1,45 @@
+# Controls and workflows
+
+The simulator uses the same UI, sequencer and audio engine as the development board adapter. The browser adds local file import/export and a synthetic test input. Core operation is designed for the physical panel; the browser is optional.
+
+## Start and play
+
+From an empty HOME, tap SCL to create an instrument. Choose MULTI SAMPLE or SAMPLE with knob 1 and confirm with SCL. A track and empty pattern are created automatically. HOME returns to playing; ALGORITHM selects a track. The four HOME knobs control cutoff, resonance, volume and pan. SELECT is rotary: it has no invented push. This development mapping uses the physical **SCL button as logical SEL**.
+
+In MULTI SAMPLE capture, separated hits fill sixteen consecutive keys. Unrecorded slots are silent and reserve no PCM. Knob 1 selects capture settings; other knobs change the selected value. Choose input L/R/summed mono, start/stop thresholds, silence duration, pretrigger, minimum/maximum take and manual mode. SCL starts/ends manual capture or applies retry/skip/resume rows. REC also controls manual capture. Press flashing **OCT+** to finish immediately and open playable HOME without an octave change. Reopening source/capture resumes the same track. A SAMPLE capture uses the chosen root; subsequent anchors can divide the keyboard automatically. The host defaults to a one-second maximum take; the board's initial maximum is 4,096 frames (113.78 ms).
+
+In the browser, **Send test hit** exercises SRC and the real capture state machine. It simulates a host source; it does not enumerate USB. **Import PCM16 WAV** creates a SAMPLE instrument; **Import single cycle** treats its point count as one period. The core uses 36 kHz, with explicit input conversion. Cycles are tuned from their length, not their file's claimed period.
+
+Note keys play on HOME/EDIT/MIXER/FX. Pickers intercept them silently. On a phone, scroll the keyboard horizontally. Drag a rotary control vertically, use its +/− buttons where shown, use its mouse wheel, or focus it and use arrow keys. Keyboard shortcuts: Escape HOME, Enter SCL, space PLAY, E EDIT, R REC, G GLO, F FX, A actions, S SAVE; Z X C V B N M play notes.
+
+## Record and arrange
+
+Tap REC to arm a free take. The first real note starts it; tap REC again to close it at the button-down time. Timing analysis offers tempo/length candidates. Existing musical tempo and an external clock retain ownership. Hold REC for retrospective MIDI, ending at the hold's original down edge. ARP → TAKE TIMING exposes alternatives; knob 1 selects and SCL applies. History is bounded; overflow/ambiguity is reported rather than hidden.
+
+SEQ cycles STEP → PATTERNS → SONG. In STEP the sixteen white keys toggle notes; SCL opens a silent note picker. Knobs select step, note, velocity and duration. The first black key is rest; the second ties the selected step to the preceding same-pitch note, removing its retrigger and extending the original gate. Select the target step with knob 1. OCT buttons change page. ARP → STEP DETAIL edits probability/microtiming or applies a latched parameter lock. PATTERN SETTINGS edits length, rate, swing, quantization and internal tempo. Motion recording records the underlying track controls.
+
+In PATTERNS a white key selects/queues its pattern, creating empty metadata when needed. Hold two white keys to make a range chain. ARP → CHAIN APPEND appends the selected pattern to the saved ordered list; CHAIN PLAY starts that order; CHAIN CLEAR removes it. Copy a pattern, select a destination, then paste; an occupied destination requires confirmation. HOLD SCL undoes it.
+
+In SONG, SCL inserts the current scene into an empty song or queues a section. Knobs choose section, bars, repeats and selected-track pattern. ARP actions insert, delete, duplicate, move sections and mute the selected track within a section. RECORD ARRANGEMENT records actual pattern/mute changes during playback; FINISH ARRANGEMENT publishes the song as one undoable edit. It uses a bounded 64-section working buffer and needs free metadata RAM.
+
+## Edit
+
+Tap EDIT to enter the editor; further taps cycle **SAMPLE, LOOP, MIX, AMP, FILTER, MOD, WAVE, MAP, RENDER**. SELECT chooses ALL or SAMPLE 01–16. Knob 1 always selects a row; knobs 2–4 match the footer labels. Rows/tab/scope are remembered separately for each instrument. Empty targets report NOT FOUND. Destructive actions request confirmation; HOME cancels a picker before leaving its screen.
+
+ALL markers use normalized percentages of each region; ONE markers use absolute frames. Numeric entry opens only after SCL on a numeric field. White keys supply digits, backspace, minus, decimal, cancel and accept as displayed. Note/range/sample pickers never play or enter MIDI history. Hold EDIT and choose a white category key for the next DRUMS/SYNTH/PAD/LEAD/etc. name. The release does not cycle a tab.
+
+SAMPLE edits markers, level, reverse playback, root, tuning and destructive operations. MIX chooses source B and adjusts source gains, frame offset/tuning, crossfade length/law, then executes Mix Write/Cross-Mix. AMP/FILTER edit up to eight stages, sustain/release, time, level, scaling and copy envelopes. LOOP edits up to eight forward program sections, repeat/jump/release actions and crossfades. Reverse playback currently bypasses forward loop programs. MOD edits rate/depth/shape/destination and free-run versus note retrigger. Region/envelope edits are read by new notes; track controls act on held notes.
+
+WAVE exposes all 48 additive levels (knob 2 selects harmonic, knob 3 changes level), recipe normalization/application, preset waves, extracted periods and point drawing/smoothing/clearing. Harmonic/table edits publish immutable assets and held cycle voices crossfade for 64 frames, preserving phase. Presets offer sine/triangle/saw/square with 600/1,024 points. MULTI SAMPLE offers capture or shared audio; synthesis sources belong to SAMPLE. MAP supports root/range/base/choke/pan/send trims and automatic zoning. Manual key ranges take priority over automatic zones. MAP → DELETE SAMPLE removes the ONE region after confirmation, recomputes zones and retains PCM for sounding voices/undo; unbake a baked region before deleting it.
+
+RENDER bakes a one-shot sample or freezes a pattern after explicit isolated-render confirmation. Bake is a final stereo render; it requires all active sends to avoid routing wet audio through remaining sends. Shared nonlinear bus interactions cannot be decomposed exactly into independent samples. Pattern notes remain for unfreeze. Sample originals and routing recipes survive project save/reload for unbake. ONE bake leaves other sounds' track sends in place; ALL clears only selected sends on that track. These operations need temporary audio, engine and metadata space; memory rejection leaves old material/routing valid.
+
+## Mix, undo and save
+
+GLO opens the mixer: knob 1 track, knob 2 level, knob 3 pan, knob 4 selected send. Further GLO taps cycle the send. SCL mutes; ARP offers solo. FX selects one of four project slots: delay, reverb, chorus and character. Knob 1 selects the named parameter; knobs 2/3 edit and knob 4 pans its return. Input bypass stops new input while allowing tails; return mute silences only that return. RELEASE UNUSED FX actually frees buffers only after checking tails, active readers, stored patterns and automation.
+
+Hold SCL undoes one transaction; ARP → REDO reapplies. Continuous knob gestures coalesce for 250 ms when they touch the same fields. Undo is bounded (host eight transactions, board profile two); ordinary PCM/event buffers remain budgeted until project disposal. Superseded cycle versions are reclaimed only when current regions, bake originals, undo/redo states and sounding/crossfading voices no longer reference them. Continuous waveform edits therefore do not consume one permanent asset slot per knob step. PANIC releases voices after dropped input.
+
+SAVE is queued during playback and commits on stop in the host simulator. Local saves alternate two CRC-protected generations. ARP → LOAD PROJECT requests replacement confirmation. Export project downloads all dependencies; restore validates and prepares a full replacement before swapping, preserving the current project on malformed input. Export a backup before closing a session with unsaved changes. The simulator starts empty; load the local save or restore a backup explicitly. Files stay on the local loopback machine.
+
+On-device project persistence and device transfer are not qualified. The target SAVE callback returns UNSUPPORTED and retains VOLATILE status; it never pretends RAM survived power loss. See REQUIREMENTS_STATUS.md for remaining device/release work.

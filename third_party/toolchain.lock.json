@@ -1,0 +1,13 @@
+{
+  "archive_url": "https://jl-update.oss-cn-shenzhen.aliyuncs.com/jieli-linux-toolchains-20260730.1.tar.xz",
+  "archive_sha256": "a1545cddbc451a06bac43eb5cd96d831470c42a97c5c0b1f98879a20fc7647bd",
+  "compiler": "JieLi clang 4.0.1, -target pi32v2 -mcpu=r3 -mfprev1",
+  "sha256": {
+    "common/bin/clang": "c45189ee624de0430deb0db02e6dce171fb5538e7fe323e3964dc8ac6236240f",
+    "pi32v2/bin/ld": "fd61aff15616bb6f6b58fd2e9ede7af741c7bf05facb3e0cb3d3c9817c268fd9",
+    "common/bin/objcopy": "295151226e28891115c97262e6460a06fe67fc0753858e0df3234eb000ea6e66",
+    "common/bin/objdump": "f7e449e2c8001d5ed4493a45d1f5f304c8910418e4074acdc8715079ef64e08a",
+    "pi32v2/lib/libg.a": "20aaab7548800918e52f139c6ca07949bede184a8b4e15b35f011c4f2cee1513",
+    "pi32v2/lib/libm.a": "f52167a6266b55481a683ea9a163d6bd021ca4b6a61fd5d8cfeaf56ba642466f"
+  }
+}

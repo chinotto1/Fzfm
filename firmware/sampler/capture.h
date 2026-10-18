@@ -38,6 +38,7 @@ typedef struct {
     uint32_t take_frames;
     int16_t pre[FZ_PRE_MAX];
     uint32_t pre_n;
+    uint32_t pre_write;
     uint32_t pre_frames;
     int16_t start_amp;
     int16_t stop_amp;

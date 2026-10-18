@@ -21,7 +21,8 @@ int fz_tempo_propose(uint32_t duration_frames, uint32_t engine_rate, const uint3
                      FzTempoCandidate *out, int max_out)
 {
     double seconds;
-    int i, n = 0;
+    int i, n = 0, valid_onsets = 0;
+    FzTempoCandidate candidates[sizeof k_bars / sizeof k_bars[0]];
     if (!out || max_out <= 0 || engine_rate == 0 || duration_frames == 0)
         return 0;
     seconds = (double)duration_frames / (double)engine_rate;
@@ -32,7 +33,15 @@ int fz_tempo_propose(uint32_t duration_frames, uint32_t engine_rate, const uint3
         out[0].confidence = 0;
         return 1;
     }
-    for (i = 0; i < (int)(sizeof k_bars / sizeof k_bars[0]) && n < max_out; i++) {
+    for (i = 0; i < n_onsets; i++)
+        if (onset_frames[i] <= duration_frames)
+            valid_onsets++;
+    if (!valid_onsets) {
+        memset(&out[0], 0, sizeof out[0]);
+        return 1;
+    }
+    /* Rank the complete bounded set before truncating to caller capacity. */
+    for (i = 0; i < (int)(sizeof k_bars / sizeof k_bars[0]); i++) {
         int bars = k_bars[i];
         int quarters = bars * 4;
         double bpm = 60.0 * (double)quarters / seconds;
@@ -54,25 +63,30 @@ int fz_tempo_propose(uint32_t duration_frames, uint32_t engine_rate, const uint3
                 dist = 0.5;
             err += dist;
         }
-        err /= (double)n_onsets;
+        err /= (double)valid_onsets;
         confidence = (int)(100.0 * (1.0 - err * 2.0));
         if (confidence < 0)
             confidence = 0;
         if (bpm < 70.0 || bpm > 160.0)
             confidence = confidence * 3 / 4;
-        out[n].bpm = bpm;
-        out[n].bars = bars;
-        out[n].quarters = quarters;
-        out[n].confidence = confidence;
+        if (valid_onsets < 4 && confidence > valid_onsets * 25)
+            confidence = valid_onsets * 25;
+        candidates[n].bpm = bpm;
+        candidates[n].bars = bars;
+        candidates[n].quarters = quarters;
+        candidates[n].confidence = confidence;
         n++;
     }
-    qsort(out, (size_t)n, sizeof out[0], cmp_conf);
+    qsort(candidates, (size_t)n, sizeof candidates[0], cmp_conf);
+    if (n > max_out)
+        n = max_out;
+    memcpy(out, candidates, (size_t)n * sizeof out[0]);
     return n;
 }
 
 int fz_tempo_apply_policy(int project_has_music, int external_clock, double *project_bpm, double inferred)
 {
-    if (!project_bpm || inferred <= 0.0)
+    if (!project_bpm || !isfinite(inferred) || inferred <= 0.0)
         return 0;
     if (project_has_music || external_clock)
         return 0;

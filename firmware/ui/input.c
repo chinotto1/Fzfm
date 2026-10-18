@@ -59,6 +59,12 @@ void fz_input_button(FzInput *in, FzButton button, int pressed, uint32_t time_us
     }
     if (!b->down)
         return;
+    /* A busy UI may not poll between crossing the threshold and release. */
+    if (hold_button(button) && !b->hold_fired && time_us - b->down_us >= in->hold_us) {
+        b->hold_fired = 1;
+        push(in, button == FZ_BTN_SEL && in->confirming ? FZ_ACT_CANCEL : FZ_ACT_HOLD,
+             button, b->down_us);
+    }
     b->down = 0;
     if (hold_button(button) && !b->hold_fired)
         push(in, FZ_ACT_TAP, button, b->down_us);

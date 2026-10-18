@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Copyright (C) 2026 the fm1-fz-sampler contributors */
 /* R10, R32: bounded live-event ring. Sequencer playback and menu keys are
- * stored only so they can be excluded from a retrospective slice. */
+ * excluded before storage so they cannot evict a live performance. */
 #ifndef FZ_HISTORY_H
 #define FZ_HISTORY_H
 
@@ -33,7 +33,8 @@ typedef struct {
 
 void fz_history_init(FzHistory *h);
 void fz_history_push(FzHistory *h, FzHistEvent event);
-/* Events with time in (end_us - window_us, end_us], keyboard and external only. */
+/* Events in (end_us - window_us, end_us], modulo uint32 time; windows are
+ * limited to INT32_MAX microseconds. Keyboard and external only. */
 int fz_history_slice(const FzHistory *h, uint32_t end_us, uint32_t window_us, FzHistEvent *out, int max_out);
 
 #endif

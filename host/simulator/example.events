@@ -1,0 +1,23 @@
+# New SAMPLE via actual physical panel events, then additive source.
+0 button SCL down
+10 button SCL up
+20 button SCL down
+30 button SCL up
+40 encoder 2 1
+50 button SCL down
+60 button SCL up
+70 encoder 2 1
+80 button SCL down
+90 button SCL up
+100 key 16 down
+600 key 16 up
+610 button EDIT down
+620 button EDIT up
+630 button EDIT down
+640 button EDIT up
+650 screen build/script-output/loop.pgm
+700 button HOME down
+710 button HOME up
+720 button SAVE down
+730 button SAVE up
+1000 wait

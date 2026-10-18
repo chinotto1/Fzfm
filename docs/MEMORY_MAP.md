@@ -1,56 +1,41 @@
-# Memory map
+# Memory and performance evidence
 
-Nothing in this file is a linker script for fm1-fz-sampler. No target binary has been linked. Figures below are copied from pinned sources so they are not mistaken for our budget.
+No physical SRAM/flash capacity or usable sample partition was measured. The target map below **links inside provisional source-derived windows**; a link is not proof those banks are safe on an FM-1. No second core, overclock, cache reclamation or external RAM is assumed.
 
-## Address window the BSP treats as readable RAM
+## Linked sampler
 
-`fm1_sys.h` `fm1_mem_readable` at felucca-bsp `7d8f849` accepts:
+PI32v2 clang 4.0.1, `-Os -mcpu=r3 -mfprev1`; actual sampler adapter and portable modules, pinned BSP, external Newlib/stdio/math and compiler-rt. Current range-checked `app.bin`: **132,568 bytes**, SHA-256 `3f9932bfad767e57488e81b8c9231c704fff55ad95ab031dc498e19a70a6ef08`. These are development artifacts in `build/target/sampler/`, not an installable update. `manifest.json` records exact source/dependency hashes and flags.
 
-- `0x01C00000 .. 0x01C80000` (512 KiB window)
-- `0x02000000 .. 0x02100000` (1 MiB XIP window)
+| Section/window | Linked bytes | Provisional limit |
+|---|---:|---:|
+| XIP load image (text + data) | 132,568 | 581,564 at 0x02000120 |
+| .data | 1,188 | Shared with .bss in 96 KiB RAM |
+| .bss | 39,136 | Shared with .data in 96 KiB RAM |
+| .pool | 311,568 | 327,680 at 0x01C20000 |
+| Heap inside .pool | 229,376 (224 KiB reserved) | Cannot grow beyond that array |
+| .ram_text | 0 | No flash erase/program path enabled |
 
-The top of that RAM window is reserved by the same sources: boot mailbox `0x01C7FD80` (`"usb_update_mode"`), update parameter block `0x01C7FD88` for 112 bytes. `fm1_mailbox_clear` covers `0x01C7FD80 .. 0x01C7FE00`.
+Stacks, guard bands and boot mailbox reservations follow the explicitly provisional adapter linker script. Their physical validity, runtime stack high water and interrupted-boot recovery are untested. Earlier initial 192 KiB-heap/unconfigured-object build overflowed POOL; the explicit profile below resolved that actual link failure. The reproduced CPU0 baseline is 16,408 bytes, SHA-256 `65704584f9d68821c6e153ae25da77b4e51e2329a912c48b3a5ea5a0a4cd0720`, still not boot-proven.
 
-## Upstream hwtest linker, not ours
+The development board profile has eight simultaneous voices, 64 handles per object class, sixteen logical sample regions per instrument, 128 engine events, 128 history and take events, 64 held-boundary records, two undo transactions/24 patches, two 64-phase SRCs and a 4,096-frame initial capture maximum (113.78 ms). Object handles are metadata ceilings, not preallocated full recordings. Four FX are admitted at initialization: delay is limited to 4,098 buffer frames (113.78 ms maximum, 80 ms default), plus reverb/chorus/character. A longer requested delay rejects before replacement. This short delay/capture profile is a bring-up tradeoff, not the final product capacity.
 
-`examples/hwtest/app.ld` at the same commit:
+Metadata/audio/events/FX/undo budgets are respectively **64/128/64/96/48 KiB upper bounds**, sharing the **224 KiB total bounded heap** with runtime overhead. They are not five reserved banks and cannot all be simultaneously filled. Admission can fail earlier because of the shared heap or fragmentation. The first-fit/coalescing allocator is host-tested with randomized allocations/reallocations, alignment, overflow and full coalescence. It is single-owner, non-real-time. No ROM allocator addresses are borrowed.
 
-| Region | Origin | Length | Role in that script |
-|---|---|---|---|
-| XIP | `0x02000120` | `0x8DFBC` (~556 KiB) | application code and constants |
-| RAMTEXT | `0x01C00000` | `0x6000` (24 KiB) | code that runs with XIP off |
-| RAM | `0x01C08000` | 96 KiB | `.data`, `.bss`, general RAM |
-| NOINIT | `0x01C7C000` | `0x3D50` | survives reset |
+Sources and ordinary retired PCM/event buffers remain budgeted while voices/undo may reference them; this conservatively spends capacity until project disposal (reloading also retires old event buffers). Superseded cycles are collected using typed before/after transaction dependencies plus current regions, bake originals and active/crossfade readers. A 600-change held-note waveform stress test stays below four asset slots and preserves undo/redo. Empty kits reserve one temporary capture scratch, not sixteen PCM recordings. Offline bake allocates its render owner from budgeted RAM rather than the target stack. Its temporary second-engine/FX footprint can exceed this board profile; failure retains old assets/routing. Larger captures, simultaneous four-FX playback, deep offline render and arrangement recording require measured admission policies before a release claim. Explicitly releasing unused FX can reclaim their real buffers; bypass alone does not.
 
-Stacks and a CPU1 reservation are placed by symbols between `0x01C71000` and `0x01C7C000`, not inside the 96 KiB region. There is a gap from the end of that 96 KiB region (`0x01C20000`) up to the CPU1 stacks. The hwtest script does not assign it. This firmware does not assign it either. Using it needs a device-backed map and a recovery plan.
+## Host stress fixture
 
-The conversational "about 96 KiB RAM" matches this upstream **section length**, not the whole SRAM window, and not a sample budget. The specification forbids adopting it as our capacity. It is recorded here so later work does not rediscover it as if it were a measurement we made.
+`make benchmark` exercises two tracks, eight held saw-cycle voices and four send effects over **600 × 128-frame blocks** (2.133 seconds of instrument time). Both use a real sequencer/history allocation and two preset transactions. Current measured GCC `-O2` cloud results:
 
-## Upstream Felucca flash windows, not ours
+| Configuration | Mean block | Max observed block | FX allocated | Payload peaks metadata/audio/events/FX/undo |
+|---|---:|---:|---:|---|
+| Default host | 0.0994 ms | 0.1415 ms | 337,168 B | 20,248 / 3,600 / 72,152 / 337,168 / 63,408 B |
+| Smaller board constants on host ABI | 0.0896 ms | 0.1658 ms | 81,936 B | 20,248 / 3,600 / 27,608 / 81,936 / 30,336 B |
 
-`fm1_flash.h` comments describe Felucca's own store (data `0x00097000..0x000E0000`, globals, OTA staging, autosave). Those addresses are Felucca's. This project has no partition table and must not program them.
+A 128-frame block at 36 kHz spans 3.556 ms. These are observed host timings, **not** PI32v2 deadline bounds, not a worst-case proof, and not a device voice-capacity claim. The fixture excludes SRC/UI/USB/flash load and target interrupt cost. JSON reports in `build/benchmark*.json` include exact sizes/counts; reruns naturally vary. The smaller host ABI uses different pointer/alignment sizes than the linked target.
 
-The comment's expected JEDEC id `0x856014` is an expectation in that header, not an id read from the user's board.
+The SRC streaming hot path uses cached coefficients and no per-frame trigonometry. Actual coefficient response/chunk invariance is tested. Device drift, codec clock correction, concurrent USB/display work, maximum stack/IRQ/render time and multi-hour soak remain required.
 
-## What this repository allocates on the host
+## Storage
 
-Safety ceilings, so a bug stops instead of growing without bound. They are not product limits:
-
-| Ceiling | Value | Meaning |
-|---|---|---|
-| Engine rate | 36,000 frames/s | Internal render clock |
-| Mono PCM16 | 72,000 bytes/s | Raw payload only |
-| Voices | 16 | Simultaneous notes in the host engine |
-| Instruments, tracks | 8 | Host project object cap |
-| Patterns | 32 | Host project object cap |
-| Regions / assets | 64 / 48 | Host project object cap |
-| Multi slots | 16 | The workflow size, not preallocated audio |
-| SRC queue | 4,096 frames | Bounded transport queue |
-| History | 512 events | Retrospective MIDI ring |
-| Additive table | 1,024 points, 48 levels | Rebuild buffer on the stack, no malloc |
-
-Capture length is whatever buffer the caller passes. A full 16-slot kit is not reserved up front. Empty slots hold no PCM.
-
-## Still unknown
-
-Physical SRAM size beyond the window above, DMA-capable banks, cache geometry, the codec's real clock, how much of the 1 MiB flash is factory-protected, and how much of the gap above `0x01C20000` can be used without fighting the bootloader. Those stay unknown until a target link map and a non-destructive device read exist.
+Mono PCM16 costs 72,000 bytes/second, stereo PCM16 144,000. A 1,024-point cycle costs 2,048 PCM bytes, plus region/recipe metadata. The general host project admits separate 4/16/4/2/4 MiB payload pools and a 16-voice simulator; those are host safety limits, not device resources. There is no qualified target sample-flash partition. Upstream flash addresses, JEDEC guesses and conversational “496 KiB available” are not used as sampler storage capacity.

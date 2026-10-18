@@ -22,7 +22,7 @@ static int find_free(FzEngine *e)
 static int oldest(FzEngine *e)
 {
     int i, best = 0;
-    uint16_t best_age = 0xFFFFu;
+    uint64_t best_age = UINT64_MAX;
     for (i = 0; i < FZ_MAX_VOICES; i++) {
         if (e->voice[i].age < best_age) {
             best_age = e->voice[i].age;
@@ -38,6 +38,7 @@ int fz_engine_note_on_pcm(FzEngine *e, const int16_t *pcm, uint32_t frames, uint
 {
     int slot;
     FzVoice *v;
+    FzReader reader;
     int rc;
 
     if (!e || !pcm || frames == 0)
@@ -55,6 +56,14 @@ int fz_engine_note_on_pcm(FzEngine *e, const int16_t *pcm, uint32_t frames, uint
     if (pan > 127)
         pan = 127;
 
+    /* Reject an invalid reader before stealing an already sounding voice. */
+    if (cycle)
+        rc = fz_reader_start_cycle(&reader, pcm, frames, note, cents);
+    else
+        rc = fz_reader_start_sample(&reader, pcm, frames, native_rate, root, note, cents);
+    if (rc != 0)
+        return -1;
+
     slot = find_free(e);
     if (slot < 0) {
         slot = oldest(e);
@@ -62,12 +71,7 @@ int fz_engine_note_on_pcm(FzEngine *e, const int16_t *pcm, uint32_t frames, uint
     }
     v = &e->voice[slot];
     memset(v, 0, sizeof *v);
-    if (cycle)
-        rc = fz_reader_start_cycle(&v->reader, pcm, frames, note, cents);
-    else
-        rc = fz_reader_start_sample(&v->reader, pcm, frames, native_rate, root, note, cents);
-    if (rc != 0)
-        return -1;
+    v->reader = reader;
     v->alive = 1;
     v->gated = one_shot ? 0 : 1;
     v->note = note;
@@ -123,6 +127,16 @@ void fz_engine_render(FzEngine *e, int16_t *interleaved_lr, uint32_t frames)
             int16_t s;
             if (!v->alive)
                 continue;
+            if (v->project) {
+                FzTrack *track = fz_track(v->project, v->track);
+                if (!track) {
+                    v->alive = 0;
+                    v->reader.active = 0;
+                    continue;
+                }
+                v->volume = track->volume;
+                v->pan = track->pan;
+            }
             s = fz_reader_next(&v->reader);
             if (!v->reader.active && !v->reader.cycle) {
                 v->alive = 0;

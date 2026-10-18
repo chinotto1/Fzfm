@@ -35,21 +35,21 @@ static void push_pre(FzCapture *c, int16_t s)
         cap = FZ_PRE_MAX;
     if (cap == 0)
         return;
-    if (c->pre_n < cap) {
-        c->pre[c->pre_n++] = s;
-        return;
-    }
-    memmove(c->pre, c->pre + 1, (cap - 1u) * sizeof(int16_t));
-    c->pre[cap - 1u] = s;
+    c->pre[c->pre_write] = s;
+    c->pre_write = (c->pre_write + 1u) % cap;
+    if (c->pre_n < cap)
+        c->pre_n++;
 }
 
 static void start_take_from_pre(FzCapture *c)
 {
     uint32_t n = c->pre_n;
-    if (n > c->take_cap)
-        n = c->take_cap;
-    if (n && c->take)
-        memcpy(c->take, c->pre + (c->pre_n - n), n * sizeof(int16_t));
+    uint32_t i;
+    /* Reserve room for the triggering frame, including with no pre-trigger. */
+    if (n >= c->take_cap)
+        n = c->take_cap ? c->take_cap - 1u : 0;
+    for (i = 0; i < n; i++)
+        c->take[i] = c->pre[(c->pre_write + c->pre_frames - n + i) % c->pre_frames];
     c->take_frames = n;
     c->silence_run = 0;
     trace(c, FZ_CAP_CAPTURING);
@@ -59,6 +59,22 @@ static int level_of(int16_t s)
 {
     int32_t a = fz_iabs32(s);
     return a > 32767 ? 32767 : (int)a;
+}
+
+static int next_empty_slot(FzCapture *c, int slot)
+{
+    FzInstrument *inst = fz_instrument(c->project, c->instrument);
+    if (!inst) return FZ_MULTI_SLOTS;
+    while (slot < FZ_MULTI_SLOTS) {
+        int i, occupied = 0;
+        for (i = 0; i < inst->region_count; i++) {
+            FzRegion *region = fz_region(c->project, inst->region[i]);
+            if (region && region->slot == slot) occupied = 1;
+        }
+        if (!occupied) break;
+        slot++;
+    }
+    return slot;
 }
 
 void fz_capture_init(FzCapture *c, FzProject *project, FzId instrument, FzId track, int16_t *take,
@@ -78,7 +94,7 @@ void fz_capture_init(FzCapture *c, FzProject *project, FzId instrument, FzId tra
     c->min_frames = 1;
     c->state = FZ_CAP_CONFIGURE;
     c->input_alive = 1;
-    c->slot = 0;
+    c->slot = next_empty_slot(c, 0);
     snprintf(c->message, sizeof c->message, "CONFIGURE");
 }
 
@@ -90,6 +106,8 @@ void fz_capture_set_thresholds(FzCapture *c, int start_dbfs, int stop_dbfs, uint
     c->pre_frames = pre_frames > FZ_PRE_MAX ? FZ_PRE_MAX : pre_frames;
     c->silence_hold = silence_hold;
     c->min_frames = min_frames;
+    c->pre_n = 0;
+    c->pre_write = 0;
 }
 
 void fz_capture_set_root(FzCapture *c, uint8_t root)
@@ -100,8 +118,29 @@ void fz_capture_set_root(FzCapture *c, uint8_t root)
 
 void fz_capture_arm(FzCapture *c)
 {
+    FzTrack *track;
+    if (!c) return;
+    if (c->take_pinned) {
+        snprintf(c->message, sizeof c->message, "VOLATILE TAKE PINNED");
+        return;
+    }
+    track = fz_track(c->project, c->track);
+    if (!fz_instrument(c->project, c->instrument) || !track ||
+        track->instrument.index != c->instrument.index ||
+        track->instrument.generation != c->instrument.generation) {
+        c->auto_arm = 0; trace(c, FZ_CAP_CANCELLED);
+        snprintf(c->message, sizeof c->message, "BAD HANDLE");
+        return;
+    }
+    if (!c->take || !c->take_cap) {
+        c->auto_arm = 0; trace(c, FZ_CAP_STORAGE_FULL);
+        snprintf(c->message, sizeof c->message, "CAPTURE RAM FULL");
+        return;
+    }
+    c->slot = next_empty_slot(c, c->slot);
     c->auto_arm = 1;
     c->pre_n = 0;
+    c->pre_write = 0;
     c->take_frames = 0;
     c->silence_run = 0;
     c->volatile_take = 0;
@@ -128,7 +167,8 @@ static void append_take(FzCapture *c, int16_t s)
         c->silence_run++;
     else
         c->silence_run = 0;
-    if (c->silence_hold > 0 && c->silence_run >= c->silence_hold)
+    if (c->take_frames == c->take_cap ||
+        (c->silence_hold > 0 && c->silence_run >= c->silence_hold))
         trace(c, FZ_CAP_END_DETECTED);
 }
 
@@ -147,9 +187,13 @@ void fz_capture_accept(FzCapture *c, const int16_t *mono, uint32_t frames)
         if (lvl >= 32767)
             c->clipped = 1, c->clip_count++;
         if (c->state == FZ_CAP_WAIT_INPUT) {
-            push_pre(c, s);
-            if (lvl >= c->start_amp)
+            if (lvl >= c->start_amp) {
                 start_take_from_pre(c);
+                append_take(c, s);
+                if (c->state != FZ_CAP_CAPTURING) break;
+            } else {
+                push_pre(c, s);
+            }
         } else if (c->state == FZ_CAP_CAPTURING) {
             append_take(c, s);
             if (c->state != FZ_CAP_CAPTURING)
@@ -182,6 +226,7 @@ static FzStatus commit_take(FzCapture *c)
     trim_tail(c);
     if (c->take_frames < c->min_frames || c->take_frames == 0) {
         c->take_frames = 0;
+        c->pre_n = c->pre_write = c->silence_run = 0;
         snprintf(c->message, sizeof c->message, "TOO SHORT");
         return FZ_ERR_RANGE;
     }
@@ -229,9 +274,10 @@ static FzStatus commit_take(FzCapture *c)
 static void advance_slot(FzCapture *c)
 {
     trace(c, FZ_CAP_ADVANCE);
-    c->slot++;
+    c->slot = next_empty_slot(c, c->slot + 1);
     c->take_frames = 0;
     c->pre_n = 0;
+    c->pre_write = 0;
     c->silence_run = 0;
     if (!c->auto_arm || c->slot >= FZ_MULTI_SLOTS) {
         c->auto_arm = 0;
@@ -275,7 +321,7 @@ void fz_capture_oct_plus(FzCapture *c)
     }
     c->take_frames = c->take_pinned ? c->take_frames : 0;
     trace(c, FZ_CAP_PERFORMANCE);
-    snprintf(c->message, sizeof c->message, "HOME");
+    snprintf(c->message, sizeof c->message, c->take_pinned ? "HOME / VOLATILE TAKE" : "HOME");
     if (c->project && c->track.index < FZ_MAX_TRACKS)
         c->project->selected_track = (int)c->track.index;
 }
@@ -286,34 +332,34 @@ void fz_capture_undo_last(FzCapture *c)
     int slot;
     if (!c)
         return;
-    slot = c->slot - 1;
+    slot = c->slot < FZ_MULTI_SLOTS ? c->slot - 1 : FZ_MULTI_SLOTS - 1;
     if (c->state == FZ_CAP_CAPTURING || c->state == FZ_CAP_END_DETECTED) {
-        c->take_frames = 0;
-        c->silence_run = 0;
-        c->pre_n = 0;
+        c->take_frames = c->silence_run = c->pre_n = c->pre_write = 0;
         trace(c, FZ_CAP_WAIT_INPUT);
         return;
     }
-    if (slot < 0 || !c->committed[slot])
-        return;
+    while (slot >= 0 && !c->committed[slot]) slot--;
+    if (slot < 0) return;
     inst = fz_instrument(c->project, c->instrument);
-    if (inst && inst->region_count > 0) {
-        FzId id = inst->region[inst->region_count - 1];
-        FzRegion *r = fz_region(c->project, id);
-        if (r) {
-            r->alive = 0;
-            r->generation++;
+    if (inst) {
+        int i;
+        for (i = 0; i < inst->region_count; i++) {
+            FzId id = inst->region[i];
+            if (id.index == c->slot_region[slot].index &&
+                id.generation == c->slot_region[slot].generation) {
+                FzRegion *r = fz_region(c->project, id);
+                if (r) {r->alive = 0; if (++r->generation == 0) r->generation = 1;}
+                memmove(inst->region + i, inst->region + i + 1,
+                        (size_t)(inst->region_count - i - 1) * sizeof inst->region[0]);
+                inst->region[--inst->region_count] = fz_id_none();
+                break;
+            }
         }
-        inst->region_count--;
+        fz_project_recompute_zones(c->project, c->instrument);
     }
-    {
-        FzAsset *a = fz_asset(c->project, c->slot_asset[slot]);
-        if (a) {
-            a->alive = 0;
-            a->generation++;
-        }
-    }
-    c->project->pcm_used = c->slot_watermark[slot];
+    /* Without an engine ownership/retirement fence, neither active voices nor
+     * shared regions can be proved done with this immutable PCM. Retain it and
+     * its asset descriptor; do not rewind a global arena behind newer assets. */
     c->committed[slot] = 0;
     c->slot = slot;
     c->auto_arm = 1;
@@ -323,7 +369,7 @@ void fz_capture_undo_last(FzCapture *c)
 
 void fz_capture_skip(FzCapture *c)
 {
-    if (!c || c->slot >= FZ_MULTI_SLOTS)
+    if (!c || c->slot >= FZ_MULTI_SLOTS || c->take_pinned)
         return;
     c->take_frames = 0;
     advance_slot(c);
@@ -343,8 +389,11 @@ void fz_capture_input_lost(FzCapture *c)
         return;
     c->input_alive = 0;
     c->auto_arm = 0;
-    if (c->state == FZ_CAP_CAPTURING && c->take_frames >= c->min_frames)
-        commit_take(c);
+    if ((c->state == FZ_CAP_CAPTURING || c->state == FZ_CAP_END_DETECTED) &&
+        c->take_frames >= c->min_frames && commit_take(c) == FZ_OK) {
+        c->slot = next_empty_slot(c, c->slot + 1);
+        c->take_frames = 0;
+    }
     trace(c, FZ_CAP_INPUT_LOST);
     snprintf(c->message, sizeof c->message, "INPUT LOST");
 }
@@ -355,6 +404,9 @@ void fz_capture_cancel(FzCapture *c)
         return;
     c->auto_arm = 0;
     c->take_frames = 0;
+    c->take_pinned = 0;
+    c->volatile_take = 0;
+    c->pre_n = c->pre_write = c->silence_run = 0;
     trace(c, FZ_CAP_CANCELLED);
 }
 

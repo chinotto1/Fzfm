@@ -1,8 +1,8 @@
 # Pinned sources inspected for M0 on 2026-10-17.
-# None of these trees are vendored into this repository.
+# felucca-bsp is vendored with a per-file lock; other application trees are references.
 # Hashes are the commits fetched during that inspection, not floating branches.
 
-# Primary board layer selected for a later adapter. Not copied yet.
+# Primary board layer: vendored, see felucca-bsp.lock.json.
 name: felucca-bsp
 url: https://github.com/hugelton/felucca-bsp
 commit: 7d8f8490c2245f334775889cb7107573b12289e0
@@ -45,7 +45,7 @@ url: https://github.com/m-vave/fm1_open
 commit: b178ac43c25f010c60a878056fb5331fe693fd62
 date: 2026-10-17T06:53:33Z
 license: NOASSERTION
-role: official SDK/app split. Not used. Terms were not accepted for redistribution.
+role: external Newlib headers/libc and compiler-rt only, exact runtime.lock.json; native engine excluded.
 
 name: fm1-base
 url: https://github.com/charlesvestal/fm1-base
@@ -67,3 +67,8 @@ commit: 8de90bf94376670947369e69de0af6b9fbd19286
 date: 2025-12-04T18:31:36Z
 license: CC0-1.0
 role: cycle-format reference. No waveforms are bundled.
+
+name: JieLi Linux toolchain
+version: 20260730.1 / clang 4.0.1
+role: external PI32v2 compiler, linker and Newlib libg/libm
+lock: toolchain.lock.json

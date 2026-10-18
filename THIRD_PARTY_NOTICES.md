@@ -1,15 +1,13 @@
 # Third-party notices
 
-The code in this repository is GPL-3.0-only. The license text is `LICENSE`.
+The repository's original program is GPL-3.0-only (`LICENSE`); newly authored workstation files permit GPL-3.0-or-later and can be combined under GPLv3. Preserve each file's notice.
 
-No third-party source tree is copied into this repository. `third_party/sources.lock` records the commits that were read while choosing a board layer. Reading them did not import their copyrighted text.
+`third_party/felucca-bsp` is vendored from https://github.com/hugelton/felucca-bsp at `7d8f8490c2245f334775889cb7107573b12289e0`. Its board/chip/assembly/examples files are MPL-2.0, Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments; USB retains additional upstream attribution. Its MPL license, NOTICE and LICENSING.md remain alongside the source. The optional raw USB PCM/stream-reset hooks and enlarged RX staging are local changes listed with original and modified hashes in `felucca-bsp.lock.json`. `platform/fm1/app.ld` is an adapted MPL-2.0 linker script with its notice retained. No proprietary native engine is copied or linked.
 
-If a later change copies a file from felucca-bsp, that file stays under MPL-2.0 and its SPDX header and copyright line stay with it. MPL-2.0 files from that repository may be combined with this GPL-3.0 program. Copying Felucca, Melodee, SLOOP, or X0X sources would bring GPL-3.0-only obligations for those files; do not drop their copyright lines.
+Target builds separately require the pinned JieLi Linux compiler and its Newlib-derived `libg.a`/`libm.a`, and the official FM1 Open SDK's Newlib headers/`libc.a` and compiler-rt archive. Exact bytes are in `toolchain.lock.json` and `runtime.lock.json`. These binaries are not redistributed in this source tree. The upstream runtime notices are retained verbatim in [third_party/notices/fm1_open-runtime.md](third_party/notices/fm1_open-runtime.md); that document also describes components we do not use. Newlib's component notices and compiler-rt's MIT / University of Illinois-NCSA notices apply to the identified routines. These notices identify upstream license texts, not the complete source revision of vendor runtime archives. No installable binary release or claim of complete vendor-runtime corresponding source is made here.
 
-Official FM1 Open was not used. Its application, SDK, and any native engine have separate terms and are not granted by this file.
+Other sources in `third_party/sources.lock` were inspected as behavioral/hardware references, not copied application engines. ALM Fizzle Guts is a physical-chip controller, not our filter implementation. No AKWF waveforms, ROMs or commercial samples are bundled. Generated demos use newly synthesized tones.
 
-The JieLi AC79 SDK is Apache-2.0 according to felucca-bsp's `LICENSING.md`. It is not downloaded here. A future package that includes `uboot.boot`, `cfg_tool.bin`, or `eq_cfg_hw.bin` must ship the Apache-2.0 text with those files.
+The AC79 boot/config resources are not shipped or used by the target builder. Any future distribution containing them must retain their separate licenses and prove update/recovery compatibility.
 
-ALM Fizzle Guts and the AKWF collection were not copied. AKWF-FREE's repository is marked CC0-1.0; that is not a reason to add waveform files until someone deliberately vendors a specific revision.
-
-Adventure Kid, Casio, M-VAVE, JieLi, and ALM names belong to their owners. This project is not endorsed by them. The working name fm1-fz-sampler describes the behavior being built.
+Casio, Adventure Kid, M-VAVE, JieLi and ALM names identify references or compatibility; no endorsement is implied.

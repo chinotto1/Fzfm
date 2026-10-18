@@ -1,38 +1,30 @@
-# fm1-fz-sampler
+# FM1 FZ-inspired sampler
 
-A sampling synthesizer and groovebox for the M-VAVE FM-1, specified in `FM1_FZ_INSPIRED_SPEC.md`. The instrument is meant to be used entirely on the hardware. This repository currently contains the host-testable engine and the hardware audit. It does not contain a device image, and it will not flash one.
-
-The FM-1 is a JieLi AC79-class board (pi32v2). The engine renders at 36 kHz. USB and the codec, when they are connected, stay at their own rate and pass through an explicit converter. Pitch changes are variable-speed playback: an octave up doubles pitch and halves a one-shot's length.
-
-## What works on the host
-
-- 36 kHz sample and cycle readers, 16-voice mixer, volume and pan.
-- Streaming conversion between 44.1 kHz and 36 kHz, and from 48 kHz to 36 kHz, with a bounded queue.
-- Multi-sample capture (16 slots, threshold, pre-trigger, undo last, OCT+ to the performance state) into a caller-provided RAM store.
-- Octave-anchor zone mapping, including the lower-root tie.
-- 48-harmonic additive recipes and a versioned byte format.
-- Tap/hold arbitration, a retrospective event ring, and tempo candidates.
-- A 240×240 HOME frame.
-
-Cutoff and resonance are stored and do not filter yet. There is no USB device stack, no sequencer transport, no effect, no flash journal, and no website. `docs/REQUIREMENTS_STATUS.md` is the list that matters.
-
-## Commands that exist
+A 36 kHz sampling synthesizer and groovebox for the M-VAVE FM-1. The portable application now connects sampling, synthesis, editing, sequencing, arrangement, mixing and project saves. A local simulator runs that same C application with its actual 240×240 display and physical controls.
 
 ```sh
-./scripts/check.sh          # host tests and the offline WAV fixtures
-./scripts/report_memory.sh  # host object sizes and the safety ceilings
-./scripts/package_firmware.sh
-./scripts/flash.sh
+./scripts/bootstrap.sh   # check host tools and pinned board sources
+./scripts/check.sh       # sanitizer suites, audio fixtures and full instrument demo
+make serve              # open http://127.0.0.1:8765
 ```
 
-The last two exit 2. They do not build or write a device image. `make test` and `make render` are the same host steps the check script runs. Host tests need gcc and do not need a device, a network connection, or any sample library.
+Requires GCC, make and Python 3 on Linux. No account, network, sample library or attached instrument is needed for host use. Click **Explore demo** or press SCL to create an instrument. Click **Enable sound** for audio. See the [user manual](docs/USER_MANUAL.md) for controls.
 
-Generated WAVs land in `build/fixtures/` (`a4_cycle.wav`, `a4_plus_octave.wav`) at 36,000 Hz, 16-bit mono.
+Implemented host workflows include sixteen-slot capture, octave sample anchors, free/retrospective MIDI recording, step probability and parameter locks, independent patterns, ordered chains, song arrangement and live arrangement recording. Nine edit tabs provide ALL/ONE scope, trim, reverse, Mix Write/Cross-Mix, envelopes, loop programs, mapping, 48-harmonic synthesis, presets, cycle extraction/drawing and bake/unbake. The engine has a resonant per-voice filter and four shared send effects. Complete project backups include PCM, recipes, patterns, chains, song and routing; saves use a fault-tested two-generation host journal.
 
-## Layout
+The application **builds and links for PI32v2**, producing a range-checked raw development image. It has **not been run on a device**. The board adapter uses a short-capture/short-delay development profile; SAVE on the device explicitly reports UNSUPPORTED until a safe flash partition and persistence path are qualified. iPad USB, codec timing, CPU deadlines, physical controls and recovery remain pending. Nothing was flashed. The [requirements table](docs/REQUIREMENTS_STATUS.md) records partial features and exact evidence, including optional EPROM/transfer work still missing.
 
-`firmware/` is the portable C core. `host/render/` writes fixtures. `tests/test_main.c` is the host suite. `docs/` holds the audit, the memory notes, and the requirement table. Pinned reference commits are in `third_party/sources.lock`. Those repositories are not vendored.
+Other commands:
 
-## Device status
+```sh
+make demo                        # native controls -> WAV + display fixtures
+make benchmark                   # host timing/memory for two explicit profiles
+make browser-test                # optional Playwright + Chromium end-to-end checks
+./scripts/build-target.sh --baseline
+./scripts/build-target.sh        # separately acquired pinned compiler/runtime required
+python3 scripts/package_source.py
+```
 
-Read `docs/HARDWARE_AUDIT.md`, `docs/MEMORY_MAP.md`, and `docs/BOOT_RECOVERY.md` before assuming a RAM size, a flash layout, or a recovery path. The 96 KiB figure in an upstream linker script is that script's general RAM section, not this instrument's sample budget.
+[Build/dependency instructions](docs/BUILD.md), [memory/performance report](docs/MEMORY_MAP.md), [format](docs/DATA_FORMAT.md), [filter model](docs/FILTER_MODEL.md), and [device gates](docs/DEVICE_TESTS.md) explain the practical limits. Firmware packaging and flashing scripts refuse until release/recovery gates are met.
+
+The executable application is in `firmware/workstation/`; `host/simulator/` supplies the native CLI/browser bridge; `web/simulator/` presents its controls. The earlier `fz_` numerical library remains under the original `firmware/` directories with its 330-assertion regression suite. [ADR 0002](docs/adr/0002-workstation-model.md) explains this migration. The simulator runs one workstation engine. Dependencies and retained notices are described in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

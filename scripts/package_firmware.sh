@@ -1,8 +1,6 @@
 #!/bin/sh
-# Target packaging is not available in this tree yet.
 set -eu
-echo "package_firmware: refused."
-echo "The JieLi pi32v2 toolchain and AC79 SDK are not part of this repository."
-echo "No target image has been built. Nothing was written to a device."
-echo "See docs/BOOT_RECOVERY.md and docs/HARDWARE_AUDIT.md."
+printf '%s\n' 'package_firmware: refused. Raw development app.bin can be target-built, but no installable release is qualified.'
+printf '%s\n' 'Device recovery, safe flash partitions and project flash persistence remain unverified.'
+printf '%s\n' 'Use python3 scripts/package_source.py for a source snapshot. See docs/BOOT_RECOVERY.md.'
 exit 2

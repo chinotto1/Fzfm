@@ -1,3 +1,5 @@
+> Historical M0 decision. The same selected board layer now has a compiled adapter; ADR 0002 and BUILD.md document current implementation and pinned runtime use.
+
 # ADR 0001 — Platform layer and portable engine
 
 Status: accepted for M0/M1

@@ -128,7 +128,7 @@ static int pull_input(FzSrc *s)
     return 1;
 }
 
-static void emit(FzSrc *s, int16_t *dst, uint32_t n, uint32_t phase)
+static void emit(FzSrc *s, int16_t *dst, uint32_t phase)
 {
     uint32_t ch, tap;
     for (ch = 0; ch < (uint32_t)s->channels; ch++) {
@@ -137,7 +137,6 @@ static void emit(FzSrc *s, int16_t *dst, uint32_t n, uint32_t phase)
             acc = fz_src_mac(acc, s->hist[ch][tap], s->coeff[phase][tap]);
         dst[ch] = sat_q15(acc);
     }
-    (void)n;
 }
 
 uint32_t fz_src_read(FzSrc *s, int16_t *interleaved, uint32_t max_frames)
@@ -162,16 +161,16 @@ uint32_t fz_src_read(FzSrc *s, int16_t *interleaved, uint32_t max_frames)
 
     while (produced < max_frames) {
         uint64_t num = s->out_i * (uint64_t)s->in_rate;
-        uint32_t n = (uint32_t)(num / s->out_rate);
+        uint64_t n = num / s->out_rate;
         uint32_t rem = (uint32_t)(num % s->out_rate);
         uint32_t phase = (uint32_t)(((uint64_t)rem * FZ_SRC_PHASES) / s->out_rate);
-        uint32_t need = n + (FZ_SRC_TAPS / 2) + 1u;
+        uint64_t need = n + (FZ_SRC_TAPS / 2) + 1u;
 
         while (s->consumed < need) {
             if (!pull_input(s))
                 goto starved;
         }
-        emit(s, interleaved + produced * (uint32_t)s->channels, n, phase);
+        emit(s, interleaved + produced * (uint32_t)s->channels, phase);
         s->out_i++;
         produced++;
     }
