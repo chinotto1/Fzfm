@@ -70,7 +70,9 @@ typedef enum
     FM_SCREEN_STEP_DETAIL,
     FM_SCREEN_PATTERN_SETTINGS,
     FM_SCREEN_TIMING,
-    FM_SCREEN_LIBRARY
+    FM_SCREEN_LIBRARY,
+    FM_SCREEN_ARP,
+    FM_SCREEN_ROLL
 } FmScreen;
 typedef enum
 {
@@ -117,6 +119,9 @@ typedef struct
     int octave;
     unsigned tab, rows[9], scope;
     unsigned mixer_send, fx_slot, page, selected_step, song_row, command;
+    unsigned arp_page, roll_low, roll_span;
+    double roll_tick;
+    bool roll_move;
     unsigned harmonic, stage, loop_section, source, point;
     unsigned mix_source;
     float mix_gain_a, mix_gain_b, mix_tuning;
@@ -175,6 +180,10 @@ FmResult fm_ui_workspace_confirm(FmUi *);
 bool fm_ui_workspace_encoder(FmUi *, unsigned knob, int delta);
 FmResult fm_ui_capture_setting(FmUi *, int delta);
 void fm_ui_sync_view(FmUi *);
+FmResult fm_ui_roll_edit(FmUi *, unsigned knob, int delta);
+FmResult fm_ui_roll_toggle(FmUi *);
+void fm_ui_roll_open(FmUi *);
+void fm_ui_roll_next(FmUi *, int delta);
 const char *fm_ui_screen_name(FmScreen);
 /* Board/simulator sequencing dispatch, preserving absolute frame timestamp. */
 void fm_ui_sequence_dispatch(void *engine, const FmEvent *, uint32_t offset);

@@ -12,18 +12,18 @@ int test_edit(void);
 int test_usb(void);
 int test_sequence(void);
 int test_ui(void);
+int test_arp(void);
 int main(void)
 {
     struct
     {
         const char *name;
         int (*run)(void);
-    } tests[] = {{"core", test_core},           {"system", test_system},
-                 {"midi", test_midi},           {"capture", test_capture},
-                 {"audio", test_audio},         {"storage", test_storage},
-                 {"edit", test_edit},           {"usb", test_usb},
-                 {"sequence", test_sequence},   {"ui", test_ui},
-                 {"workflows", test_workflows}, {"bounded heap", test_heap}};
+    } tests[] = {{"core", test_core},        {"system", test_system}, {"midi", test_midi},
+                 {"capture", test_capture},  {"audio", test_audio},   {"storage", test_storage},
+                 {"edit", test_edit},        {"usb", test_usb},       {"sequence", test_sequence},
+                 {"arpeggiator", test_arp},  {"ui", test_ui},         {"workflows", test_workflows},
+                 {"bounded heap", test_heap}};
     unsigned failed = 0;
     for (unsigned i = 0; i < sizeof(tests) / sizeof(tests[0]); i++)
     {

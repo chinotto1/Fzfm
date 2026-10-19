@@ -302,7 +302,7 @@ FmResult fm_ui_workspace_confirm(FmUi *u)
 }
 bool fm_ui_workspace_encoder(FmUi *u, unsigned knob, int delta)
 {
-    if (u->screen < FM_SCREEN_STEP_DETAIL)
+    if (u->screen < FM_SCREEN_STEP_DETAIL || u->screen > FM_SCREEN_LIBRARY)
         return false;
     FmResult r = FM_OK;
     FmPattern *p = pattern(u);

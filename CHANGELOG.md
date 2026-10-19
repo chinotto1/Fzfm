@@ -4,6 +4,10 @@
 
 ### Added
 
+- GLO channel-strip mixer on the native display and browser, live/coalesced faders, pan/sends/mute/solo and voice-peak meters. Hold HOME opens commands; ARP opens two direct settings pages.
+- Original SLOOP-inspired live arp scheduler with 15 modes including Off, eight rates, range/gate/swing/probability/latch/order, recording/history of generated notes and safe stop. Per-track settings persist in FM1P v3; existing v2 projects migrate with ARP off.
+- SEQ opens a native MIDI piano roll before steps/patterns/song, with adaptive pitch view, selection of off-grid notes, add/delete, time/pitch/gate/velocity edits and undo. The panel SEQ button also reveals the large browser roll. Added core/UI/migration/audible-browser regressions to Pages CI.
+
 - Display-inspired color hierarchy across the real C framebuffer and browser workspaces: larger bold pixel labels/values, blue selection bands, green filled slots/meters, amber focus and red recording/clipping. Capture shows all 16 slots, a meter and the selected setting together. Native RGB PNG, WASM RGB transport and high-byte-first RGB565 output share one palette without increasing framebuffer RAM.
 
 - Touch piano roll with paired-note add/move/resize/velocity/delete and undo; direct record/retro/pattern/tempo/swing controls and reversible quantization, including triplets. Takes retain the chosen grid; Off restores raw timing and short gates remain audible.

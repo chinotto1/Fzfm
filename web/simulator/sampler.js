@@ -91,7 +91,7 @@ export function initSampler({send,run,action,getState,enableSound,showError,live
   render(s){
    model=s.editor;
    if(s.screen===7&&(!open||lastInstrument!==model.selected)) {open=true;instrument=model.selected;lastInstrument=instrument;kind=s.instrumentType;slot=Math.min(15,s.captureSlot);replace=false;selectorKey='';}
-   if(open&&[1,4,5,6].includes(s.screen)){open=false;auditionUp();}
+   if(open&&[1,2,3,4,5,6,15,16].includes(s.screen)){open=false;auditionUp();}
    if(!open&&s.screen!==7)return false;
    if(!model.tracks.some(t=>t.id===instrument))instrument=0;
    const key=JSON.stringify([kind,instrument,model.tracks]);

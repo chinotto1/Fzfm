@@ -40,6 +40,12 @@ double fm_sequence_tick(const FmSequencer *);
 FmFrame fm_sequence_frame(const FmSequencer *);
 void fm_sequence_advance(FmSequencer *, uint32_t frames, FmSequenceDispatch, void *user);
 FmResult fm_sequence_live(FmSequencer *, const FmEvent *);
+/* Live note/sustain routing before engine admission/history. When consumed,
+ * advance() emits and records the arpeggio as heard, even with PLAY stopped. */
+FmResult fm_sequence_arp_input(FmSequencer *, const FmEvent *, bool *consumed);
+FmResult fm_arp_set(FmProject *, FmId track, unsigned field, double value);
+const char *fm_arp_mode_name(unsigned);
+const char *fm_arp_rate_name(unsigned);
 FmResult fm_sequence_record_arm(FmSequencer *, FmId track);
 FmResult fm_sequence_record_close(FmSequencer *, FmFrame button_down);
 FmResult fm_sequence_retrospective(FmSequencer *, FmId track, FmFrame button_down,

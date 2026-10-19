@@ -187,6 +187,32 @@ typedef struct
     uint8_t frozen_sends;
     double frozen_bpm;
 } FmPattern;
+typedef enum
+{
+    FM_ARP_OFF,
+    FM_ARP_UP,
+    FM_ARP_DOWN,
+    FM_ARP_UP_DOWN,
+    FM_ARP_RANDOM,
+    FM_ARP_ORDER,
+    FM_ARP_REPEAT,
+    FM_ARP_DOWN_UP,
+    FM_ARP_UP_OCTAVE,
+    FM_ARP_CONVERGE,
+    FM_ARP_DIVERGE,
+    FM_ARP_PINKY,
+    FM_ARP_THUMB,
+    FM_ARP_WALK,
+    FM_ARP_CHORD,
+    FM_ARP_MODE_COUNT
+} FmArpMode;
+typedef struct
+{
+    uint8_t mode, division, octaves;
+    float gate, swing, probability;
+    bool latch, play_order;
+} FmArpConfig;
+FmArpConfig fm_arp_default(void);
 typedef struct
 {
     FmId id, instrument;
@@ -197,6 +223,7 @@ typedef struct
     float volume, pan, cutoff, resonance, sends[FM_FX_SLOTS];
     bool mute, solo;
     uint8_t midi_channel;
+    FmArpConfig arp;
 } FmTrack;
 typedef enum
 {

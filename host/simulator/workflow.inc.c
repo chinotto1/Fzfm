@@ -73,6 +73,39 @@ static void workflow_editor(Simulator *s)
         editor_write("]}");
     }
     editor_write("]");
+    editor_write(",\"mixer\":[");
+    unsigned channel = 0;
+    for (unsigned i = 0; i < FM_OBJECT_LIMIT; i++)
+        if (s->project.tracks[i])
+        {
+            FmTrack *track = s->project.tracks[i];
+            FmInstrument *sound = fm_instrument(&s->project, track->instrument);
+            double peak = 0;
+            for (unsigned j = 0; j < s->engine.max_voices; j++)
+            {
+                FmVoice *v = &s->engine.voices[j];
+                if (v->active && v->track == track)
+                    peak += fmax(fabs(v->last[0]), fabs(v->last[1]));
+            }
+            editor_write("%s{\"id\":%u,\"name\":", channel++ ? "," : "", track->id);
+            editor_string(sound ? sound->name : "Missing");
+            editor_write(
+                ",\"level\":%.6g,\"pan\":%.6g,\"mute\":%s,\"solo\":%s,\"peak\":%.6g,\"sends\":[",
+                (double)track->volume, (double)track->pan, track->mute ? "true" : "false",
+                track->solo ? "true" : "false", fmin(1, peak));
+            for (unsigned j = 0; j < 4; j++)
+                editor_write("%s%.6g", j ? "," : "", (double)track->sends[j]);
+            editor_write("]}");
+        }
+    editor_write("],\"arp\":");
+    if (t)
+        editor_write("{\"mode\":%u,\"division\":%u,\"octaves\":%u,\"gate\":%.6g,\"swing\":%.6g,"
+                     "\"probability\":%.6g,\"latch\":%s,\"order\":%s}",
+                     t->arp.mode, t->arp.division, t->arp.octaves, (double)t->arp.gate,
+                     (double)t->arp.swing, (double)t->arp.probability,
+                     t->arp.latch ? "true" : "false", t->arp.play_order ? "true" : "false");
+    else
+        editor_write("null");
 }
 int fm_sim_sequence(void *handle, unsigned operation, unsigned index, double a, double b,
                     unsigned note, unsigned velocity, double revision, unsigned expected)
@@ -174,6 +207,8 @@ int fm_sim_sequence(void *handle, unsigned operation, unsigned index, double a, 
     }
     else if (operation == 11)
         r = fm_ui_history(&s->ui, false);
+    else if (operation == 15)
+        fm_sequence_stop(s->sequence, fm_ui_sequence_dispatch, &s->engine);
     else if (operation == 13 || operation == 14)
     {
         if (note > 127)
@@ -199,13 +234,19 @@ int fm_sim_sequence(void *handle, unsigned operation, unsigned index, double a, 
             key->velocity = 0;
         }
         key->frame = s->engine.frame;
-        r = fm_engine_event(&s->engine, key);
-        if (r == FM_OK)
-            r = fm_sequence_live(s->sequence, key);
+        bool consumed = false;
+        r = fm_sequence_arp_input(s->sequence, key, &consumed);
+        if (r == FM_OK && !consumed)
+        {
+            r = fm_engine_event(&s->engine, key);
+            if (r == FM_OK)
+                r = fm_sequence_live(s->sequence, key);
+        }
     }
     else
         return FM_ERR_ARGUMENT;
-    s->ui.screen = FM_SCREEN_STEP;
+    if (operation != 13 && operation != 14 && operation != 15)
+        s->ui.screen = FM_SCREEN_ROLL;
     s->ui.last_result = r;
     snprintf(s->ui.status, sizeof(s->ui.status), "%s",
              r == FM_OK ? "PATTERN READY - QUANTIZE IS REVERSIBLE" : fm_result_string(r));
@@ -363,4 +404,76 @@ int fm_sim_sampling(void *handle, unsigned operation, unsigned slot, unsigned va
     s->ui.screen = FM_SCREEN_CAPTURE;
     s->ui.last_result = result;
     return result;
+}
+
+int fm_sim_performance(void *handle, unsigned operation, unsigned track, unsigned field,
+                       double value)
+{
+    Simulator *s = handle;
+    FmTrack *t = fm_track(&s->project, track);
+    if (!t || !isfinite(value) || s->ui.picker)
+        return FM_ERR_ARGUMENT;
+    if (!operation)
+        return fm_arp_set(&s->project, track, field, value);
+    if ((operation != 1 && operation != 2) || field > 7)
+        return FM_ERR_ARGUMENT;
+    if (value < (field == 1 ? -1 : 0) || value > (field == 0 ? 2 : 1))
+        return FM_ERR_RANGE;
+    if (field >= 6 && value != 0 && value != 1)
+        return FM_ERR_RANGE;
+    float current = field == 0   ? t->volume
+                    : field == 1 ? t->pan
+                    : field < 6  ? t->sends[field - 2]
+                    : field == 6 ? t->mute
+                                 : t->solo;
+    if (current == (float)value)
+        return FM_OK;
+    uint64_t before = fm_edit_serial(&s->project);
+    FmResult r = fm_edit_begin(&s->project);
+    if (r == FM_OK)
+        r = fm_edit_watch(&s->project, t, sizeof(*t));
+    if (r == FM_OK)
+    {
+        if (field == 0)
+            t->volume = (float)value;
+        else if (field == 1)
+            t->pan = (float)value;
+        else if (field < 6)
+            t->sends[field - 2] = (float)value;
+        else if (field == 6)
+            t->mute = value != 0;
+        else
+            t->solo = value != 0;
+        r = fm_edit_commit(&s->project);
+    }
+    else
+        fm_edit_cancel(&s->project);
+    if (r == FM_OK && field < 6)
+    {
+        FmParameter parameter = field == 0   ? FM_PARAM_VOLUME
+                                : field == 1 ? FM_PARAM_PAN
+                                             : (FmParameter)(FM_PARAM_SEND1 + field - 2);
+        FmEvent event = {.kind = FM_EVENT_CONTROL,
+                         .origin = FM_ORIGIN_LOCAL,
+                         .track = track,
+                         .parameter = (uint8_t)parameter,
+                         .value = (float)value,
+                         .frame = s->engine.frame,
+                         .probability = 1};
+        r = fm_engine_event(&s->engine, &event);
+        if (r == FM_OK)
+            r = fm_sequence_motion(s->sequence, track, parameter, (float)value, s->engine.frame);
+    }
+    if (r == FM_OK && operation == 2)
+    {
+        uint64_t now = s->engine.frame / 36, after = fm_edit_serial(&s->project);
+        unsigned key = 0x30000000u ^ (track * 8 + field);
+        if (s->ui.gesture_serial == before && s->ui.gesture_key == key && now >= s->ui.gesture_ms &&
+            now - s->ui.gesture_ms < 250)
+            (void)fm_edit_coalesce(&s->project);
+        s->ui.gesture_serial = after;
+        s->ui.gesture_key = key;
+        s->ui.gesture_ms = now;
+    }
+    return r;
 }

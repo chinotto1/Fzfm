@@ -38,9 +38,32 @@ typedef struct
     uint32_t identity;
     double release_at;
 } PlayingNote;
+#define FM_ARP_RUNS 8u
+#define FM_ARP_KEYS 16u
+typedef struct
+{
+    uint32_t identity;
+    FmOrigin origin;
+    uint8_t channel, note, velocity;
+    bool down;
+} ArpKey;
+typedef struct
+{
+    FmId track;
+    FmTrack *owner;
+    ArpKey keys[FM_ARP_KEYS];
+    FmEvent output[4];
+    uint16_t pedals[FM_ORIGIN_LOOPBACK + 1];
+    unsigned count, sounding, step;
+    uint8_t walk;
+    double next, off;
+} ArpRun;
 struct FmSequencer
 {
     FmProject *project;
+    ArpRun arp[FM_ARP_RUNS];
+    double arp_tick;
+    uint32_t arp_identity;
     FmEvent *history, *take;
     uint32_t history_cap, take_cap, head, history_count, take_count;
     Held boundary[HELD_LIMIT];
@@ -291,11 +314,13 @@ static void release_track(FmSequencer *s, FmId track, uint32_t offset, FmSequenc
             send(cb, user, &e, offset);
         }
 }
+static void arp_clear(FmSequencer *, unsigned, FmSequenceDispatch, void *);
 void fm_sequence_stop(FmSequencer *s, FmSequenceDispatch cb, void *user)
 {
     if (!s)
         return;
     release_track(s, 0, 0, cb, user);
+    arp_clear(s, 0, cb, user);
     s->running = false;
     s->song_running = false;
 }
@@ -332,6 +357,7 @@ static uint32_t random_next(FmSequencer *s)
     x ^= x << 5;
     return s->rng = x;
 }
+#include "fm_arp_runtime.h"
 static void dispatch_event(FmSequencer *s, const FmEvent *source, uint32_t offset,
                            FmSequenceDispatch cb, void *user)
 {
@@ -453,10 +479,11 @@ void fm_sequence_advance(FmSequencer *s, uint32_t frames, FmSequenceDispatch cb,
     if (!s)
         return;
     sync_tracks(s);
+    for (unsigned i = 0; i < FM_ARP_RUNS; i++)
+        if (s->arp[i].track)
+            s->arp[i].owner = fm_track(s->project, s->arp[i].track);
     for (uint32_t f = 0; f < frames; f++, s->frame++)
     {
-        if (!s->running)
-            continue;
         double bpm = s->project->bpm;
         if (s->project->clock_source != FM_CLOCK_INTERNAL)
         {
@@ -465,11 +492,15 @@ void fm_sequence_advance(FmSequencer *s, uint32_t frames, FmSequenceDispatch cb,
             {
                 if (s->playing_count)
                     release_track(s, 0, f, cb, user);
+                arp_pause(s, f, cb, user);
                 continue;
             }
             bpm = s->external_bpm;
         }
         if (!(bpm >= 20 && bpm <= 400) || !isfinite(bpm))
+            continue;
+        arp_tick(s, bpm * FM_PPQN / (60.0 * FM_RATE), f, cb, user);
+        if (!s->running)
             continue;
         for (unsigned i = 0; i < s->playing_count;)
         {

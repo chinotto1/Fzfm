@@ -307,9 +307,9 @@ static void home(FmUi *u, bool mixer)
     FmInstrument *in = selected_instrument(u);
     char value[32], detail[48], name[48], a[16] = "", b[16] = "", c[16] = "", d[16] = "";
     if (mixer)
-        snprintf(name, sizeof(name), "SEND %u / ARP: MUTE-SOLO COMMANDS", u->mixer_send % 4 + 1);
+        snprintf(name, sizeof(name), "SEND %u / HOLD HOME: COMMANDS", u->mixer_send % 4 + 1);
     else
-        snprintf(name, sizeof(name), "%s", in ? in->name : "SCL: NEW / ARP: ACTIONS");
+        snprintf(name, sizeof(name), "%s", in ? in->name : "SCL: NEW / HOLD HOME: MENU");
     text(u, 4, 39, name, u->project->volatile_audio ? 26u : 38u, 1);
     if (!count)
     {
@@ -924,7 +924,7 @@ static void song(FmUi *u)
         list_row(u, i - first, name, value, detail, i == selected);
     }
     scroll_mark(u, first, count, 5);
-    text(u, 4, 184, "SEL: QUEUE / ARP: INSERT-DELETE", 39, 1);
+    text(u, 4, 184, "SCL: QUEUE / HOLD HOME: COMMANDS", 39, 1);
     footer(u, "SECTION", "BARS", "REPEATS", "PATTERN", "", "", "", "");
 }
 static void commands(FmUi *u)
@@ -1283,6 +1283,7 @@ static void modal(FmUi *u)
     }
     footer(u, "-", "-", "-", "-", "MODAL", "", "", "");
 }
+#include "render_performance.h"
 void fm_ui_render(FmUi *u)
 {
     if (!u)
@@ -1303,10 +1304,16 @@ void fm_ui_render(FmUi *u)
         edit(u);
         break;
     case FM_SCREEN_MIXER:
-        home(u, true);
+        mixer(u);
         break;
     case FM_SCREEN_FX:
         effects(u);
+        break;
+    case FM_SCREEN_ROLL:
+        piano_roll(u);
+        break;
+    case FM_SCREEN_ARP:
+        arpeggiator(u);
         break;
     case FM_SCREEN_STEP:
         steps(u);

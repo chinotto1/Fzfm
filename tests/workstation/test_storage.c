@@ -82,7 +82,7 @@ int test_storage(void)
     uint8_t *b = NULL, *round = NULL;
     size_t n = 0, nround = 0;
     CHECK(fm_project_encode(&p, &b, &n) == FM_OK);
-    CHECK(!memcmp(b, "FM1P\2\0\30\0", 8));
+    CHECK(!memcmp(b, "FM1P\3\0\30\0", 8));
     CHECK(fm_project_decode(&q, b, n) == FM_OK);
     CHECK(fm_project_encode(&q, &round, &nround) == FM_OK);
     CHECK(nround == n && !memcmp(round, b, n));

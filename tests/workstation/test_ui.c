@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "../../firmware/workstation/dsp/fm_synthesis.h"
+#include "../../firmware/workstation/sequence/fm_actions.h"
 #include "../../firmware/workstation/ui/fm_ui.h"
 #include "test.h"
 #include <string.h>
@@ -120,8 +121,100 @@ static int test_graphical_parameters(FmUi *u, FmInstrument *in)
     CHECK(fm_ui_use_source(u, 0) == FM_OK && u->step_note == 72);
     return 0;
 }
+static int test_performance_screens(void)
+{
+    FmProject p;
+    CHECK(fm_project_init(&p, NULL) == FM_OK);
+    FmId id;
+    CHECK(fm_instrument_create(&p, FM_SAMPLE, &id) == FM_OK);
+    FmTrack *track = fm_track(&p, id);
+    FmPattern *pat = fm_pattern(&p, track->patterns[0]);
+    FmEngine e;
+    CHECK(fm_engine_init(&e, &p, 4) == FM_OK);
+    FmSequencer *seq = fm_sequence_create(&p, 256, 256);
+    CHECK(seq);
+    FmUi u;
+    fm_ui_init(&u, &p, &e, seq);
+    uint64_t ms = 10;
+    tap_button(&u, FM_BUTTON_ARP, &ms);
+    CHECK(u.screen == FM_SCREEN_ARP && !u.arp_page);
+    fm_ui_encoder(&u, 2, 1, ms);
+    CHECK(track->arp.mode == FM_ARP_UP);
+    tap_button(&u, FM_BUTTON_ARP, &ms);
+    CHECK(u.arp_page == 1);
+    fm_ui_encoder(&u, 4, 1, ms);
+    CHECK(track->arp.latch);
+    fm_ui_button(&u, FM_BUTTON_HOME, true, ms);
+    ms += 501;
+    fm_ui_tick(&u, ms);
+    CHECK(u.screen == FM_SCREEN_COMMANDS);
+    fm_ui_button(&u, FM_BUTTON_HOME, false, ++ms);
+    CHECK(u.screen == FM_SCREEN_COMMANDS);
+    tap_button(&u, FM_BUTTON_HOME, &ms);
+    CHECK(u.screen == FM_SCREEN_HOME);
+    tap_button(&u, FM_BUTTON_GLO, &ms);
+    CHECK(u.screen == FM_SCREEN_MIXER);
+    fm_ui_render(&u);
+    CHECK(pixels_with(&u, 10, 86, 25, 70, FM_UI_GREEN) > 0);
+    fm_ui_encoder(&u, 3, -20, ms);
+    NEAR(track->volume, .6, .0001);
+    tap_button(&u, FM_BUTTON_SCL, &ms);
+    CHECK(track->mute);
+    unsigned send = u.mixer_send;
+    fm_ui_button(&u, FM_BUTTON_GLO, true, ms);
+    ms += 501;
+    fm_ui_tick(&u, ms);
+    fm_ui_button(&u, FM_BUTTON_GLO, false, ++ms);
+    CHECK(track->solo && u.mixer_send == send);
+    CHECK(fm_arp_set(&p, id, 0, FM_ARP_OFF) == FM_OK);
+    tap_button(&u, FM_BUTTON_SEQ, &ms);
+    CHECK(u.screen == FM_SCREEN_ROLL);
+    u.step_note = 60;
+    tap_button(&u, FM_BUTTON_SCL, &ms);
+    CHECK(pat->count == 2);
+    fm_ui_encoder(&u, 3, 2, ms);
+    fm_ui_encoder(&u, 4, 1, ms);
+    fm_ui_encoder(&u, 5, -20, ms);
+    CHECK(pat->events[0].note == 62 && pat->events[0].velocity == 80);
+    NEAR(pat->events[1].tick, 480, .001);
+    tap_button(&u, FM_BUTTON_EDIT, &ms);
+    CHECK(u.screen == FM_SCREEN_ROLL && u.roll_move);
+    fm_ui_encoder(&u, 2, 2, ms);
+    NEAR(pat->events[0].tick, 480, .001);
+    NEAR(pat->events[1].tick, 960, .001);
+    tap_button(&u, FM_BUTTON_SCL, &ms);
+    CHECK(!pat->count);
+    CHECK(fm_ui_history(&u, false) == FM_OK && pat->count == 2);
+    CHECK(fm_pattern_note_edit(&p, pat->id, 0, 0, 355.2, 80, 70, 100) == FM_OK);
+    fm_ui_encoder(&u, 6, -1, ms);
+    NEAR(u.roll_tick, 355.2, .001);
+    CHECK(u.step_note == 70);
+    fm_ui_encoder(&u, 4, 1, ms);
+    CHECK(pat->events[0].note == 70);
+    NEAR(pat->events[fm_pattern_note_off(pat, 0)].tick, 675.2, .001);
+    tap_button(&u, FM_BUTTON_SEQ, &ms);
+    CHECK(u.screen == FM_SCREEN_STEP);
+    tap_button(&u, FM_BUTTON_SEQ, &ms);
+    CHECK(u.screen == FM_SCREEN_PATTERNS);
+    tap_button(&u, FM_BUTTON_SEQ, &ms);
+    CHECK(u.screen == FM_SCREEN_SONG);
+    tap_button(&u, FM_BUTTON_SEQ, &ms);
+    CHECK(u.screen == FM_SCREEN_ROLL);
+    for (unsigned screen = FM_SCREEN_ARP; screen <= FM_SCREEN_ROLL; screen++)
+    {
+        u.screen = (FmScreen)screen;
+        fm_ui_render(&u);
+        for (size_t i = 0; i < sizeof(u.pixels); i++)
+            CHECK(u.pixels[i] < FM_UI_COLOR_COUNT);
+    }
+    fm_sequence_destroy(seq);
+    fm_engine_destroy(&e);
+    fm_project_destroy(&p);
+    return 0;
+}
 int test_ui(void)
 {
+    CHECK(test_performance_screens() == 0);
     /* T14/T23/T24/T25/T32: actual physical events through central arbiter. */
     FmProject p;
     CHECK(fm_project_init(&p, NULL) == FM_OK);

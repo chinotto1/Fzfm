@@ -98,3 +98,4 @@ web-test: web
 	python3 tests/browser/test_static_emulator.py
 	python3 tests/browser/test_workspace.py
 	python3 tests/browser/test_piano_sampler.py
+	python3 tests/browser/test_performance.py

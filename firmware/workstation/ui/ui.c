@@ -58,9 +58,10 @@ void fm_ui_sequence_dispatch(void *engine, const FmEvent *event, uint32_t offset
 const char *fm_ui_screen_name(FmScreen s)
 {
     static const char *const names[] = {
-        "HOME",     "EDIT",        "MIXER",         "FX",          "STEP",
-        "PATTERNS", "SONG",        "CAPTURE",       "COMMANDS",    "NEW INSTRUMENT",
-        "SOURCE",   "STEP DETAIL", "PATTERN SETUP", "TAKE TIMING", "ASSET LIBRARY"};
+        "HOME",        "EDIT",        "MIXER",         "FX",          "STEP",
+        "PATTERNS",    "SONG",        "CAPTURE",       "COMMANDS",    "NEW INSTRUMENT",
+        "SOURCE",      "STEP DETAIL", "PATTERN SETUP", "TAKE TIMING", "ASSET LIBRARY",
+        "ARPEGGIATOR", "PIANO ROLL"};
     return (unsigned)s < sizeof(names) / sizeof(names[0]) ? names[s] : "INVALID";
 }
 static void frozen_dispatch(void *engine, FmId track_id, FmId pattern_id, FmFrame frame,
@@ -88,7 +89,8 @@ void fm_ui_init(FmUi *u, FmProject *p, FmEngine *e, FmSequencer *s)
     u->wave_shape = FM_WAVE_SAW;
     u->step_probability = 1;
     snprintf(u->status, sizeof(u->status), "%s",
-             p && p->track_count ? "ARP: ACTIONS / SCL: MENU" : "SCL: NEW / ARP: ACTIONS");
+             p && p->track_count ? "HOLD HOME: COMMANDS / ARP: SETUP"
+                                 : "SCL: NEW / HOLD HOME: COMMANDS");
     if (s && e)
         fm_sequence_set_frozen_callback(s, frozen_dispatch, e);
 }
@@ -156,6 +158,15 @@ static void emit(FmUi *u, FmKeyState *k, bool down, uint64_t ms)
     e.note = k->note;
     e.velocity = down ? 100 : 0;
     e.probability = 1;
+    bool consumed = false;
+    FmResult filtered = u->sequence ? fm_sequence_arp_input(u->sequence, &e, &consumed) : FM_OK;
+    if (filtered != FM_OK)
+    {
+        result(u, filtered);
+        return;
+    }
+    if (consumed)
+        return;
     if (u->engine)
     {
         FmResult r = fm_engine_event(u->engine, &e);
@@ -893,7 +904,12 @@ static void confirm(FmUi *u)
     }
     if (u->picker != FM_PICK_NONE)
         return;
-    if (u->screen >= FM_SCREEN_STEP_DETAIL)
+    if (u->screen == FM_SCREEN_ROLL)
+    {
+        result(u, fm_ui_roll_toggle(u));
+        return;
+    }
+    if ((u->screen >= FM_SCREEN_STEP_DETAIL && u->screen <= FM_SCREEN_LIBRARY))
     {
         result(u, fm_ui_workspace_confirm(u));
         return;
@@ -1106,7 +1122,7 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
             if (r == FM_OK)
                 u->pending_instrument = 0;
         }
-        if (u->screen >= FM_SCREEN_STEP_DETAIL)
+        if ((u->screen >= FM_SCREEN_STEP_DETAIL && u->screen <= FM_SCREEN_LIBRARY))
         {
             u->screen = u->return_screen;
             return;
@@ -1128,6 +1144,13 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
             u->screen = FM_SCREEN_HOME;
             return;
         }
+        if (u->screen == FM_SCREEN_ROLL)
+        {
+            u->step_note = (uint8_t)bound(u->step_note + d * 12, 0, 127);
+            u->roll_low = (unsigned)bound((float)u->roll_low + d * 12, 0,
+                                          128 - (u->roll_span ? u->roll_span : 12));
+            return;
+        }
         if (u->screen == FM_SCREEN_STEP || u->screen == FM_SCREEN_PATTERNS)
         {
             u->page = index_delta(u->page, d, u->screen == FM_SCREEN_PATTERNS ? 1 : 15);
@@ -1141,6 +1164,11 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
     switch (button)
     {
     case FM_BUTTON_EDIT:
+        if (u->screen == FM_SCREEN_ROLL)
+        {
+            u->roll_move = !u->roll_move;
+            break;
+        }
         if (u->screen == FM_SCREEN_EDIT)
             u->tab = (u->tab + 1) % 9;
         else
@@ -1159,6 +1187,7 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
             u->mixer_send = (u->mixer_send + 1) % 4;
         else
             u->screen = FM_SCREEN_MIXER;
+        snprintf(u->status, sizeof(u->status), "SCL MUTE / HOLD GLO SOLO");
         break;
     case FM_BUTTON_FX:
         if (u->screen == FM_SCREEN_FX)
@@ -1170,10 +1199,14 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
         }
         break;
     case FM_BUTTON_SEQ:
-        if (u->screen >= FM_SCREEN_STEP && u->screen <= FM_SCREEN_SONG)
-            u->screen = u->screen == FM_SCREEN_SONG ? FM_SCREEN_STEP : (FmScreen)(u->screen + 1);
-        else
+        if (u->screen == FM_SCREEN_ROLL)
             u->screen = FM_SCREEN_STEP;
+        else if (u->screen == FM_SCREEN_STEP)
+            u->screen = FM_SCREEN_PATTERNS;
+        else if (u->screen == FM_SCREEN_PATTERNS)
+            u->screen = FM_SCREEN_SONG;
+        else
+            fm_ui_roll_open(u);
         break;
     case FM_BUTTON_PLAY:
         if (u->sequence)
@@ -1214,9 +1247,13 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
             result(u, FM_ERR_UNSUPPORTED);
         break;
     case FM_BUTTON_ARP:
-        u->return_screen = u->screen;
-        u->screen = FM_SCREEN_COMMANDS;
-        u->command = 0;
+        if (u->screen == FM_SCREEN_ARP)
+            u->arp_page ^= 1;
+        else
+        {
+            u->screen = FM_SCREEN_ARP;
+            u->arp_page = 0;
+        }
         break;
     default:
         break;
@@ -1224,6 +1261,37 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
 }
 static void hold(FmUi *u, FmButton button, const FmButtonState *state)
 {
+    if (button == FM_BUTTON_GLO && u->screen == FM_SCREEN_MIXER)
+    {
+        FmTrack *t = track(u);
+        if (!t)
+            return;
+        FmResult r = fm_edit_begin(u->project);
+        if (r == FM_OK)
+            r = fm_edit_watch(u->project, t, sizeof(*t));
+        if (r == FM_OK)
+        {
+            t->solo = !t->solo;
+            r = fm_edit_commit(u->project);
+        }
+        else
+            fm_edit_cancel(u->project);
+        result(u, r);
+        return;
+    }
+    if (button == FM_BUTTON_HOME)
+    {
+        if (u->picker != FM_PICK_NONE)
+        {
+            u->picker = FM_PICK_NONE;
+            snprintf(u->status, sizeof(u->status), "CANCELLED");
+            return;
+        }
+        u->return_screen = u->screen;
+        u->screen = FM_SCREEN_COMMANDS;
+        u->command = 0;
+        return;
+    }
     if (button == FM_BUTTON_EDIT)
     {
         picker(u, FM_PICK_NAME);
@@ -1549,8 +1617,17 @@ void fm_ui_key(FmUi *u, unsigned index, bool down, uint64_t ms)
     }
     if (u->screen == FM_SCREEN_SOURCE || u->screen == FM_SCREEN_COMMANDS ||
         u->screen == FM_SCREEN_SONG || u->screen == FM_SCREEN_CAPTURE ||
-        u->screen >= FM_SCREEN_STEP_DETAIL)
+        (u->screen >= FM_SCREEN_STEP_DETAIL && u->screen <= FM_SCREEN_LIBRARY))
         return;
+    if (u->screen == FM_SCREEN_ROLL)
+    {
+        u->step_note = key_note(u, index);
+        if (u->step_note < u->roll_low ||
+            u->step_note >= u->roll_low + (u->roll_span ? u->roll_span : 12))
+            u->roll_low = u->step_note > 5 ? u->step_note - 5 : 0;
+        if (u->roll_low > 128 - (u->roll_span ? u->roll_span : 12))
+            u->roll_low = 128 - (u->roll_span ? u->roll_span : 12);
+    }
     key->track = u->project->selected_track;
     key->note = key_note(u, index);
     key->identity = ++u->next_identity;
@@ -1650,6 +1727,25 @@ static void encoder_inner(FmUi *u, unsigned index, int delta, uint64_t ms)
         u->scope = index_delta(u->scope, delta, 16);
         return;
     }
+    if (index == 6 && u->screen == FM_SCREEN_ROLL)
+    {
+        fm_ui_roll_next(u, delta);
+        return;
+    }
+    if (index == 1 &&
+        (u->screen == FM_SCREEN_MIXER || u->screen == FM_SCREEN_ARP || u->screen == FM_SCREEN_ROLL))
+    {
+        select_track(u, delta);
+        if (u->screen == FM_SCREEN_ROLL)
+            fm_ui_roll_open(u);
+        return;
+    }
+    if (index == 0 && u->screen == FM_SCREEN_ROLL)
+    {
+        u->roll_low = (unsigned)bound((float)u->roll_low + delta, 0,
+                                      128 - (u->roll_span ? u->roll_span : 12));
+        return;
+    }
     if (index == 1 && u->screen == FM_SCREEN_HOME)
     {
         select_track(u, delta);
@@ -1664,6 +1760,27 @@ static void encoder_inner(FmUi *u, unsigned index, int delta, uint64_t ms)
     if (index < 2 || index > 5)
         return;
     unsigned knob = index - 2;
+    if (u->screen == FM_SCREEN_ROLL)
+    {
+        result(u, fm_ui_roll_edit(u, knob, delta));
+        return;
+    }
+    if (u->screen == FM_SCREEN_ARP)
+    {
+        FmTrack *t = track(u);
+        if (!t)
+            return;
+        unsigned field = u->arp_page * 4 + knob;
+        double values[] = {t->arp.mode,  t->arp.division,    t->arp.octaves, t->arp.gate,
+                           t->arp.swing, t->arp.probability, t->arp.latch,   t->arp.play_order};
+        double maximum[] = {FM_ARP_MODE_COUNT - 1, 7, 4, 1, .49, 1, 1, 1},
+               minimum[] = {0, 0, 1, .05, 0, 0, 0, 0};
+        double step = field == 3 || field == 4 || field == 5 ? .01 : 1;
+        result(u, fm_arp_set(
+                      u->project, t->id, field,
+                      fmax(minimum[field], fmin(maximum[field], values[field] + delta * step))));
+        return;
+    }
     if (fm_ui_workspace_encoder(u, knob, delta))
         return;
     if (u->screen == FM_SCREEN_HOME)

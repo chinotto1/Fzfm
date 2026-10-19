@@ -34,11 +34,19 @@ Microphone recording mutes instrument output to avoid feedback. Backgrounding th
 
 ## Piano roll and quantization
 
-Open **Sequencer** for a single page containing Play, Record / Finish recording, Capture recent playing, pattern selection, tempo, loop length, swing and quantization. Capture recent playing uses the chosen history length in bars. Timing candidates remain directly selectable after a take. Setting Tempo explicitly establishes the project tempo before recording.
+Open **Piano roll / SEQ** (or press the actual SEQ button) for a single page containing Play, Record / Finish recording, Capture recent playing, pattern selection, tempo, loop length, swing and quantization. Capture recent playing uses the chosen history length in bars. Timing candidates remain directly selectable after a take. Setting Tempo explicitly establishes the project tempo before recording.
 
 **Quantize** offers Off, quarter/eighth/sixteenth/thirty-second/sixty-fourth notes and eighth/sixteenth triplets. It affects playback and the roll immediately, preserves the original event ticks and frame timestamps, and persists across recording, retrospective capture and saves. **Off · original timing** restores the performed timing; changing velocity preserves that timing too. New patterns default to Off. Short notes remain audible even when both ends would snap to one grid point.
 
 Tap the grid to add notes, drag to move them in time/pitch, and drag a note’s right edge or choose **Resize** to change its gate. **Erase**, **Delete note** and **Undo** act directly. The fields below the roll edit pitch, start/length in quarter-note beats and velocity; Previous/Next note selects small notes. **Snap** governs editing separately from playback quantization. **Pan** lets a finger scroll the roll; View, Zoom and the bar arrows navigate longer patterns. The piano keys at the left play into the same recording/history path as the main keyboard. On desktop, arrow keys move a selected note, Shift+Left/Right resizes it, and Delete removes it. Frozen patterns must be unfrozen before editing. **Save** at the top stores the project locally (queued until playback stops).
+
+## Mixer and arpeggiator
+
+**Mixer / GLO** and the GLO panel button open the channel-strip mixer. Each track has a vertical level fader, a voice-peak meter, pan, four sends and direct Mute/Solo buttons. Faders update while dragging and continuous changes coalesce for undo. Tap a channel’s name to play that track. The playing-track selector stays in the current mixer/arp/roll workspace. On the native screen, four strips are visible at a time; knob 1/ALGORITHM selects tracks, knobs 2/3 set level/pan, and knob 4 sets the highlighted send. GLO cycles sends; SCL mutes and hold GLO solos.
+
+**Arpeggiator / ARP** or the ARP panel button opens the selected track’s arp. All eight fields are directly editable in the browser; the physical ARP button alternates two pages with four direct knobs. Use **Hold C major** to audition, the keyboard for your own chord, and **Stop / clear held notes** to end a latched phrase. The C scheduler generates the actual recorded MIDI notes even with transport stopped. See USER_MANUAL.md for modes, timing and bounded capacity.
+
+Hold the actual HOME button for commands. ARP no longer opens that menu. SEQ now opens the native MIDI piano roll as well as the large touch editor; further presses cycle steps, patterns and song. The physical roll provides note selection, pitch/gate/velocity editing, time-move mode (EDIT), add/delete (SCL), and undo. Notes loaded from earlier projects appear in both views.
 
 ## Graphical envelopes, LFOs and synthesis
 

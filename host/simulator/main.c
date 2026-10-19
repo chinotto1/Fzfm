@@ -312,6 +312,9 @@ static int demo(Simulator *s, const char *dir)
         return 1;
     tap(s, FM_BUTTON_HOME);
     tap(s, FM_BUTTON_SEQ);
+    if (shot(s, dir, "piano-roll"))
+        return 1;
+    tap(s, FM_BUTTON_SEQ);
     for (unsigned i = 0; i < 16; i += 4)
         key(s, fm_ui_white_keys[i]);
     if (shot(s, dir, "step"))

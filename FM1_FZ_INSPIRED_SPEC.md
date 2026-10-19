@@ -420,7 +420,7 @@ Implement a central input arbiter/state machine. No individual screen should ind
 
 ## 8.1 Canonical screen/control contract
 
-`HOME` and `SEQUENCER PERFORMANCE` refer to the same playable overview, not two redundant screens. `SEQ` opens step/pattern/song workspaces. The keyboard plays notes on HOME. Do not copy X0X's pattern-key HOME behavior over that requirement.
+`HOME` and `SEQUENCER PERFORMANCE` refer to the same playable overview, not two redundant screens. `SEQ` opens the MIDI piano roll, then cycles step/pattern/song workspaces. The keyboard plays notes on HOME. Do not copy X0X's pattern-key HOME behavior over that requirement.
 
 | Context/control | Required behavior |
 |---|---|
@@ -442,7 +442,9 @@ Implement a central input arbiter/state machine. No individual screen should ind
 | OCT+ during sampling | Finish/pause capture safely and go straight to playable HOME |
 | GLO | Mixer; subsequent taps select FX send 1-4 for knob 4 |
 | FX | Open selected FX slot; further taps cycle slots 1-4 |
-| SEQ | Enter STEP; further taps cycle STEP, PATTERNS, SONG |
+| SEQ | Enter PIANO ROLL; further taps cycle STEP, PATTERNS, SONG, PIANO ROLL |
+| ARP | Selected-track arpeggiator settings; tap alternates two direct four-knob pages |
+| HOME hold | Open commands; release must not also trigger HOME tap |
 | PLAY | Start/stop sequencer; screen changes never implicitly stop it |
 | SAVE tap | Save project safely; show queued/volatile status when a save must wait |
 | OCT-/OCT+ on playable HOME | Keyboard octave |
@@ -847,7 +849,7 @@ Implement the X0X-style musical behavior in our screen model. X0X's documented p
 
 ## 15.1 Step workflow
 
-SEQ opens STEP for the selected track. Sixteen white keys represent sixteen visible steps. Additional pages extend the pattern. The active page, playhead, pattern number, and selected drum sound/note remain visible.
+SEQ first opens the editable MIDI piano roll for the selected track; the next tap opens STEP. Sixteen white keys represent sixteen visible steps. Additional pages extend the pattern. The active page, playhead, pattern number, and selected drum sound/note remain visible.
 
 Support:
 
@@ -1410,7 +1412,7 @@ Reference for USB host playback into the FM-1, MIDI/audio integration, and avail
 
 `https://raw.githubusercontent.com/isod89/sloop-fm1/main/SLOOP.md`
 
-Reference for free-take closure and musical looping. The custom firmware deliberately changes undo/REC shortcuts and retains original unquantized timing.
+Reference for free-take closure, musical looping, two-page arp controls/modes and MIDI piano-roll editing. The custom firmware deliberately changes undo/REC shortcuts and retains original unquantized timing.
 
 ## [S5] X0X
 

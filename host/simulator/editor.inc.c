@@ -225,7 +225,11 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
         result = fm_ui_history(&s->ui, false);
     }
     else if (action == 9)
-        s->ui.screen = FM_SCREEN_STEP;
+        fm_ui_roll_open(&s->ui);
+    else if (action == 10)
+        s->ui.screen = FM_SCREEN_MIXER;
+    else if (action == 11)
+        s->ui.screen = FM_SCREEN_ARP;
     else if (action == 8 && value <= FM_ANCHORS)
         s->ui.scope = value;
     else

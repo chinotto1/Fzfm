@@ -344,6 +344,7 @@ FmResult fm_instrument_create(FmProject *p, FmInstrumentType type, FmId *out)
     t->id = p->next_id++;
     t->instrument = in->id;
     t->volume = 0.8f;
+    t->arp = fm_arp_default();
     t->cutoff = 1;
     t->queued_pattern = -1;
     t->midi_channel = (uint8_t)(p->track_count % 16);

@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix='fm1-browser-') as data:
             assert max(abs(x) for x in samples)>.001,'captured note produced silence'
             page.mouse.up()
             # Create SAMPLE/additive through actions and source menus.
-            tap(10);screen(8);tap(3);screen(9)
+            page.locator('#buttons [data-index="8"]').hover();page.mouse.down();page.wait_for_timeout(650);page.mouse.up();screen(8);tap(3);screen(9)
             rotate('KNOB 1',1);tap(3);screen(10)
             rotate('KNOB 1',1);tap(3);screen(0)
             assert state()['tracks']==2 and state()['regions']==1
@@ -82,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix='fm1-browser-') as data:
             rotate('KNOB 1',1);rotate('KNOB 2',1);rotate('KNOB 3',32)
             assert state()['assets']>=3
             page.screenshot(path=str(ARTIFACTS/'desktop-edit.png'),full_page=True)
-            tap(8);tap(11);screen(4)
+            tap(8);tap(11);screen(16);tap(11);screen(4)
             page.locator('[data-key="0"]').click();page.locator('[data-key="7"]').click()
             tap(12);assert state()['playing']==1
             tap(9);assert 'QUEUED' in state()['status'],state()

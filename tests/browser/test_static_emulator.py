@@ -76,7 +76,7 @@ try:
     }''')
     assert energy>.001,energy
     # Synthesis/editor run from the same WASM model, not a JS approximation.
-    tap(10);tap(3);rotate('KNOB 1',1);tap(3);rotate('KNOB 1',1);tap(3);screen(0)
+    page.locator('#buttons [data-index="8"]').hover();page.mouse.down();page.wait_for_timeout(650);page.mouse.up();tap(3);rotate('KNOB 1',1);tap(3);rotate('KNOB 1',1);tap(3);screen(0)
     assert state()['tracks']==2
     tap(6);screen(1);rotate('SELECT',1);assert state()['scope']==1
     rotate('KNOB 1',5);tap(3);assert state()['picker']==1
@@ -86,7 +86,7 @@ try:
     assert state()['tab']==6
     rotate('KNOB 1',1);rotate('KNOB 2',1);rotate('KNOB 3',12)
     assert state()['error']==0,state()
-    tap(8);tap(11);screen(4)
+    tap(8);tap(11);screen(16);tap(11);screen(4)
     page.locator('#keys [data-key="0"]').tap()
     tap(12);assert state()['playing']
     tap(9);assert 'QUEUED' in state()['status'],state()

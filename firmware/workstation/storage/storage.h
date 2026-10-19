@@ -2,7 +2,7 @@
 #ifndef FM_STORAGE_H
 #define FM_STORAGE_H
 #include "../core/fm.h"
-#define FM_FORMAT_VERSION 2u
+#define FM_FORMAT_VERSION 3u
 /* Complete portable backups include every live/undo-retained audio dependency.
  * These APIs are non-real-time; decode publishes only after full validation. */
 FmResult fm_project_validate(FmProject *);

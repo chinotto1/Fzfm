@@ -3,6 +3,15 @@
 #include <string.h>
 static FmResult emit(FmMidi *m, FmEvent *e)
 {
+    bool consumed = false;
+    FmResult filtered = m->sequence ? fm_sequence_arp_input(m->sequence, e, &consumed) : FM_OK;
+    if (filtered != FM_OK)
+    {
+        m->dropped++;
+        return filtered;
+    }
+    if (consumed)
+        return FM_OK;
     FmResult r = m->engine ? fm_engine_event(m->engine, e) : FM_OK;
     if (r != FM_OK)
     {

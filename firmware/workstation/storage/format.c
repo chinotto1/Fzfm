@@ -16,6 +16,7 @@ typedef struct
     const uint8_t *in;
     size_t size, pos;
     bool read;
+    uint8_t version;
     FmResult error;
 } Codec;
 static void scalar(Codec *c, uint64_t *v, unsigned n)
@@ -411,6 +412,19 @@ static void payload(Codec *c, FmProject *p)
         BOOL(t->mute);
         BOOL(t->solo);
         U8(t->midi_channel);
+        if (c->read)
+            t->arp = fm_arp_default();
+        if (!c->read || c->version >= 3)
+        {
+            U8(t->arp.mode);
+            U8(t->arp.division);
+            U8(t->arp.octaves);
+            FLOAT(t->arp.gate);
+            FLOAT(t->arp.swing);
+            FLOAT(t->arp.probability);
+            BOOL(t->arp.latch);
+            BOOL(t->arp.play_order);
+        }
         record_end(c, m);
     }
     unsigned patterns_cursor = 0;
@@ -635,6 +649,9 @@ FmResult fm_project_validate(FmProject *p)
             if (!t || !fm_instrument(p, t->instrument) || t->selected_pattern >= FM_PATTERN_SLOTS ||
                 t->playing_pattern >= FM_PATTERN_SLOTS || t->chain_count > 64 ||
                 t->queued_pattern < -1 || t->queued_pattern >= (int)FM_PATTERN_SLOTS ||
+                t->arp.mode >= FM_ARP_MODE_COUNT || t->arp.division > 7 || !t->arp.octaves ||
+                t->arp.octaves > 4 || !bounded(t->arp.gate, .05f, 1) ||
+                !bounded(t->arp.swing, 0, .49f) || !bounded(t->arp.probability, 0, 1) ||
                 t->midi_channel > 15 || !bounded(t->volume, 0, 16) || !bounded(t->pan, -1, 1) ||
                 !bounded(t->cutoff, 0, 200000) || !bounded(t->resonance, 0, 8))
                 return FM_ERR_FORMAT;
@@ -779,8 +796,8 @@ FmResult fm_project_decode(FmProject *p, const uint8_t *b, size_t length)
 {
     if (!p || !b)
         return FM_ERR_ARGUMENT;
-    if (length < 24 || memcmp(b, "FM1P", 4) || b[4] != FM_FORMAT_VERSION || b[5] || b[6] != 24 ||
-        b[7] || read32(b + 8) != length - 24 || read32(b + 20) != fm_crc32(b, 20) ||
+    if (length < 24 || memcmp(b, "FM1P", 4) || (b[4] != FM_FORMAT_VERSION && b[4] != 2) || b[5] ||
+        b[6] != 24 || b[7] || read32(b + 8) != length - 24 || read32(b + 20) != fm_crc32(b, 20) ||
         read32(b + 12) != fm_crc32(b + 24, length - 24))
         return FM_ERR_FORMAT;
     FmBudget staging = p->budget;
@@ -794,7 +811,7 @@ FmResult fm_project_decode(FmProject *p, const uint8_t *b, size_t length)
     FmResult r = fm_project_init(&temp, &staging);
     if (r != FM_OK)
         return r;
-    Codec c = {.in = b + 24, .size = length - 24, .read = true};
+    Codec c = {.in = b + 24, .size = length - 24, .read = true, .version = b[4]};
     payload(&c, &temp);
     r = c.error;
     if (r == FM_OK && (c.pos != c.size || temp.generation != read32(b + 16)))

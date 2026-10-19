@@ -173,7 +173,7 @@ export function initSequencer({request,send,run,action,getState,enableSound,show
  window.addEventListener('blur',release);window.addEventListener('pagehide',release);
  return function render(s) {
   state=s;pattern=s.editor?.pattern;
-  const visible=!!pattern&&[4,5].includes(s.screen);$('sequencer-editor').hidden=!visible;
+  const visible=!!pattern&&[4,5,16].includes(s.screen);$('sequencer-editor').hidden=!visible;
   if(!visible){if(activeKeys.size)release();return;}
   if(pattern.id!==lastPattern){lastPattern=pattern.id;page=0;fetched='';selected=null;notes=[];notesRevision=-1;scroll.scrollLeft=0;scroll.scrollTop=(127-(s.instrumentType===0?s.baseNote:60)-5)*ROW;}
   if(page*windowBars()*bar()>=pattern.length){page=0;fetched='';}

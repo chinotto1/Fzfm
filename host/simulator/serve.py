@@ -41,6 +41,7 @@ def native():
     lib.fm_sim_notes.argtypes = [C.c_void_p,C.c_double,C.c_double]
     lib.fm_sim_notes.restype = C.c_char_p
     lib.fm_sim_sampling.argtypes = [C.c_void_p,C.c_uint,C.c_uint,C.c_uint]
+    lib.fm_sim_performance.argtypes = [C.c_void_p,C.c_uint,C.c_uint,C.c_uint,C.c_double]
     return lib
 
 
@@ -105,7 +106,7 @@ def main():
                     return self.send(C.string_at(data, length.value), 'application/octet-stream')
                 finally:
                     lib.fm_sim_free(data)
-            paths = {'/': 'index.html', '/app.js': 'app.js', '/backend.js': 'backend.js', '/workspace.js': 'workspace.js', '/sequencer.js': 'sequencer.js', '/sampler.js': 'sampler.js', '/style.css': 'style.css'}
+            paths = {'/': 'index.html', '/app.js': 'app.js', '/backend.js': 'backend.js', '/workspace.js': 'workspace.js', '/sequencer.js': 'sequencer.js', '/sampler.js': 'sampler.js', '/performance.js': 'performance.js', '/style.css': 'style.css'}
             if route not in paths:
                 return self.send({'error': 'not found'}, code=404)
             name = paths[route]
@@ -134,6 +135,11 @@ def main():
                         raise ValueError('PCM16 data required')
                     buf = C.create_string_buffer(body)
                     result = getattr(lib, 'fm_sim_'+route[5:])(handle, buf, len(body)//2)
+                elif route == '/api/performance':
+                    data=json.loads(body)
+                    if not isinstance(data,dict) or any(type(data.get(k)) is not int or not 0<=data[k]<=4294967295 for k in ['operation','track','field']):raise ValueError('integer fields required')
+                    if type(data.get('value')) not in {int,float} or not -1000000<=data['value']<=1000000:raise ValueError('finite value required')
+                    result=lib.fm_sim_performance(handle,data['operation'],data['track'],data['field'],data['value'])
                 elif route in {'/api/notes','/api/sequence','/api/sampling'}:
                     data=json.loads(body)
                     if not isinstance(data,dict): raise ValueError('object required')

@@ -91,6 +91,10 @@ self.onmessage = ({data:{id,path,body}}) => {
         const c=JSON.parse(body);
         if(!Number.isInteger(c.action)||!Number.isInteger(c.value)||c.action<0||c.value<0) throw new Error('Invalid action');
         code=core._fm_sim_action(handle,c.action,c.value);
+      } else if(path==='/api/performance') {
+        const c=JSON.parse(body);
+        if(!['operation','track','field'].every(k=>Number.isInteger(c[k])&&c[k]>=0)||!Number.isFinite(c.value))throw new Error('Invalid performance command');
+        code=core._fm_sim_performance(handle,c.operation,c.track,c.field,c.value);
       } else if(path==='/api/sequence') {
         const c=JSON.parse(body);
         if(!['operation','index','note','velocity','pattern'].every(k=>Number.isInteger(c[k])&&c[k]>=0)||!['a','b','revision'].every(k=>Number.isFinite(c[k])))throw new Error('Invalid sequencer command');

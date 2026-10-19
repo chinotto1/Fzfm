@@ -127,11 +127,12 @@ static int patterns_and_ui(void)
     fm_ui_button(&ui, FM_BUTTON_SCL, false, 1610);
     NEAR(p.fx[0].gain, gain, .0001);
     NEAR(e.fx[0].config.gain, gain, .0001);
-    fm_ui_button(&ui, FM_BUTTON_ARP, true, 1700);
-    fm_ui_button(&ui, FM_BUTTON_ARP, false, 1710);
-    fm_ui_encoder(&ui, 2, 1, 1720);
-    fm_ui_button(&ui, FM_BUTTON_SCL, true, 1730);
-    fm_ui_button(&ui, FM_BUTTON_SCL, false, 1740);
+    fm_ui_button(&ui, FM_BUTTON_HOME, true, 1700);
+    fm_ui_tick(&ui,2200);
+    fm_ui_button(&ui, FM_BUTTON_HOME, false, 2210);
+    fm_ui_encoder(&ui, 2, 1, 2220);
+    fm_ui_button(&ui, FM_BUTTON_SCL, true, 2230);
+    fm_ui_button(&ui, FM_BUTTON_SCL, false, 2240);
     NEAR(p.fx[0].gain, gain + .1, .0001);
     NEAR(e.fx[0].config.gain, gain + .1, .0001);
     fm_engine_destroy(&e);
