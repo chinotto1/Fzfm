@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: mymindstorm/setup-emsdk@6ab9eb1bda2574c4ddb79809fc9247783eaf9021 # v14
@@ -23,7 +23,17 @@ jobs:
           python3 scripts/verify_sources.py
           make test native-test
       - name: Test firmware package and MIDI update protocol without hardware
-        run: make installer-test
+        run: |
+          python3 - <<'PYTHON'
+          import subprocess
+          result = subprocess.run(['make', 'installer-test'], stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True)
+          print(result.stdout, end='', flush=True)
+          if result.returncode:
+              details = result.stdout[-12000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=Installer protocol failed::{details}', flush=True)
+              raise SystemExit(result.returncode)
+          PYTHON
       - name: Build the browser application
         run: make web
       - name: Install browser test dependencies
@@ -51,7 +61,7 @@ jobs:
           path: build/site
   deploy:
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
