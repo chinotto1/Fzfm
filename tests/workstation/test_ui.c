@@ -84,9 +84,11 @@ static int test_display_style(FmUi *u)
     CHECK(u->pixels[84 * 240 + 5] == FM_UI_GREEN);  /* Filled slot. */
     CHECK(u->pixels[85 * 240 + 34] == FM_UI_BLUE);  /* Empty slot. */
     CHECK(u->pixels[79 * 240 + 33] == FM_UI_AMBER); /* Target border. */
-    CHECK(u->pixels[80 * 240 + 34] == FM_UI_RED);   /* Recording band. */
-    CHECK(u->pixels[148 * 240 + 50] == FM_UI_GREEN);
-    CHECK(u->pixels[148 * 240 + 220] == FM_UI_BLUE);
+    CHECK(u->pixels[77 * 240 + 34] == FM_UI_RED);   /* Recording band. */
+    CHECK(u->pixels[159 * 240 + 50] == FM_UI_GREEN);
+    CHECK(u->pixels[159 * 240 + 220] == FM_UI_BLUE);
+    CHECK(pixels_with(u, 4, 132, 230, 10, FM_UI_GREEN) > 50); /* Free memory. */
+    CHECK(pixels_with(u, 4, 144, 230, 10, FM_UI_AMBER) > 50); /* Time/count estimate. */
     u->capture_monitor = NULL;
     for (unsigned screen = FM_SCREEN_HOME; screen <= FM_SCREEN_LIBRARY; screen++)
     {

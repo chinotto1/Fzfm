@@ -8,7 +8,7 @@ Current implementation extends the reviewed Cursor commit `ffc0576`. The executa
 | R02 | Compiled; device pending | BSP UAC OUT raw packets + `platform/fm_usb.c`, MIDI coexistence, lifecycle/ring tests. No iPad enumeration/drift evidence |
 | R03 | Host + compiled | `audio/src.c` boundary conversion, immutable PCM16 captures, stereo 36 kHz rendering. Physical codec rate pending |
 | R04 | Host + compiled | Variable-rate readers, pitch/duration and 600/1,024-cycle tests |
-| R05 | Host + compiled | `sampler/fm_capture.c`: sixteen logical slots shown as colored squares on the capture screen, pretrigger/manual/retry/skip/resume; direct selected-slot capture and atomic replacement/undo, including full kits; native demo fills all sixteen |
+| R05 | Host + compiled | `sampler/fm_capture.c`: sixteen logical slots shown as colored squares on the capture screen, pretrigger/manual/retry/skip/resume; direct selected-slot capture and atomic replacement/undo, including full kits; native demo fills all sixteen; capture overview shows live free/total audio memory, remaining mono recording time and approximate 1s sample capacity; browser adds 1s/10s estimates and free slot count, with staging and undo retained PCM included |
 | R06 | Host + compiled | Root anchors, automatic zones, manual range priority, mapping UI and confirmed ONE deletion with zone recomputation/undo |
 | R07 | Host + compiled | Atomic instrument+track+empty-pattern creation; explicit Synth choice opens a playable sine oscillator without sampling; Sample/Multi go directly to USB capture with no source chooser; undoable removal of empty tracks |
 | R08 | Host + compiled | OCT+ down-edge finish; UI tests preserve octave/track and partial takes |

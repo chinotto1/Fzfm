@@ -21,12 +21,29 @@ int test_capture(void)
 {
     FmProject p;
     CHECK(fm_project_init(&p, NULL) == FM_OK);
+    /* Capacity uses actual PCM budgets, reserves one staging take, and never
+     * wraps when a configured budget is exhausted or lowered below usage. */
+    size_t original_limit = p.budget.limit[FM_MEM_AUDIO];
+    p.budget.limit[FM_MEM_AUDIO] = 1024;
+    FmCaptureCapacity capacity = fm_capture_capacity(&p, NULL, 64);
+    CHECK(capacity.limit_bytes == 1024 && capacity.used_bytes == 0);
+    CHECK(capacity.free_bytes == 1024 && capacity.recording_frames == 448);
     FmId tid;
     CHECK(fm_instrument_create(&p, FM_MULTI_SAMPLE, &tid) == FM_OK);
     FmInstrument *in = fm_instrument(&p, fm_track(&p, tid)->instrument);
     FmCapture c;
     FmCaptureConfig cfg = fixture_config();
     CHECK(fm_capture_begin(&c, &p, tid, 36, &cfg) == FM_OK);
+    capacity = fm_capture_capacity(&p, &c, 64);
+    CHECK(capacity.free_bytes == 896 && capacity.used_bytes == 128);
+    CHECK(capacity.recording_frames == 448); /* Don't reserve the buffer twice. */
+    CHECK(fm_capture_capacity(&p, &c, 128).recording_frames == 384);
+    p.budget.limit[FM_MEM_AUDIO] = 127;
+    CHECK(fm_capture_capacity(&p, &c, 64).free_bytes == 0);
+    CHECK(fm_capture_capacity(&p, &c, 64).recording_frames == 0);
+    NEAR(fm_capture_seconds_available(&c), 0, .000001);
+    p.budget.limit[FM_MEM_AUDIO] = original_limit;
+    CHECK(fm_capture_capacity(NULL, NULL, 64).free_bytes == 0);
     FmFrame time = 0;
     for (unsigned i = 0; i < 16; i++)
     {
@@ -40,7 +57,10 @@ int test_capture(void)
         CHECK(in->regions[i].low == 36 + i && in->regions[i].high == 36 + i);
     }
     CHECK(c.state == FM_CAPTURE_FINISHED && in->count == 16 && p.track_count == 1);
+    capacity = fm_capture_capacity(&p, &c, 64);
+    CHECK(capacity.used_bytes > 128 && capacity.free_bytes == original_limit - capacity.used_bytes);
     fm_capture_destroy(&c);
+    CHECK(fm_capture_capacity(&p, NULL, 64).recording_frames == capacity.recording_frames);
     FmId old_region = in->regions[5].id, old_asset = in->regions[5].asset;
     CHECK(fm_capture_begin_slot(&c, &p, tid, 36, &cfg, 5, false) == FM_ERR_BUSY);
     CHECK(fm_capture_begin_slot(&c, &p, tid, 36, &cfg, 5, true) == FM_OK);

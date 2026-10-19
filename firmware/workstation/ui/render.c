@@ -1001,24 +1001,32 @@ static void capture(FmUi *u)
     bold(u, 4, 62, line, 28, FM_UI_TEXT);
     for (unsigned n = 0; n < FM_ANCHORS; n++)
     {
-        int x = 4 + (int)(n % 8) * 29, y = 79 + (int)(n / 8) * 32;
+        int x = 4 + (int)(n % 8) * 29, y = 76 + (int)(n / 8) * 28;
         bool filled = in && in->regions[n].id;
-        rectangle(u, x, y, 26, 28, filled ? FM_UI_GREEN : FM_UI_BLUE);
+        rectangle(u, x, y, 26, 24, filled ? FM_UI_GREEN : FM_UI_BLUE);
         if (n == slot)
         {
             rectangle(u, x, y, 26, 3,
                       c && c->state == FM_CAPTURE_CAPTURING ? FM_UI_RED : FM_UI_AMBER);
-            outline(u, x, y, 26, 28, FM_UI_AMBER);
+            outline(u, x, y, 26, 24, FM_UI_AMBER);
         }
         snprintf(value, sizeof(value), "%02u", n + 1);
-        bold(u, x + 5, y + 10, value, 2, filled ? FM_UI_BG : FM_UI_TEXT);
+        bold(u, x + 5, y + 8, value, 2, filled ? FM_UI_BG : FM_UI_TEXT);
     }
+    FmCaptureCapacity capacity = fm_capture_capacity(u->project, c, cfg->maximum_frames);
+    snprintf(line, sizeof(line), "FREE %.0fK / %.0fK", capacity.free_bytes / 1024.0,
+             capacity.limit_bytes / 1024.0);
+    bold(u, 4, 132, line, 28, FM_UI_GREEN);
+    snprintf(line, sizeof(line), "~%lu X1S / %.1fS AUDIO",
+             (unsigned long)(capacity.recording_frames / FM_RATE),
+             (double)capacity.recording_frames / FM_RATE);
+    bold(u, 4, 144, line, 28, FM_UI_AMBER);
     float peak = c ? fminf(1, c->peak) : 0;
-    rectangle(u, 4, 146, 230, 6, FM_UI_BLUE);
-    rectangle(u, 4, 146, (int)(peak * 230), 6, c && c->clips ? FM_UI_RED : FM_UI_GREEN);
+    rectangle(u, 4, 157, 230, 5, FM_UI_BLUE);
+    rectangle(u, 4, 157, (int)(peak * 230), 5, c && c->clips ? FM_UI_RED : FM_UI_GREEN);
     snprintf(line, sizeof(line), "%s%s", c && c->state < 14 ? states[c->state] : "NO STREAM",
              c && c->clips ? " / CLIP" : "");
-    bold(u, 4, 158, line, 28, c && c->state == FM_CAPTURE_CAPTURING ? FM_UI_RED : FM_UI_AMBER);
+    bold(u, 4, 164, line, 28, c && c->state == FM_CAPTURE_CAPTURING ? FM_UI_RED : FM_UI_AMBER);
     unsigned i = u->capture_row % 12;
     {
         switch (i)

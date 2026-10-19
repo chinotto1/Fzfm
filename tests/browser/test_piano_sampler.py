@@ -43,10 +43,27 @@ try:
   tap('sample-audio');page.wait_for_selector('#sample-slots')
   assert not page.locator('#new-track-dialog').is_visible() and state()['tracks']==0
   assert page.locator('#sample-slots button').count()==16
+  memory=state()['editor']['sampleMemory']
+  assert memory['freeBytes']==memory['limitBytes']-memory['usedBytes']
+  assert memory['recordingFrames']==(memory['freeBytes']-720000)//2
+  assert page.locator('#sample-memory-time').inner_text()==f"{memory['recordingFrames']/36000:.1f} seconds"
+  assert page.locator('#sample-memory-count').inner_text()==f"~{memory['recordingFrames']//36000} × 1s · ~{memory['recordingFrames']//360000} × 10s"
+  assert '16 slots free' in page.locator('#capture-progress').inner_text()
+  for width in [390,320,1024]:
+   page.set_viewport_size({'width':width,'height':1366})
+   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+   assert page.locator('#sample-memory-free').is_visible()
+   if width==320:page.locator('#sampling-editor').screenshot(path=str(ROOT/'build/ui/sampling-memory-mobile.png'))
   page.locator('#sampler-type').select_option('1');page.locator('#sampler-type').select_option('0')
   assert state()['tracks']==0,'choosing a type created unwanted empty tracks'
   page.locator('#sample-slots [data-slot="7"]').tap();tap('capture-test')
   wait('fm1.state().tracks===1&&fm1.state().editor.sampleSlots[7].id>0')
+  after=state()['editor']['sampleMemory']
+  assert after['freeBytes']<memory['freeBytes']
+  # Staging is already allocated; it must not be deducted a second time.
+  assert after['recordingFrames']==(after['freeBytes']-(720000-72000))//2
+  assert '15 slots free' in page.locator('#capture-progress').inner_text()
+  assert page.locator('#sample-memory-meter').evaluate('(meter)=>meter.value')<1
   colors=page.evaluate("""()=>['7','0'].map(slot=>{
    const e=document.querySelector(`#sample-slots [data-slot="${slot}"]`),s=getComputedStyle(e);return [s.backgroundColor,s.fontWeight];
   })""")
@@ -61,6 +78,8 @@ try:
   tap('capture-test');wait(f'fm1.state().editor.sampleSlots[7].asset!=={old["asset"]}')
   assert state()['regions']==1 and state()['editor']['sampleSlots'][7]['id']==old['id']
   tap('sample-undo');wait(f'fm1.state().editor.sampleSlots[7].asset==={old["asset"]}')
+  retained=state()['editor']['sampleMemory']
+  assert retained['usedBytes']>after['usedBytes'],'undo-retained PCM disappeared from the memory budget'
   page.screenshot(path=str(ROOT/'build/ui/visual-sampler-ipad.png'),full_page=True)
   # Simple instruments use root anchors; the same page selects/creates one.
   page.locator('#sampler-type').select_option('1');wait('document.querySelector("#sampler-instrument").value==="0"')
@@ -138,6 +157,6 @@ try:
   assert not errors,errors
   assert not any('/api/' in r for r in requests),requests
   browser.close()
-  print('Piano/sampler PASS: single-page modes + 16 slots, selected-slot capture/atomic replacement/undo, pitched roots, touch add/move/resize/velocity/delete/undo, lossless quantization and triplets, live + retrospective takes retain grid, stale-edit rejection, mobile layouts and persisted notes; no JS errors or server API.')
+  print('Piano/sampler PASS: live memory/time/sample-count estimates with staging and undo accounting, single-page modes + 16 slots, selected-slot capture/atomic replacement/undo, pitched roots, touch add/move/resize/velocity/delete/undo, lossless quantization and triplets, live + retrospective takes retain grid, stale-edit rejection, mobile layouts and persisted notes; no JS errors or server API.')
 finally:
  if server:server.shutdown();server.server_close()

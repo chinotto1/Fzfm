@@ -48,6 +48,14 @@ typedef struct
     float peak;
     bool finish_requested, listening, replace;
 } FmCapture;
+typedef struct
+{
+    size_t limit_bytes, used_bytes, free_bytes, recording_frames;
+} FmCaptureCapacity;
+/* Mono PCM16 capacity after reserving a staging take. Includes retained undo PCM.
+ * Sample counts derived from recording_frames are audio-budget estimates only. */
+FmCaptureCapacity fm_capture_capacity(const FmProject *, const FmCapture *,
+                                      uint32_t maximum_frames);
 FmCaptureConfig fm_capture_defaults(void);
 /* begin/destroy/service/finish/retry are non-RT. accept never allocates or
  * persists: FINALIZE is visibly BUSY until service commits a pinned RAM asset. */

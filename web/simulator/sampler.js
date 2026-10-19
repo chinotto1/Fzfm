@@ -104,7 +104,18 @@ export function initSampler({send,run,action,getState,enableSound,showError,live
    if(selectorKey!==key){selectorKey=key;$('sampler-type').value=kind;$('sampler-instrument').replaceChildren(new Option(`New ${kind===0?'multi':'simple'} instrument`,0),...model.tracks.filter(t=>t.type===kind).map(t=>new Option(t.name,t.id)));$('sampler-instrument').value=instrument;}
    $('sampler-type').disabled=liveMic();$('sampler-instrument').disabled=liveMic();$('sampler-new').disabled=liveMic();
    drawSlots();
-   $('capture-progress').textContent=`${instrument===model.selected?s.regions:0} of 16 slots filled · selected slot ${slot+1} · ${instrument?'existing instrument':'creates an instrument when you capture'}`;
+   const memory=model.sampleMemory;
+   if(memory){
+    const formatBytes=bytes=>bytes>=1048576?`${(bytes/1048576).toFixed(2)} MiB`:`${Math.floor(bytes/1024)} KiB`;
+    const seconds=memory.recordingFrames/memory.rate;
+    $('sample-memory-free').textContent=`${formatBytes(memory.freeBytes)} / ${formatBytes(memory.limitBytes)}`;
+    $('sample-memory-meter').value=memory.limitBytes?memory.freeBytes/memory.limitBytes:0;
+    $('sample-memory-time').textContent=`${seconds.toFixed(1)} seconds`;
+    $('sample-memory-count').textContent=`~${Math.floor(seconds)} × 1s · ~${Math.floor(seconds/10)} × 10s`;
+    $('sample-memory-help').textContent=`Shared project audio memory · 36 kHz mono, 16-bit. Estimates allow for a ${memory.maximumSeconds}s recording buffer; sample slots and working memory also limit capacity. Undo can retain deleted sounds.`;
+   }
+   const filled=instrument===model.selected?s.regions:0;
+   $('capture-progress').textContent=`${filled} of 16 slots filled · ${16-filled} slots free · selected slot ${slot+1} · ${instrument?'existing instrument':'creates an instrument when you capture'}`;
    return true;
   }
  };

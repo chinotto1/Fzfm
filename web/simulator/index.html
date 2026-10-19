@@ -30,6 +30,8 @@
    <button id="undo-synthesis" class="outline">Undo last edit</button>
   </div>
   <div id="sampling-editor" hidden>
+   <div class="sample-memory" role="group" aria-label="Sample memory capacity"><div><span>Free sample memory</span><strong id="sample-memory-free">—</strong><meter id="sample-memory-meter" min="0" max="1" value="1" aria-label="Free sample memory"></meter></div><div><span>Recording time left</span><strong id="sample-memory-time">—</strong></div><div><span>Approx. more samples</span><strong id="sample-memory-count">—</strong></div></div>
+   <p id="sample-memory-help">Shared project audio memory · 36 kHz mono, 16-bit. Estimates allow for a recording buffer; sample slots and working memory also limit capacity. Undo can retain deleted sounds.</p>
    <div class="sampling-selectors"><label>Instrument type<select id="sampler-type"><option value="0">Multi · drum kit</option><option value="1">Simple · pitched instrument</option></select></label><label>Sampling instrument<select id="sampler-instrument"></select></label><button id="sampler-new">+ New instrument</button><label id="sample-root-label">Root note (MIDI)<input id="sample-root" type="number" min="0" max="127" value="60"></label></div>
    <div id="sample-slots" class="sample-slots" role="group" aria-label="Sixteen sample slots"></div>
    <div class="sample-detail"><div><strong id="sample-slot-title">Slot 1 · Empty</strong><p id="sample-slot-description">Select an empty slot and capture a sound.</p></div><button id="sample-audition" disabled>Hold to audition</button><button id="sample-replace" disabled>Replace this slot</button><button id="sample-delete" disabled>Delete sample</button><button id="sample-undo">Undo</button></div>

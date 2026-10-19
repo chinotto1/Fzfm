@@ -370,14 +370,32 @@ void fm_capture_input_lost(FmCapture *c)
     else
         c->state = FM_CAPTURE_INPUT_LOST;
 }
+FmCaptureCapacity fm_capture_capacity(const FmProject *p, const FmCapture *c,
+                                      uint32_t maximum_frames)
+{
+    FmCaptureCapacity result = {0};
+    if (!p)
+        return result;
+    result.limit_bytes = p->budget.limit[FM_MEM_AUDIO];
+    result.used_bytes = p->budget.used[FM_MEM_AUDIO];
+    result.free_bytes =
+        result.used_bytes < result.limit_bytes ? result.limit_bytes - result.used_bytes : 0;
+    uint64_t reserved = c && c->project == p && c->buffer
+                            ? (uint64_t)c->config.maximum_frames * sizeof(int16_t)
+                            : 0;
+    uint64_t required = (uint64_t)maximum_frames * sizeof(int16_t);
+    uint64_t missing = required > reserved ? required - reserved : 0;
+    result.recording_frames =
+        missing < result.free_bytes ? (size_t)((result.free_bytes - missing) / sizeof(int16_t)) : 0;
+    return result;
+}
 double fm_capture_seconds_available(const FmCapture *c)
 {
     if (!c || !c->project)
         return 0;
-    size_t available =
-        c->project->budget.limit[FM_MEM_AUDIO] - c->project->budget.used[FM_MEM_AUDIO];
+    FmCaptureCapacity capacity = fm_capture_capacity(c->project, c, c->config.maximum_frames);
     uint32_t frames = c->config.maximum_frames;
-    if (available / 2 < frames)
-        frames = (uint32_t)(available / 2);
+    if (capacity.recording_frames < frames)
+        frames = (uint32_t)capacity.recording_frames;
     return (double)frames / FM_RATE;
 }

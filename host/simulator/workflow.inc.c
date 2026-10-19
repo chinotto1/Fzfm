@@ -11,6 +11,12 @@ static void workflow_editor(Simulator *s)
     FmPattern *p = workflow_pattern(s);
     FmTrack *t = fm_track(&s->project, s->project.selected_track);
     FmInstrument *in = t ? fm_instrument(&s->project, t->instrument) : NULL;
+    /* Browser microphone/file capture reserves a ten-second mono staging take. */
+    FmCaptureCapacity capacity = fm_capture_capacity(&s->project, &s->capture, FM_RATE * 10);
+    editor_write(",\"sampleMemory\":{\"limitBytes\":%zu,\"usedBytes\":%zu,\"freeBytes\":%zu,"
+                 "\"recordingFrames\":%zu,\"rate\":%u,\"maximumSeconds\":10}",
+                 capacity.limit_bytes, capacity.used_bytes, capacity.free_bytes,
+                 capacity.recording_frames, FM_RATE);
     editor_write(",\"pattern\":");
     if (p)
         editor_write(
