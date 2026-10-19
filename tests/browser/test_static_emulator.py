@@ -64,7 +64,7 @@ try:
     assert page.get_by_role('slider').count()==7
     assert state()['persistence'],state()
     # Real touch controls create/capture a kit; OCT+ preserves the octave.
-    tap(3);screen(9);tap(3);screen(10);tap(3);screen(7)
+    tap(3);screen(9);tap(3);screen(7)
     page.locator('#test-hit').tap();page.wait_for_timeout(150)
     assert state()['regions']==1,state()
     octave=state()['octave'];tap(1);screen(0);assert state()['octave']==octave
@@ -76,14 +76,16 @@ try:
     }''')
     assert energy>.001,energy
     # Synthesis/editor run from the same WASM model, not a JS approximation.
-    page.locator('#buttons [data-index="8"]').hover();page.mouse.down();page.wait_for_timeout(650);page.mouse.up();tap(3);rotate('KNOB 1',1);tap(3);rotate('KNOB 1',1);tap(3);screen(0)
+    page.locator('#buttons [data-index="8"]').hover();page.mouse.down();page.wait_for_timeout(650);page.mouse.up();tap(3);rotate('KNOB 1',1);tap(3);screen(7);tap(1);screen(0)
     assert state()['tracks']==2
     tap(6);screen(1);rotate('SELECT',1);assert state()['scope']==1
     rotate('KNOB 1',5);tap(3);assert state()['picker']==1
     page.locator('#keys [data-key="18"]').tap();tap(8)
     assert state()['picker']==0
-    for _ in range(6):tap(6)
-    assert state()['tab']==6
+    page.locator('#buttons [data-index="8"]').hover();page.mouse.down();page.wait_for_timeout(650);page.mouse.up()
+    tap(3);rotate('KNOB 1',2);tap(3);screen(1)
+    assert state()['instrumentType']==2 and state()['tracks']==3 and state()['tab']==6
+    rotate('KNOB 1',-4)
     rotate('KNOB 1',1);rotate('KNOB 2',1);rotate('KNOB 3',12)
     assert state()['error']==0,state()
     tap(8);tap(11);screen(16);tap(11);screen(4)
@@ -101,7 +103,7 @@ try:
     page.screenshot(path=str(OUT/'ipad-web-emulator.png'),full_page=True)
     # IndexedDB durability: a new module instance automatically restores SAVE.
     page.reload();page.wait_for_function('window.fm1 && !document.body.classList.contains("loading")',timeout=60000)
-    assert state()['tracks']==2 and state()['generation']==generation and not state()['dirty'],state()
+    assert state()['tracks']==3 and state()['generation']==generation and not state()['dirty'],state()
     # Backup is a real FM1P file; malformed restore preserves the instrument.
     restored=page.evaluate('''async ()=>{
       const bytes=await(await fm1.request('/api/backup')).arrayBuffer();
@@ -110,7 +112,7 @@ try:
       const good=await(await fm1.request('/api/restore',{body:bytes})).json();
       return {magic,bad:bad.result,good:good.result,tracks:good.state.tracks};
     }''')
-    assert restored=={'magic':'FM1P','bad':4,'good':0,'tracks':2},restored
+    assert restored=={'magic':'FM1P','bad':4,'good':0,'tracks':3},restored
     page.on('dialog',lambda d:d.accept())
     # Mobile layout and all relative assets also work under the repository subpath.
     for width in [390,320]:

@@ -10,20 +10,20 @@ Current implementation extends the reviewed Cursor commit `ffc0576`. The executa
 | R04 | Host + compiled | Variable-rate readers, pitch/duration and 600/1,024-cycle tests |
 | R05 | Host + compiled | `sampler/fm_capture.c`: sixteen logical slots shown as colored squares on the capture screen, pretrigger/manual/retry/skip/resume; direct selected-slot capture and atomic replacement/undo, including full kits; native demo fills all sixteen |
 | R06 | Host + compiled | Root anchors, automatic zones, manual range priority, mapping UI and confirmed ONE deletion with zone recomputation/undo |
-| R07 | Host + compiled | Atomic instrument+track+empty-pattern creation; explicit Synth choice opens a playable sine oscillator without sampling; independent Sample/Multi choices; undoable removal of empty tracks |
+| R07 | Host + compiled | Atomic instrument+track+empty-pattern creation; explicit Synth choice opens a playable sine oscillator without sampling; Sample/Multi go directly to USB capture with no source chooser; undoable removal of empty tracks |
 | R08 | Host + compiled | OCT+ down-edge finish; UI tests preserve octave/track and partial takes |
 | R09 | Host + compiled | `sequence/fm_sequence.c`: free takes, raw timestamps, ranked timing/correction, preserved existing/external tempo and selected quantization across free/retro takes; reversible nearest-grid timing with short-gate protection |
 | R10 | Host + compiled | Bounded live-only history, held/sustained boundary reconstruction, REC hold down-edge slice |
 | R11 | Host + compiled | Single tap/hold arbiter; transactional undo/redo and knob gesture coalescing; SCL explicitly mapped as logical SEL |
 | R12 | Host + compiled | Sparse steps/chords, probability/microtime/locks, queued changes/scenes, saved ordered/range chains, independent lengths/rates, song editing/playback and live arrangement and same-pitch step ties without retriggers; transactional paired-note add/move/resize/velocity/delete with raw-frame retention |
-| R13 | Host + compiled | Nine sample edit tabs; synth EDIT cycles only oscillator/amp/filter/LFO, with no trim/loop/mix/map/render or capture tools; hold naming; native UI and browser regression |
+| R13 | Host + compiled | Eight sample edit tabs with oscillator sources reserved for Synth; synth EDIT cycles only oscillator/amp/filter/LFO, with no trim/loop/mix/map/render or capture tools; hold naming; native UI and browser regression |
 | R14 | Host + compiled | Persistent ALL/ONE scope and per-instrument view cache; isolated batch transactions |
 | R15 | Host + compiled | Lists scroll, knob 1 row, knobs 2–4 explicit footer fields; reviewed native screenshots |
 | R16 | Host + compiled | Silent note/range/sample/numeric pickers, validation, cancel and confirmation |
 | R17 | Host + compiled | Hold EDIT category key/automatic numbering, release never cycles tab |
 | R18 | Host + compiled; partial | Trim/reverse-write/normalize/mix/cross-mix, eight-stage envelopes with real framebuffer curves and sustain/release markers, eight-section forward loop programs. Reverse playback bypasses forward loop programs; no claim of every historical FZ function |
 | R19 | Host + compiled | 48 editable levels and harmonic bar graph, touch/number editing and recipes, saved recipe, immutable regeneration, phase-preserving 64-frame held-note table crossfade |
-| R20 | Host + compiled | Sine/triangle/saw/square selection, waveform preview, cycle extraction, physical point drawing and touch draft/apply/smooth/clear with whole-stroke undo, shared asset library |
+| R20 | Host + compiled | Sine/triangle/saw/square selection, waveform preview, physical point drawing and touch draft/apply/smooth/clear on Synth with whole-stroke undo; cycle extraction/shared asset attachment remain core APIs |
 | R21 | Host + compiled | HOME tracks and four working smoothed performance controls |
 | R22 | Host + compiled; fidelity partial | Per-voice driven TPT resonant filter, amp/filter envelopes/LFO/key scaling, including clocked Sample & Hold with per-note retrigger or shared free-run, stability/response tests. Original custom model, no FZ chip-fit claim |
 | R23 | Host + compiled | Shared level/pan fields, sends, mute/solo; graphical GLO channel strips, live browser faders with coalesced undo, voice-peak meters and direct mute/solo; FX return level/pan/mute. Master ADC pot uncalibrated |
@@ -57,7 +57,7 @@ These results identify host coverage, not a declaration that the specification's
 | T15–T18 | Free/retro timing, sparse ambiguity/correction, retained raw event times, existing/external tempo ownership; grid/Off/undo raw-timing checks, retained take grid, nearest-grid playback and audible collapsed gates; native roll edits/off-grid selection, arp order/gates/swing/latch/probability/stopped transport and v2 migration |
 | T19–T20 | Repeated notes, sustain/source identity, same-frame press/release, stop/loop releases; scoped transactions/redo and persisted unbake |
 | T21–T22 | Queued scenes/patterns, repeated ordered chains and reload, independent lengths/rates, song operations/live arrangement |
-| T23–T25 | Nine tabs, remembered row/scope, modal interception/cancel, naming. Playwright desktop/iPad/390/320 px, graphical modulation and synthesis editors, indexed-color display transport and legible state colors, discoverable track creation/cancellation and WAV/microphone capture, touch piano-roll editing, reversible quantization and explicit-slot sampler replacement/undo with no JS errors |
+| T23–T25 | Instrument-specific tabs, direct USB capture for both sample types, rejection of alternative sample sources, remembered row/scope, modal interception/cancel, naming. Playwright desktop/iPad/390/320 px, graphical modulation and synthesis editors, indexed-color display transport and legible state colors, discoverable track creation/cancellation and WAV/microphone capture, touch piano-roll editing, reversible quantization and explicit-slot sampler replacement/undo with no JS errors |
 | T26–T28 | PCM edit/mix/cross-mix fixtures, loop transitions/crossfades, scope safety, envelope release/scaling tests; reverse-loop limitation above |
 | T29–T30 | 48-level recipes/reload and live table publication; 600/1,024 cycles near A4 |
 | T31–T32 | Stable resonant response across test sweeps and actual HOME/GLO shared controls; S&H hold-duration/range/zero-rate, staggered-note phase-mode and project roundtrip tests; no hardware FZ reference matching |

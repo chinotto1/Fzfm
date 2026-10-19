@@ -5,12 +5,15 @@
 #include "test.h"
 #include <string.h>
 static unsigned captured;
+static unsigned capture_started;
 static uint64_t capture_time;
 static FmResult capture_command(void *user, unsigned command, FmId id, uint8_t root, uint64_t ms)
 {
     (void)user;
     (void)id;
     (void)root;
+    if (command == 0)
+        capture_started++;
     if (command == 1)
     {
         captured++;
@@ -105,13 +108,6 @@ static int test_graphical_parameters(FmUi *u, FmInstrument *in)
     CHECK(in->regions[0].lfo_shape == (0x80u | FM_LFO_SAMPLE_HOLD));
     CHECK(fm_ui_set_parameter(u, 5, 4, 1, 0) == FM_OK);
     CHECK(in->regions[0].lfo_shape == FM_LFO_SAMPLE_HOLD);
-    CHECK(fm_ui_set_parameter(u, 6, 1, 0, 47) == FM_OK);
-    CHECK(u->harmonic == 47);
-    CHECK(fm_ui_set_parameter(u, 6, 1, 1, 128) == FM_OK);
-    CHECK(in->harmonics[47] == 128 && in->additive);
-    old = graph_hash(u);
-    CHECK(fm_ui_set_parameter(u, 6, 1, 1, 256) == FM_OK);
-    CHECK(graph_hash(u) != old);
     CHECK(fm_ui_set_parameter(u, 3, 0, 0, 3) == FM_OK);
     CHECK(fm_ui_set_parameter(u, 3, 0, 0, 1) == FM_OK && u->stage == 1);
     CHECK(fm_ui_set_parameter(u, 5, 1, 1, NAN) == FM_ERR_ARGUMENT);
@@ -119,6 +115,44 @@ static int test_graphical_parameters(FmUi *u, FmInstrument *in)
     CHECK(fm_ui_set_parameter(u, 3, 0, 0, 7) == FM_OK);
     CHECK(fm_ui_set_parameter(u, 3, 5, 1, 3) == FM_OK && u->stage == 2);
     CHECK(fm_ui_use_source(u, 0) == FM_OK && u->step_note == 72);
+    return 0;
+}
+static int test_usb_sampling_workflow(void)
+{
+    FmProject p;
+    CHECK(fm_project_init(&p, NULL) == FM_OK);
+    FmUi u;
+    fm_ui_init(&u, &p, NULL, NULL);
+    fm_ui_callbacks(&u, NULL, capture_command, NULL);
+    uint64_t ms = 10;
+    for (unsigned type = FM_MULTI_SAMPLE; type <= FM_SAMPLE; type++)
+    {
+        u.screen = FM_SCREEN_NEW;
+        u.source = type;
+        unsigned started = capture_started;
+        tap_button(&u, FM_BUTTON_SCL, &ms);
+        FmTrack *t = fm_track(&p, p.selected_track);
+        FmInstrument *in = t ? fm_instrument(&p, t->instrument) : NULL;
+        CHECK(in && (unsigned)in->type == type && in->count == 0);
+        CHECK(fm_pattern(&p, t->patterns[0]));
+        CHECK(u.screen == FM_SCREEN_CAPTURE && u.source == 0 && !u.pending_instrument);
+        CHECK(capture_started == started + 1);
+        /* Neither captured type can select synthesized/shared sources via API. */
+        for (unsigned source = 1; source <= 5; source++)
+        {
+            CHECK(fm_ui_use_source(&u, source) == FM_ERR_UNSUPPORTED);
+            CHECK(u.screen == FM_SCREEN_CAPTURE && u.source == 0 && !in->count);
+        }
+        CHECK(fm_ui_set_parameter(&u, 6, 0, 0, 2) == FM_ERR_UNSUPPORTED);
+        u.screen = FM_SCREEN_HOME;
+        CHECK(fm_ui_workspace_action(&u, 24, false) == FM_OK);
+        CHECK(u.screen == FM_SCREEN_CAPTURE && capture_started == started + 2);
+        /* Stale view state cannot reopen the oscillator on a sample. */
+        u.tab = 6;
+        fm_ui_sync_view(&u);
+        CHECK(u.tab == 0);
+    }
+    fm_project_destroy(&p);
     return 0;
 }
 static int test_synth_workflow(void)
@@ -152,6 +186,13 @@ static int test_synth_workflow(void)
     CHECK(peak > .001f);
     ms += 120;
     fm_ui_key(&u, 7, false, ++ms);
+    CHECK(fm_ui_set_parameter(&u, 6, 1, 0, 47) == FM_OK);
+    CHECK(u.harmonic == 47);
+    CHECK(fm_ui_set_parameter(&u, 6, 1, 1, 128) == FM_OK);
+    CHECK(in->harmonics[47] == 128 && in->additive);
+    unsigned old = graph_hash(&u);
+    CHECK(fm_ui_set_parameter(&u, 6, 1, 1, 256) == FM_OK);
+    CHECK(graph_hash(&u) != old);
     unsigned tabs[] = {3, 4, 5, 6, 3, 4, 5, 6};
     for (unsigned i = 0; i < sizeof(tabs) / sizeof(tabs[0]); i++)
     {
@@ -190,10 +231,11 @@ static int test_synth_workflow(void)
     u.screen = FM_SCREEN_HOME;
     tap_button(&u, FM_BUTTON_EDIT, &ms);
     CHECK(u.tab == 0);
-    for (unsigned i = 1; i <= 9; i++)
+    const unsigned sample_tabs[] = {1, 2, 3, 4, 5, 7, 8, 0};
+    for (unsigned i = 0; i < sizeof(sample_tabs) / sizeof(sample_tabs[0]); i++)
     {
         tap_button(&u, FM_BUTTON_EDIT, &ms);
-        CHECK(u.tab == i % 9);
+        CHECK(u.tab == sample_tabs[i]);
     }
     CHECK(fm_ui_use_source(&u, 0) == FM_OK && u.screen == FM_SCREEN_CAPTURE);
     fm_engine_destroy(&engine);
@@ -313,6 +355,7 @@ int test_ui(void)
 {
     CHECK(test_performance_screens() == 0);
     CHECK(test_synth_workflow() == 0);
+    CHECK(test_usb_sampling_workflow() == 0);
     /* T14/T23/T24/T25/T32: actual physical events through central arbiter. */
     FmProject p;
     CHECK(fm_project_init(&p, NULL) == FM_OK);
@@ -373,7 +416,7 @@ int test_ui(void)
     CHECK(u.tab == 1);
     tap_button(&u, FM_BUTTON_EDIT, &ms);
     CHECK(u.tab == 2);
-    for (unsigned i = 0; i < 7; i++)
+    for (unsigned i = 0; i < 6; i++)
         tap_button(&u, FM_BUTTON_EDIT, &ms);
     CHECK(u.tab == 0 && u.rows[0] == 5);
     /* Numeric draft is silent, undo history receives only confirmed edit. */

@@ -76,7 +76,7 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
     $(id).onclick = () => run(async () => {
       if (!getState().tracks) { openCreation(); return; }
       if (liveMic() || !discardDraft()) return;
-      if (tab === 6 && getState().instrumentType === 0) { openCreation(); return; }
+      if (tab === 6 && getState().instrumentType !== 2) { openCreation(); return; }
       sampler.close();await action(1,tab); reveal();
     });
   }

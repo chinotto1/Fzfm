@@ -176,7 +176,7 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     {
         if (!in)
             return FM_ERR_NOT_FOUND;
-        if (value == 6 && in->type == FM_MULTI_SAMPLE)
+        if (value == 6 && in->type != FM_SYNTH)
             return FM_ERR_ARGUMENT;
         s->ui.screen = FM_SCREEN_EDIT;
         s->ui.tab = value;
@@ -210,7 +210,7 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     }
     else if ((action == 5 || action == 6) && value <= 3)
     {
-        if (!in || in->type == FM_MULTI_SAMPLE)
+        if (!in || in->type != FM_SYNTH)
             return FM_ERR_ARGUMENT;
         FmId id;
         if (action == 5)
@@ -258,7 +258,7 @@ int fm_sim_draw(void *handle, const int16_t *pcm, unsigned count)
     Simulator *s = handle;
     FmTrack *t = fm_track(&s->project, s->project.selected_track);
     FmInstrument *in = t ? fm_instrument(&s->project, t->instrument) : NULL;
-    if (!in || in->type == FM_MULTI_SAMPLE || s->ui.picker != FM_PICK_NONE || count != 1024)
+    if (!in || in->type != FM_SYNTH || s->ui.picker != FM_PICK_NONE || count != 1024)
         return FM_ERR_ARGUMENT;
     FmId id;
     FmResult result = fm_synthesis_draw(&s->project, in->id, pcm, count, 60, &id);
@@ -312,7 +312,7 @@ int fm_sim_harmonics(void *handle, const uint16_t *levels, unsigned count)
     Simulator *s = handle;
     FmTrack *t = fm_track(&s->project, s->project.selected_track);
     FmInstrument *in = t ? fm_instrument(&s->project, t->instrument) : NULL;
-    if (!in || s->ui.picker != FM_PICK_NONE || count != FM_HARMONICS)
+    if (!in || in->type != FM_SYNTH || s->ui.picker != FM_PICK_NONE || count != FM_HARMONICS)
         return FM_ERR_ARGUMENT;
     FmId id;
     FmResult result = fm_synthesis_additive(&s->project, in->id, levels, 1024, &id);

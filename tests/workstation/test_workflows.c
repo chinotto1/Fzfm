@@ -128,7 +128,7 @@ static int patterns_and_ui(void)
     NEAR(p.fx[0].gain, gain, .0001);
     NEAR(e.fx[0].config.gain, gain, .0001);
     fm_ui_button(&ui, FM_BUTTON_HOME, true, 1700);
-    fm_ui_tick(&ui,2200);
+    fm_ui_tick(&ui, 2200);
     fm_ui_button(&ui, FM_BUTTON_HOME, false, 2210);
     fm_ui_encoder(&ui, 2, 1, 2220);
     fm_ui_button(&ui, FM_BUTTON_SCL, true, 2230);
@@ -255,7 +255,7 @@ static int long_wave_edit(void)
     FmProject p;
     CHECK(fm_project_init(&p, NULL) == FM_OK);
     FmId tid, rid;
-    CHECK(fm_instrument_create(&p, FM_SAMPLE, &tid) == FM_OK);
+    CHECK(fm_instrument_create(&p, FM_SYNTH, &tid) == FM_OK);
     FmTrack *t = fm_track(&p, tid);
     uint16_t levels[FM_HARMONICS] = {256};
     CHECK(fm_synthesis_additive(&p, t->instrument, levels, 1024, &rid) == FM_OK);

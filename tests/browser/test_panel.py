@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix='fm1-browser-') as data:
             assert page.locator('.keyboard button').count()==27
             assert page.get_by_role('slider').count()==7
             # Capture -> immediate OCT+ performance, using fast clicks.
-            tap(3);screen(9);tap(3);screen(10);tap(3);screen(7)
+            tap(3);screen(9);tap(3);screen(7)
             page.locator('#test-hit').click();page.wait_for_timeout(150)
             assert state()['regions']==1,state()
             octave=state()['octave'];tap(1);screen(0)
@@ -58,13 +58,13 @@ with tempfile.TemporaryDirectory(prefix='fm1-browser-') as data:
             samples=array.array('f',page.request.get(base+'/api/audio').body())
             assert max(abs(x) for x in samples)>.001,'captured note produced silence'
             page.mouse.up()
-            # Create SAMPLE/additive through actions and source menus.
+            # A pitched sample goes directly to USB capture, with no source chooser.
             page.locator('#buttons [data-index="8"]').hover();page.mouse.down();page.wait_for_timeout(650);page.mouse.up();screen(8);tap(3);screen(9)
-            rotate('KNOB 1',1);tap(3);screen(10)
-            rotate('KNOB 1',1);tap(3);screen(0)
+            rotate('KNOB 1',1);tap(3);screen(7)
+            page.locator('#test-hit').click();page.wait_for_timeout(150);tap(1);screen(0)
             assert state()['tracks']==2 and state()['regions']==1
             tap(6);screen(1)
-            rotate('SELECT',1);assert state()['scope']==1
+            rotate('SELECT',-1);rotate('SELECT',1);assert state()['scope']==1
             rotate('KNOB 1',5);tap(3);assert state()['picker']==1
             before=page.request.get(base+'/api/backup').body()
             page.locator('[data-key="18"]').click();tap(8)
@@ -76,10 +76,14 @@ with tempfile.TemporaryDirectory(prefix='fm1-browser-') as data:
             page.mouse.up();page.locator('[data-key="4"]').click();page.wait_for_timeout(80)
             assert state()['instrument'].startswith('PAD '),state()
             assert state()['tab']==0
-            # All nine tabs retain ONE scope; additive changes publish real PCM.
-            for _ in range(6):tap(6)
-            assert state()['tab']==6 and state()['scope']==1
-            rotate('KNOB 1',1);rotate('KNOB 2',1);rotate('KNOB 3',32)
+            # Samples skip oscillator sources while retaining ONE scope.
+            for expected in [1,2,3,4,5,7,8,0]:
+                tap(6);assert state()['tab']==expected and state()['scope']==1
+            # Additive editing belongs to an explicitly created Synth track.
+            page.locator('#buttons [data-index="8"]').hover();page.mouse.down();page.wait_for_timeout(650);page.mouse.up()
+            tap(3);rotate('KNOB 1',2);tap(3);screen(1)
+            assert state()['instrumentType']==2 and state()['tab']==6
+            rotate('KNOB 1',-3);rotate('KNOB 2',1);rotate('KNOB 3',32)
             assert state()['assets']>=3
             page.screenshot(path=str(ARTIFACTS/'desktop-edit.png'),full_page=True)
             tap(8);tap(11);screen(16);tap(11);screen(4)
@@ -98,9 +102,9 @@ with tempfile.TemporaryDirectory(prefix='fm1-browser-') as data:
             backup=page.request.get(base+'/api/backup').body()
             page.on('dialog',lambda d:d.accept())
             page.locator('#restore').set_input_files({'name':'project.fm1p','mimeType':'application/octet-stream','buffer':backup})
-            page.wait_for_timeout(180);assert state()['tracks']==2 and state()['sections']==1,state()
+            page.wait_for_timeout(180);assert state()['tracks']==3 and state()['sections']==1,state()
             bad=page.request.post(base+'/api/restore',data=b'bad project').json()
-            assert bad['result']!=0 and bad['state']['tracks']==2
+            assert bad['result']!=0 and bad['state']['tracks']==3
             invalid=page.request.post(base+'/api/command',data={'type':'x','index':0,'value':1})
             assert invalid.status==400
             # Mobile and narrow layouts retain all controls without page overflow.

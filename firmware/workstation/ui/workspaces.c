@@ -29,7 +29,7 @@ static const char *const commands[] = {"NEW INSTRUMENT",
                                        "STEP DETAIL",
                                        "PATTERN SETTINGS",
                                        "LOAD PROJECT",
-                                       "SAMPLE SOURCE",
+                                       "CAPTURE / OSCILLATOR",
                                        "UNBAKE SAMPLE",
                                        "CANCEL EMPTY TRACK",
                                        "RELEASE UNUSED FX"};
@@ -75,7 +75,7 @@ void fm_ui_sync_view(FmUi *u)
     if (id == u->view_instrument)
     {
         if (!fm_ui_edit_tab_allowed(u, u->tab))
-            u->tab = 6;
+            u->tab = in && in->type == FM_SYNTH ? 6 : 0;
         if (u->rows[u->tab] >= fm_ui_edit_row_count(u, u->tab))
             u->rows[u->tab] = 0;
         return;
@@ -106,7 +106,7 @@ void fm_ui_sync_view(FmUi *u)
         }
     u->view_instrument = id;
     if (!fm_ui_edit_tab_allowed(u, u->tab))
-        u->tab = 6;
+        u->tab = in && in->type == FM_SYNTH ? 6 : 0;
 }
 static FmResult confirm_needed(FmUi *u, unsigned command, const char *notice)
 {
@@ -205,8 +205,12 @@ FmResult fm_ui_workspace_action(FmUi *u, unsigned command, bool confirmed)
     if (command == 24)
     {
         FmInstrument *in = fm_instrument(u->project, t->instrument);
+        if (!in)
+            return FM_ERR_NOT_FOUND;
+        if (in->type != FM_SYNTH)
+            return fm_ui_use_source(u, 0);
         u->screen = FM_SCREEN_SOURCE;
-        u->source = in && in->type == FM_SYNTH ? 2 : 0;
+        u->source = 2;
         return FM_OK;
     }
     if (command == 25)

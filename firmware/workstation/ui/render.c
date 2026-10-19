@@ -938,8 +938,13 @@ static void commands(FmUi *u)
     unsigned selected = u->command % FM_UI_COMMAND_COUNT,
              first = first_visible(selected, FM_UI_COMMAND_COUNT, 5);
     text(u, 4, 39, "SCL/SEL: OPEN SELECTED ACTION", 38, 1);
+    FmInstrument *in = selected_instrument(u);
     for (unsigned i = first; i < FM_UI_COMMAND_COUNT && i < first + 5; i++)
-        list_row(u, i - first, fm_ui_command_label(i), ">", "", i == selected);
+    {
+        const char *label = i == 24 ? (in && in->type == FM_SYNTH ? "OSCILLATOR" : "USB CAPTURE")
+                                    : fm_ui_command_label(i);
+        list_row(u, i - first, label, ">", "", i == selected);
+    }
     scroll_mark(u, first, FM_UI_COMMAND_COUNT, 5);
 
     text(u, 4, 184, "HOME: PLAYABLE TRACK OVERVIEW", 39, 1);
@@ -947,35 +952,22 @@ static void commands(FmUi *u)
 }
 static void creation(FmUi *u, bool source)
 {
-    FmInstrument *in = selected_instrument(u);
-    bool kit = source && in && in->type == FM_MULTI_SAMPLE;
-    bool synth = source && in && in->type == FM_SYNTH;
     static const unsigned synth_sources[] = {1, 2, 4};
-    unsigned count = !source || synth ? 3u : kit ? 2u : 6u;
-    unsigned selected = kit     ? (u->source == 5)
-                        : synth ? (u->source == 4   ? 2
-                                   : u->source == 2 ? 1
-                                                    : 0)
-                                : u->source % count;
+    unsigned count = 3;
+    unsigned selected = source ? (u->source == 4 ? 2 : u->source == 2 ? 1 : 0) : u->source % 3;
     unsigned first = first_visible(selected, count, 5);
-    text(u, 4, 39,
-         source ? (synth ? "OSCILLATOR / SAME SYNTH" : "SAMPLE SOURCE / SAME TRACK")
-                : "CREATES TRACK + EMPTY PATTERN",
-         38, 1);
+    text(u, 4, 39, source ? "OSCILLATOR / SAME SYNTH" : "CREATES TRACK + EMPTY PATTERN", 38, 1);
     for (unsigned i = first; i < count && i < first + 5; i++)
     {
-        unsigned source_index = synth ? synth_sources[i] : kit && i ? 5 : i;
+        unsigned source_index = synth_sources[i];
         const char *name = source   ? sources[source_index]
                            : i == 2 ? "SYNTH"
                            : i      ? "SAMPLE"
                                     : "MULTI SAMPLE";
-        const char *detail = source   ? (source_index == 0   ? "DIRECT USB AUDIO INPUT"
-                                         : source_index == 5 ? "SHARED CAPTURED OR IMPORTED AUDIO"
-                                         : source_index == 1 ? "48 EDITABLE HARMONICS"
-                                                             : "ON-DEVICE WAVE SOURCE")
-                             : i == 2 ? "READY TO PLAY / WAVES + HARMONICS"
-                             : i      ? "PITCHED / OCTAVE SOURCE ANCHORS"
-                                      : "16 LOGICAL SLOTS / CHROMATIC KEYS";
+        const char *detail =
+            source   ? (source_index == 1 ? "48 EDITABLE HARMONICS" : "ON-DEVICE WAVE SOURCE")
+            : i == 2 ? "READY TO PLAY / WAVES + HARMONICS"
+                     : "USB AUDIO CAPTURE / NO SOURCE MENU";
         list_row(u, i - first, name, ">", detail, i == selected);
     }
     scroll_mark(u, first, count, 5);

@@ -32,7 +32,8 @@ static FmInstrument *instrument(FmUi *u)
 bool fm_ui_edit_tab_allowed(FmUi *u, unsigned tab)
 {
     FmInstrument *in = instrument(u);
-    return tab < 9 && (!in || in->type != FM_SYNTH || tab == 6 || tab == 3 || tab == 4 || tab == 5);
+    return tab < 9 && (!in || (in->type == FM_SYNTH ? tab == 6 || tab == 3 || tab == 4 || tab == 5
+                                                    : tab != 6));
 }
 unsigned fm_ui_edit_row_count(FmUi *u, unsigned tab)
 {
@@ -575,7 +576,7 @@ static FmResult source_apply(FmUi *u)
     FmInstrument *in = instrument(u);
     if (!in)
         return FM_ERR_NOT_FOUND;
-    if (in->type == FM_SYNTH && u->source != 1 && u->source != 2 && u->source != 4)
+    if (in->type == FM_SYNTH ? u->source != 1 && u->source != 2 && u->source != 4 : u->source != 0)
         return FM_ERR_UNSUPPORTED;
     FmId id = 0;
     FmResult r = FM_ERR_UNSUPPORTED;
@@ -653,6 +654,9 @@ FmResult fm_ui_use_source(FmUi *u, unsigned source)
 {
     if (!u || source > 5 || u->picker != FM_PICK_NONE)
         return FM_ERR_ARGUMENT;
+    FmInstrument *in = instrument(u);
+    if (in && (in->type == FM_SYNTH ? source != 1 && source != 2 && source != 4 : source != 0))
+        return FM_ERR_UNSUPPORTED;
     u->source = source;
     FmResult r = source_apply(u);
     result(u, r);
@@ -1041,26 +1045,21 @@ static void confirm(FmUi *u)
         result(u, r);
         if (r == FM_OK)
         {
-            u->pending_instrument = t;
-            u->screen = FM_SCREEN_SOURCE;
-            u->source = 0;
+            unsigned choice = u->source;
             u->scope = 0;
-            if (synth)
+            u->wave_shape = FM_WAVE_SINE;
+            fm_ui_sync_view(u);
+            r = fm_ui_use_source(u, synth ? 2 : 0);
+            if (r != FM_OK)
             {
-                u->wave_shape = FM_WAVE_SINE;
+                (void)fm_remove_empty_instrument(u->project, t);
+                u->project->selected_track = previous;
                 fm_ui_sync_view(u);
-                r = fm_ui_use_source(u, 2);
-                if (r != FM_OK)
-                {
-                    (void)fm_remove_empty_instrument(u->project, t);
-                    u->project->selected_track = previous;
-                    fm_ui_sync_view(u);
-                    u->screen = FM_SCREEN_NEW;
-                    u->source = 2;
-                }
-                u->pending_instrument = 0;
-                result(u, r);
+                u->screen = FM_SCREEN_NEW;
+                u->source = choice;
             }
+            u->pending_instrument = 0;
+            result(u, r);
         }
     }
     else if (u->screen == FM_SCREEN_SOURCE)
@@ -1922,8 +1921,7 @@ static void encoder_inner(FmUi *u, unsigned index, int delta, uint64_t ms)
                 u->source = sources[index_delta(at, delta, 2)];
             }
             else
-                u->source = in && in->type == FM_MULTI_SAMPLE ? (delta > 0 ? 5 : 0)
-                                                              : index_delta(u->source, delta, 5);
+                u->source = 0;
         }
         else if (knob == 1)
             u->wave_shape = index_delta(u->wave_shape, delta, 3);

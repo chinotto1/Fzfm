@@ -263,9 +263,7 @@ static int demo(Simulator *s, const char *dir)
     /* Real physical controls create MULTI SAMPLE, three-hit partial then sixteen
      * slots, and OCT+ immediately returns to playable HOME without octave jump. */
     tap(s, FM_BUTTON_SCL);
-    tap(s, FM_BUTTON_SCL);
     key(s, fm_ui_white_keys[0]);
-    tap(s, FM_BUTTON_SCL);
     if (s->ui.last_result != FM_OK)
         return 1;
     for (unsigned hit = 0; hit < 16; hit++)
@@ -291,9 +289,7 @@ static int demo(Simulator *s, const char *dir)
     tap(s, FM_BUTTON_HOME);
     tap(s, FM_BUTTON_SCL);
     tap(s, FM_BUTTON_SCL);
-    key(s, fm_ui_white_keys[1]);
-    encoder(s, 2, 1);
-    tap(s, FM_BUTTON_SCL);
+    key(s, fm_ui_white_keys[2]);
     if (s->ui.last_result != FM_OK)
         return 1;
     button(s, FM_BUTTON_EDIT, true);
@@ -301,8 +297,9 @@ static int demo(Simulator *s, const char *dir)
     key(s, fm_ui_white_keys[2]);
     button(s, FM_BUTTON_EDIT, false);
     tap(s, FM_BUTTON_EDIT);
-    for (unsigned i = 0; i < 6; i++)
+    for (unsigned i = 0; i < 3; i++)
         tap(s, FM_BUTTON_EDIT);
+    encoder(s, 2, -100);
     encoder(s, 2, 1);
     encoder(s, 3, 1);
     encoder(s, 4, 96);
