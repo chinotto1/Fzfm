@@ -33,7 +33,7 @@ export class FakeFM1 {
     this.image = image;
     this.options = options;
     this.access = {inputs:new Map(), outputs:new Map(), sysexEnabled:true, onstatechange:null};
-    this.upgrades = 0; this.queries = 0; this.responses = 0; this.bad = 0; this.sequence = 0;
+    this.upgrades = 0; this.queries = 0; this.responses = 0; this.bad = 0; this.dropped = 0; this.sequence = 0;
     this.boot(options.identity || 'FM-1_713');
   }
   boot(identity) {
@@ -46,7 +46,18 @@ export class FakeFM1 {
     const base = {name, state:'connected', connection:'closed', manufacturer:'FM1 test device',
       async open() { this.connection = 'open'; }, async close() { this.connection = 'closed'; }};
     this.input = {...base, id:`in-${number}`, type:'input', onmidimessage:null};
-    this.output = {...base, id:`out-${number}`, type:'output', send:bytes => this.send([...bytes])};
+    this.output = {...base, id:`out-${number}`, type:'output'};
+    const output = this.output;
+    output.send = bytes => {
+      if (output.state === 'disconnected' || (this.options.failUpgrade && bytes[1] === 34)) throw new Error('Output lost');
+      const packet = [...bytes];
+      // Native Web MIDI queues output. Closing a port can discard pending data;
+      // a completion reply must survive Link cleanup and reach the updater.
+      setTimeout(() => {
+        if (output.connection !== 'open' || output.state === 'disconnected') { this.dropped++; return; }
+        this.send(packet);
+      }, 0);
+    };
     this.access.inputs.set(this.input.id, this.input); this.access.outputs.set(this.output.id, this.output);
   }
   emit(bytes) { this.input.onmidimessage?.({data:new Uint8Array(bytes)}); }
@@ -82,9 +93,9 @@ export class FakeFM1 {
       this.disconnect(); return;
     }
     if (addr === 0xE0000000) {
-      setTimeout(() => this.boot(this.options.loaderIdentity || `ota-${this.options.target || 'FM-1_713'}`), 0);
+      this.boot(this.options.loaderIdentity || `ota-${this.options.target || 'FM-1_713'}`);
     } else if (addr === 0xF0000000) {
-      setTimeout(() => this.boot(this.options.finalIdentity || this.options.target || 'FM-1_713'), 0);
+      this.boot(this.options.finalIdentity || this.options.target || 'FM-1_713');
     } else this.next();
   }
   next() {

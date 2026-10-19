@@ -12,7 +12,7 @@ Upstream hashes and revision are recorded in `third_party/fm1-installer.lock.jso
 
 Local protocol changes require matching MIDI port pairs and exact target loader
 identities, validate identity/request checksums and stages, reject invalid read
-ranges and ambiguous ports, release ports after errors, detect changed devices,
+ranges and ambiguous ports, detach temporary message handlers, detect changed devices,
 and verify the returned firmware identity after normal and resumed transfers.
 Timing injection is used only by tests. The application validates whole-package
 SHA-256 digests and sizes against its release catalog before entering update mode.

@@ -98,7 +98,10 @@ class Link {
   }
   async close() {
     this.input.onmidimessage = null;
-    await Promise.allSettled([this.input, this.output].map(async port => port.close?.()));
+    this.q.length = 0;
+    // Web MIDI output.send queues USB bytes. Closing the output here can drop
+    // the final "success" reply before the loader receives it. As upstream does,
+    // keep the ports open across the handover; the browser releases them on exit.
   }
 }
 

@@ -8,7 +8,7 @@
       "upstream_sha256": "4d9fb9962ee0c2ac33e94ffd551eed577776e3705597e422b0eed8be21008c66",
       "local": "web/installer/vendor/fm1ota.js",
       "changes": "See web/installer/vendor/NOTICE.md",
-      "local_sha256": "fb6bb12c6f586171be96ca719890fcccead7d2cd6df85c9b9075df3089f90ffc"
+      "local_sha256": "604beb89f60b9d9f08076b48167aabb2c76bae692ccfdc8bb134799619c171d2"
     },
     "fm1pkg.js": {
       "upstream_sha256": "0ad2257f83b2a55627d684556f7e285faa638365e2892802692ec7a1943bf2aa",

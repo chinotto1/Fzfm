@@ -113,6 +113,7 @@ try:
         page.locator('#confirm-install').click()
         wait('document.querySelector("#progress").value===100')
         assert page.evaluate('__fm1Device.bad') == 0
+        assert page.evaluate('__fm1Device.dropped') == 0
         assert page.evaluate('__fm1Device.upgrades') == 2
         assert 'expected firmware identity' in page.locator('#transfer-stage').inner_text()
         # An unplug during the write must stay incomplete and allow matching resume.

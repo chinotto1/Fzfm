@@ -57,7 +57,7 @@ checked there. Restoring stock does not guarantee custom music survives.
 ## Evidence and remaining work
 
 `make installer-test` runs Node 20+ checks against a wire-level simulated FM1:
-framing, checksums, read-only identity, both transfer stages, exact-loader resume,
+framing, checksums, queued USB acknowledgements across port handover, read-only identity, both transfer stages, exact-loader resume,
 final identity, wrong target, disconnects, invalid read ranges/stages and cleanup.
 `python3 tests/browser/test_installer.py` exercises the built `/Fzfm/install/`
 page with injected MIDI ports, local package selection, corruption/backup/review
