@@ -62,6 +62,21 @@ static int test_display_style(FmUi *u)
     CHECK(pixels_with(u, 2, 52, 232, 23, FM_UI_BLUE) > 1000);
     CHECK(pixels_with(u, 7, 63, 100, 1, FM_UI_TEXT) > 0);
     CHECK(pixels_with(u, 3, 236, 55, 1, FM_UI_AMBER) > 0);
+    /* HOME keeps numeric knob values without parameter bars or routine OK. */
+    char saved_status[sizeof(u->status)];
+    memcpy(saved_status, u->status, sizeof(saved_status));
+    FmResult saved_result = u->last_result;
+    strcpy(u->status, "OK");
+    u->last_result = FM_OK;
+    fm_ui_render(u);
+    CHECK(pixels_with(u, 0, 194, 240, 18, FM_UI_BG) == 240 * 18);
+    CHECK(pixels_with(u, 3, 227, 55, 10, FM_UI_AMBER) > 0);
+    strcpy(u->status, "STORAGE FULL");
+    u->last_result = FM_ERR_STORAGE;
+    fm_ui_render(u);
+    CHECK(pixels_with(u, 4, 201, 230, 7, FM_UI_RED) > 0);
+    memcpy(u->status, saved_status, sizeof(u->status));
+    u->last_result = saved_result;
     FmCapture capture = {.slot = 1, .state = FM_CAPTURE_CAPTURING, .peak = .5f};
     u->capture_monitor = &capture;
     u->screen = FM_SCREEN_CAPTURE;

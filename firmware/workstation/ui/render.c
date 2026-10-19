@@ -360,16 +360,6 @@ static void home(FmUi *u, bool mixer)
             snprintf(d, sizeof(d), "%+.2f", (double)t->pan);
         }
     }
-    if (t && !mixer)
-    {
-        float meters[] = {t->cutoff, t->resonance, t->volume / 4, (t->pan + 1) / 2};
-        for (unsigned i = 0; i < 4; i++)
-        {
-            rectangle(u, 4 + (int)i * 60, 194, 50, 4, FM_UI_BLUE);
-            rectangle(u, 4 + (int)i * 60, 194, (int)(50 * fminf(1, fmaxf(0, meters[i]))), 4,
-                      FM_UI_GREEN);
-        }
-    }
     if (mixer)
     {
         char label[12];
@@ -1364,7 +1354,10 @@ void fm_ui_render(FmUi *u)
                              : u->save_pending            ? "SAVE QUEUED"
                              : u->project->volatile_audio ? "VOLATILE AUDIO - SAVE REQUIRED"
                                                           : "";
-        rectangle(u, 0, 199, 240, 12, FM_UI_PANEL);
-        text(u, 4, 201, status, 39, u->last_result == FM_OK ? FM_UI_MUTED : FM_UI_RED);
+        if (u->screen != FM_SCREEN_HOME || (status[0] && strcmp(status, "OK")))
+        {
+            rectangle(u, 0, 199, 240, 12, FM_UI_PANEL);
+            text(u, 4, 201, status, 39, u->last_result == FM_OK ? FM_UI_MUTED : FM_UI_RED);
+        }
     }
 }

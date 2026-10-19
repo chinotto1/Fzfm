@@ -24,7 +24,7 @@ Current implementation extends the reviewed Cursor commit `ffc0576`. The executa
 | R18 | Host + compiled; partial | Trim/reverse-write/normalize/mix/cross-mix, eight-stage envelopes with real framebuffer curves and sustain/release markers, eight-section forward loop programs. Reverse playback bypasses forward loop programs; no claim of every historical FZ function |
 | R19 | Host + compiled | 48 editable levels and harmonic bar graph, touch/number editing and recipes, saved recipe, immutable regeneration, phase-preserving 64-frame held-note table crossfade |
 | R20 | Host + compiled | Sine/triangle/saw/square selection, waveform preview, physical point drawing and touch draft/apply/smooth/clear on Synth with whole-stroke undo; cycle extraction/shared asset attachment remain core APIs |
-| R21 | Host + compiled | HOME tracks and four working smoothed performance controls |
+| R21 | Host + compiled | HOME tracks and four working smoothed performance controls with numeric values; redundant parameter bars and routine OK feedback removed, useful messages/errors retained |
 | R22 | Host + compiled; fidelity partial | Per-voice driven TPT resonant filter, amp/filter envelopes/LFO/key scaling, including clocked Sample & Hold with per-note retrigger or shared free-run, stability/response tests. Original custom model, no FZ chip-fit claim |
 | R23 | Host + compiled | Shared level/pan fields, sends, mute/solo; graphical GLO channel strips, live browser faders with coalesced undo, voice-peak meters and direct mute/solo; FX return level/pan/mute. Master ADC pot uncalibrated |
 | R24 | Host + compiled; device budget pending | Four simultaneous shared wet processors with named parameter rows, input bypass/tails, return mute, admission/reclaim tests |
