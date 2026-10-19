@@ -189,6 +189,11 @@ static int test_performance_screens(void)
     fm_ui_encoder(&u, 6, -1, ms);
     NEAR(u.roll_tick, 355.2, .001);
     CHECK(u.step_note == 70);
+    int octave = u.octave;
+    tap_button(&u, FM_BUTTON_OCT_PLUS, &ms);
+    CHECK(u.octave == octave + 1 && u.screen == FM_SCREEN_ROLL && u.step_note == 82);
+    tap_button(&u, FM_BUTTON_OCT_MINUS, &ms);
+    CHECK(u.octave == octave && u.step_note == 70);
     fm_ui_encoder(&u, 4, 1, ms);
     CHECK(pat->events[0].note == 70);
     NEAR(pat->events[fm_pattern_note_off(pat, 0)].tick, 675.2, .001);

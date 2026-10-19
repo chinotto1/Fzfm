@@ -6,7 +6,7 @@ const names=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const noteName=n=>names[n%12]+(Math.floor(n/12)-1);
 export function initSequencer({request,send,run,action,getState,enableSound,showError,openCreation}) {
  let state={},pattern=null,notes=[],selected=null,gesture=null,tool='draw',page=0,lastPattern=0;
- let fetched='',fetching=false,sequence=0,pendingSelection=null,patternKey='',timingKey='',notesRevision=-1;
+ let fetched='',fetching=false,sequence=0,pendingSelection=null,patternKey='',timingKey='',notesRevision=-1,lastOctave=null;
  const canvas=$('piano-roll'),scroll=$('roll-scroll'),keys=$('roll-keys');
  const activeKeys=new Map();
  const bar=()=>PPQN*4,windowBars=()=>+$('roll-window').value,from=()=>page*windowBars()*bar();
@@ -174,8 +174,10 @@ export function initSequencer({request,send,run,action,getState,enableSound,show
  return function render(s) {
   state=s;pattern=s.editor?.pattern;
   const visible=!!pattern&&[4,5,16].includes(s.screen);$('sequencer-editor').hidden=!visible;
+  const octaveShift=lastOctave===null?0:s.octave-lastOctave;lastOctave=s.octave;
   if(!visible){if(activeKeys.size)release();return;}
-  if(pattern.id!==lastPattern){lastPattern=pattern.id;page=0;fetched='';selected=null;notes=[];notesRevision=-1;scroll.scrollLeft=0;scroll.scrollTop=(127-(s.instrumentType===0?s.baseNote:60)-5)*ROW;}
+  if(pattern.id!==lastPattern){lastPattern=pattern.id;page=0;fetched='';selected=null;notes=[];notesRevision=-1;scroll.scrollLeft=0;scroll.scrollTop=(127-((s.instrumentType===0?s.baseNote:60)+s.octave*12)-5)*ROW;}
+  else if(octaveShift)scroll.scrollTop-=octaveShift*12*ROW;
   if(page*windowBars()*bar()>=pattern.length){page=0;fetched='';}
   $('seq-play').textContent=s.playing?'Stop':'Play';$('seq-record').textContent=s.armed||s.recording?'Finish recording':'Record';
   $('seq-record-status').textContent=s.recording?'Recording your notes…':s.armed?'Armed · play a key to begin':s.playing?'Playing':'Stopped';

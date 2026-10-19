@@ -90,6 +90,9 @@ try:
   assert color>5,color
   page.wait_for_timeout(180)
   page.screenshot(path=str(ROOT/'build/ui/native-piano-roll-ipad.png'),full_page=True)
+  octave=state()['octave'];scroll_top=page.locator('#roll-scroll').evaluate('e=>e.scrollTop');physical(1);wait(f'fm1.state().octave==={octave+1}&&fm1.state().screen===16')
+  assert page.locator('#roll-scroll').evaluate('e=>e.scrollTop')==scroll_top-288
+  physical(0);wait(f'fm1.state().octave==={octave}')
   # All four sequencer screens remain reachable from the actual SEQ button.
   for screen in [4,5,6,16]:physical(11);wait(f'fm1.state().screen==={screen}')
   for width in [390,320]:

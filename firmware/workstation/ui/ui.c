@@ -1146,6 +1146,9 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
         }
         if (u->screen == FM_SCREEN_ROLL)
         {
+            int next = (int)index_delta((unsigned)(u->octave + 3), d, 7) - 3;
+            d = next - u->octave;
+            u->octave = next;
             u->step_note = (uint8_t)bound(u->step_note + d * 12, 0, 127);
             u->roll_low = (unsigned)bound((float)u->roll_low + d * 12, 0,
                                           128 - (u->roll_span ? u->roll_span : 12));
