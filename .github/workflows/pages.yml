@@ -28,10 +28,19 @@ jobs:
           python3 -m playwright install --with-deps chromium
       - name: Test touch, audio, storage and static paths
         run: |
-          python3 tests/browser/test_static_emulator.py
-          python3 tests/browser/test_workspace.py
-          python3 tests/browser/test_piano_sampler.py
-          python3 tests/browser/test_performance.py
+          python3 - <<'PYTHON'
+          import subprocess
+          import sys
+          for suite in ('test_static_emulator', 'test_workspace', 'test_piano_sampler', 'test_performance'):
+              path = f'tests/browser/{suite}.py'
+              result = subprocess.run([sys.executable, path], stdout=subprocess.PIPE,
+                                      stderr=subprocess.STDOUT, text=True)
+              print(result.stdout, end='', flush=True)
+              if result.returncode:
+                  details = result.stdout[-12000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title={suite} failed::{details}', flush=True)
+                  raise SystemExit(result.returncode)
+          PYTHON
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
