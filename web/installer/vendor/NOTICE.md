@@ -1,7 +1,7 @@
 # FM-1 browser update protocol
 
 `fm1ota.js` is derived from Skiff v1.3.2 at commit
-`86d8e09125a42945b0277c6516b1a15a9c53ab3b`, file `web/fm1ota.js`.
+`c4bb2b4e9015cf6244f98db1d319874e15eb0767`, file `web/fm1ota.js`.
 `fm1pkg.js` retains the product, logical-image and SHA-256 helpers from that
 revision's `web/fm1pkg.js`; package mutation and firmware construction are omitted.
 

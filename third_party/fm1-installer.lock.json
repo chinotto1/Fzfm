@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/illuminus5/skiff",
-  "commit": "86d8e09125a42945b0277c6516b1a15a9c53ab3b",
+  "commit": "c4bb2b4e9015cf6244f98db1d319874e15eb0767",
   "tag": "v1.3.2",
   "license": "GPL-3.0-only",
   "files": {
@@ -16,5 +16,6 @@
       "changes": "See web/installer/vendor/NOTICE.md",
       "local_sha256": "b4b8ad3518bde795754799c39292106e18476d85ddcd22c44d1dbfc4fb567d17"
     }
-  }
+  },
+  "tag_object": "86d8e09125a42945b0277c6516b1a15a9c53ab3b"
 }
