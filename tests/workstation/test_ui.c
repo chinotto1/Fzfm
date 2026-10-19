@@ -144,6 +144,14 @@ static int test_performance_screens(void)
     CHECK(u.arp_page == 1);
     fm_ui_encoder(&u, 4, 1, ms);
     CHECK(track->arp.latch);
+    tap_button(&u, FM_BUTTON_ARP, &ms);
+    fm_ui_encoder(&u, 2, 1, ms);
+    CHECK(track->arp.mode == FM_ARP_DOWN);
+    tap_button(&u, FM_BUTTON_ARP, &ms);
+    fm_ui_encoder(&u, 2, 5, ms);
+    NEAR(track->arp.swing, .05, .0001);
+    CHECK(fm_ui_history(&u, false) == FM_OK);
+    CHECK(track->arp.mode == FM_ARP_DOWN && track->arp.swing == 0);
     fm_ui_button(&u, FM_BUTTON_HOME, true, ms);
     ms += 501;
     fm_ui_tick(&u, ms);
@@ -196,6 +204,11 @@ static int test_performance_screens(void)
     CHECK(u.octave == octave && u.step_note == 70);
     fm_ui_encoder(&u, 4, 1, ms);
     CHECK(pat->events[0].note == 70);
+    NEAR(pat->events[fm_pattern_note_off(pat, 0)].tick, 675.2, .001);
+    fm_ui_encoder(&u, 6, 1, ms);
+    CHECK(u.step_note == 62);
+    fm_ui_encoder(&u, 4, 1, ms);
+    CHECK(fm_ui_history(&u, false) == FM_OK);
     NEAR(pat->events[fm_pattern_note_off(pat, 0)].tick, 675.2, .001);
     tap_button(&u, FM_BUTTON_SEQ, &ms);
     CHECK(u.screen == FM_SCREEN_STEP);

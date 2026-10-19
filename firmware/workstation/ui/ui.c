@@ -1976,8 +1976,8 @@ static void encoder_inner(FmUi *u, unsigned index, int delta, uint64_t ms)
 void fm_ui_encoder(FmUi *u, unsigned index, int delta, uint64_t ms)
 {
     uint64_t before = fm_edit_serial(u->project);
-    unsigned key =
-        (unsigned)u->screen * 100000u + u->tab * 1000u + u->rows[u->tab % 9] * 20u + index;
+    unsigned key = (unsigned)u->screen * 100000u + u->tab * 1000u + u->rows[u->tab % 9] * 20u +
+                   index + (u->screen == FM_SCREEN_ARP ? u->arp_page * 10000u : 0);
     encoder_inner(u, index, delta, ms);
     uint64_t after = fm_edit_serial(u->project);
     if (after != before)
@@ -1989,6 +1989,8 @@ void fm_ui_encoder(FmUi *u, unsigned index, int delta, uint64_t ms)
         u->gesture_key = key;
         u->gesture_ms = ms;
     }
+    if (after == before && u->screen == FM_SCREEN_ROLL)
+        u->gesture_serial = 0;
     if (u->engine)
         (void)fm_engine_collect_cycles(u->engine);
 }
