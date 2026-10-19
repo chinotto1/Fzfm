@@ -137,17 +137,26 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     FmResult result = FM_OK;
     FmTrack *t = fm_track(&s->project, s->project.selected_track);
     FmInstrument *in = t ? fm_instrument(&s->project, t->instrument) : NULL;
-    if (action == 0 && value <= 4)
+    if (action == 0 && value <= 5)
     {
         s->capture_targeted = s->capture_replace = false;
         if (fm_sequence_playing(s->sequence))
             return FM_ERR_BUSY;
         FmId previous = s->project.selected_track, id;
-        result = fm_instrument_create(&s->project, value == 0 ? FM_MULTI_SAMPLE : FM_SAMPLE, &id);
+        result = fm_instrument_create(&s->project,
+                                      value == 0   ? FM_MULTI_SAMPLE
+                                      : value == 1 ? FM_SAMPLE
+                                                   : FM_SYNTH,
+                                      &id);
         if (result == FM_OK)
         {
             fm_ui_sync_view(&s->ui);
-            result = fm_ui_use_source(&s->ui, value == 2 ? 1 : value == 3 ? 2 : value == 4 ? 4 : 0);
+            if (value == 5)
+                s->ui.wave_shape = FM_WAVE_SINE;
+            result = fm_ui_use_source(&s->ui, value == 2                 ? 1
+                                              : value == 3 || value == 5 ? 2
+                                              : value == 4               ? 4
+                                                                         : 0);
             if (result != FM_OK)
             {
                 FmTrack *created = fm_track(&s->project, id);
@@ -167,7 +176,7 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     {
         if (!in)
             return FM_ERR_NOT_FOUND;
-        if (value == 6 && in->type != FM_SAMPLE)
+        if (value == 6 && in->type == FM_MULTI_SAMPLE)
             return FM_ERR_ARGUMENT;
         s->ui.screen = FM_SCREEN_EDIT;
         s->ui.tab = value;
@@ -201,7 +210,7 @@ int fm_sim_action(void *handle, unsigned action, unsigned value)
     }
     else if ((action == 5 || action == 6) && value <= 3)
     {
-        if (!in || in->type != FM_SAMPLE)
+        if (!in || in->type == FM_MULTI_SAMPLE)
             return FM_ERR_ARGUMENT;
         FmId id;
         if (action == 5)
@@ -249,7 +258,7 @@ int fm_sim_draw(void *handle, const int16_t *pcm, unsigned count)
     Simulator *s = handle;
     FmTrack *t = fm_track(&s->project, s->project.selected_track);
     FmInstrument *in = t ? fm_instrument(&s->project, t->instrument) : NULL;
-    if (!in || in->type != FM_SAMPLE || s->ui.picker != FM_PICK_NONE || count != 1024)
+    if (!in || in->type == FM_MULTI_SAMPLE || s->ui.picker != FM_PICK_NONE || count != 1024)
         return FM_ERR_ARGUMENT;
     FmId id;
     FmResult result = fm_synthesis_draw(&s->project, in->id, pcm, count, 60, &id);

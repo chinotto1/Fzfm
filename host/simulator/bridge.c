@@ -280,7 +280,7 @@ int fm_sim_import_wave(void *handle, const uint8_t *bytes, size_t length, int cy
     FmResult r = fm_import_wav_asset(&s->project, bytes, length, cycle != 0, &aid);
     if (r != FM_OK)
         return r;
-    r = fm_instrument_create(&s->project, FM_SAMPLE, &tid);
+    r = fm_instrument_create(&s->project, cycle ? FM_SYNTH : FM_SAMPLE, &tid);
     if (r != FM_OK)
     {
         fm_asset_discard(&s->project, aid);

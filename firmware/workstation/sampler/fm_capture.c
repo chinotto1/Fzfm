@@ -35,6 +35,8 @@ static FmResult begin_slot(FmCapture *c, FmProject *p, FmId tid, uint8_t root,
     FmInstrument *in = fm_instrument(p, t->instrument);
     if (!in)
         return FM_ERR_NOT_FOUND;
+    if (in->type == FM_SYNTH)
+        return FM_ERR_UNSUPPORTED;
     unsigned slot = target < 0 ? 0 : (unsigned)target;
     if (target < 0)
         while (slot < FM_ANCHORS && in->regions[slot].id)
@@ -203,6 +205,8 @@ FmResult fm_capture_service(FmCapture *c)
     FmInstrument *in = fm_instrument(c->project, c->instrument);
     if (!in)
         return FM_ERR_NOT_FOUND;
+    if (in->type == FM_SYNTH)
+        return FM_ERR_UNSUPPORTED;
     FmResult r = fm_edit_begin(c->project);
     if (r == FM_OK)
         r = fm_edit_watch(c->project, in, sizeof(*in));
@@ -276,6 +280,8 @@ FmResult fm_capture_resume(FmCapture *c, uint8_t root)
     FmInstrument *in = fm_instrument(c->project, c->instrument);
     if (!in)
         return FM_ERR_NOT_FOUND;
+    if (in->type == FM_SYNTH)
+        return FM_ERR_UNSUPPORTED;
     unsigned slot = 0;
     while (slot < FM_ANCHORS && in->regions[slot].id)
         slot++;
@@ -296,6 +302,8 @@ FmResult fm_capture_retry(FmCapture *c)
     FmInstrument *in = fm_instrument(c->project, c->instrument);
     if (!in)
         return FM_ERR_NOT_FOUND;
+    if (in->type == FM_SYNTH)
+        return FM_ERR_UNSUPPORTED;
     unsigned slot = 0;
     while (slot < FM_ANCHORS && in->regions[slot].id != c->last_region)
         slot++;
@@ -331,6 +339,8 @@ FmResult fm_capture_skip(FmCapture *c)
     FmInstrument *in = fm_instrument(c->project, c->instrument);
     if (!in)
         return FM_ERR_NOT_FOUND;
+    if (in->type == FM_SYNTH)
+        return FM_ERR_UNSUPPORTED;
     c->slot++;
     while (c->slot < FM_ANCHORS && in->regions[c->slot].id)
         c->slot++;

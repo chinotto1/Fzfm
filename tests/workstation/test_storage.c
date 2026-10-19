@@ -82,7 +82,7 @@ int test_storage(void)
     uint8_t *b = NULL, *round = NULL;
     size_t n = 0, nround = 0;
     CHECK(fm_project_encode(&p, &b, &n) == FM_OK);
-    CHECK(!memcmp(b, "FM1P\3\0\30\0", 8));
+    CHECK(!memcmp(b, "FM1P\4\0\30\0", 8));
     CHECK(fm_project_decode(&q, b, n) == FM_OK);
     CHECK(fm_project_encode(&q, &round, &nround) == FM_OK);
     CHECK(nround == n && !memcmp(round, b, n));
@@ -95,6 +95,29 @@ int test_storage(void)
     CHECK(fm_instrument(&q, s->id)->harmonics[47] == 209);
     CHECK(!memcmp(fm_asset(&q, aid)->pcm, pcm, sizeof pcm));
     free(round);
+    /* v3 used the same payload layout, but had no explicit synth type. */
+    b[4] = 3;
+    repair(b, n);
+    CHECK(fm_project_decode(&q, b, n) == FM_OK);
+    CHECK(fm_instrument(&q, s->id)->type == FM_SYNTH);
+    CHECK(!memcmp(fm_asset(&q, aid)->pcm, pcm, sizeof pcm));
+    fm_asset(&p, aid)->cycle = false;
+    free(b);
+    CHECK(fm_project_encode(&p, &b, &n) == FM_OK);
+    b[4] = 3;
+    repair(b, n);
+    CHECK(fm_project_decode(&q, b, n) == FM_OK);
+    CHECK(fm_instrument(&q, s->id)->type == FM_SAMPLE);
+    fm_asset(&p, aid)->cycle = true;
+    s->type = FM_SYNTH;
+    free(b);
+    CHECK(fm_project_encode(&p, &b, &n) == FM_OK);
+    CHECK(fm_project_decode(&q, b, n) == FM_OK);
+    CHECK(fm_instrument(&q, s->id)->type == FM_SYNTH);
+    s->type = FM_SAMPLE;
+    free(b);
+    CHECK(fm_project_encode(&p, &b, &n) == FM_OK);
+    CHECK(fm_project_decode(&q, b, n) == FM_OK);
     FmId retained = q.selected_track;
     for (size_t length = 0; length < n; length += 17)
     {

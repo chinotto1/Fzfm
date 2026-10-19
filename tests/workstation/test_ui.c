@@ -121,6 +121,85 @@ static int test_graphical_parameters(FmUi *u, FmInstrument *in)
     CHECK(fm_ui_use_source(u, 0) == FM_OK && u->step_note == 72);
     return 0;
 }
+static int test_synth_workflow(void)
+{
+    FmProject p;
+    CHECK(fm_project_init(&p, NULL) == FM_OK);
+    FmEngine engine;
+    CHECK(fm_engine_init(&engine, &p, 4) == FM_OK);
+    FmUi u;
+    fm_ui_init(&u, &p, &engine, NULL);
+    fm_ui_callbacks(&u, NULL, capture_command, NULL);
+    uint64_t ms = 10;
+    tap_button(&u, FM_BUTTON_SCL, &ms);
+    CHECK(u.screen == FM_SCREEN_NEW);
+    fm_ui_encoder(&u, 2, 2, ms);
+    CHECK(u.source == 2);
+    fm_ui_render(&u);
+    tap_button(&u, FM_BUTTON_SCL, &ms);
+    FmTrack *track = fm_track(&p, p.selected_track);
+    FmInstrument *in = track ? fm_instrument(&p, track->instrument) : NULL;
+    CHECK(in && in->type == FM_SYNTH && in->count == 1);
+    CHECK(u.screen == FM_SCREEN_EDIT && u.tab == 6 && !u.pending_instrument);
+    CHECK(!in->regions[0].one_shot && fm_asset(&p, in->regions[0].asset)->cycle);
+    /* A newly created synth can be heard without visiting any capture wizard. */
+    fm_ui_key(&u, 7, true, ++ms);
+    float audio[8192];
+    fm_engine_render(&engine, audio, 4096);
+    float peak = 0;
+    for (unsigned i = 0; i < 8192; i++)
+        peak = fmaxf(peak, fabsf(audio[i]));
+    CHECK(peak > .001f);
+    ms += 120;
+    fm_ui_key(&u, 7, false, ++ms);
+    unsigned tabs[] = {3, 4, 5, 6, 3, 4, 5, 6};
+    for (unsigned i = 0; i < sizeof(tabs) / sizeof(tabs[0]); i++)
+    {
+        tap_button(&u, FM_BUTTON_EDIT, &ms);
+        CHECK(u.tab == tabs[i]);
+        fm_ui_render(&u);
+    }
+    fm_ui_encoder(&u, 2, 100, ms);
+    CHECK(u.rows[6] == 6); /* No CUT SAMPLE row on an oscillator. */
+    CHECK(fm_ui_set_parameter(&u, 0, 0, 0, 12) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_set_parameter(&u, 1, 0, 0, 1) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_set_parameter(&u, 2, 1, 0, 1) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_set_parameter(&u, 7, 0, 0, 60) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_set_parameter(&u, 8, 0, 0, 0) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_set_parameter(&u, 6, 7, 0, 0) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_use_source(&u, 0) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_use_source(&u, 3) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_use_source(&u, 5) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_use_source(&u, 1) == FM_OK && in->additive);
+    CHECK(fm_ui_use_source(&u, 4) == FM_OK && !in->additive);
+    FmCapture capture = {0};
+    CHECK(fm_capture_begin(&capture, &p, track->id, 72, NULL) == FM_ERR_UNSUPPORTED);
+    CHECK(!capture.buffer && in->type == FM_SYNTH);
+    CHECK(fm_ui_set_parameter(&u, 6, 0, 0, 0) == FM_ERR_UNSUPPORTED);
+    CHECK(fm_ui_set_parameter(&u, 6, 0, 0, 1) == FM_OK);
+    tap_button(&u, FM_BUTTON_SCL, &ms);
+    CHECK(u.screen == FM_SCREEN_SOURCE && u.source == 1);
+    fm_ui_encoder(&u, 2, -100, ms);
+    CHECK(u.source == 1);
+    fm_ui_encoder(&u, 2, 100, ms);
+    CHECK(u.source == 4);
+    /* Sample tracks still retain trim/loops/mix/map/render and input capture. */
+    FmId id;
+    CHECK(fm_instrument_create(&p, FM_SAMPLE, &id) == FM_OK);
+    fm_ui_sync_view(&u);
+    u.screen = FM_SCREEN_HOME;
+    tap_button(&u, FM_BUTTON_EDIT, &ms);
+    CHECK(u.tab == 0);
+    for (unsigned i = 1; i <= 9; i++)
+    {
+        tap_button(&u, FM_BUTTON_EDIT, &ms);
+        CHECK(u.tab == i % 9);
+    }
+    CHECK(fm_ui_use_source(&u, 0) == FM_OK && u.screen == FM_SCREEN_CAPTURE);
+    fm_engine_destroy(&engine);
+    fm_project_destroy(&p);
+    return 0;
+}
 static int test_performance_screens(void)
 {
     FmProject p;
@@ -233,6 +312,7 @@ static int test_performance_screens(void)
 int test_ui(void)
 {
     CHECK(test_performance_screens() == 0);
+    CHECK(test_synth_workflow() == 0);
     /* T14/T23/T24/T25/T32: actual physical events through central arbiter. */
     FmProject p;
     CHECK(fm_project_init(&p, NULL) == FM_OK);

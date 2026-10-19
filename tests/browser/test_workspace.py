@@ -54,8 +54,25 @@ try:
         page.wait_for_selector('#new-track-dialog',state='hidden')
     # Cancellation never leaves an empty track. Each choice creates its pattern.
     tap('new-track');tap('cancel-new-track');assert state()['tracks']==0
-    create(2)
-    wait('fm1.state().tracks===1 && fm1.state().tab===6')
+    create(5)
+    wait('fm1.state().tracks===1 && fm1.state().instrumentType===2 && fm1.state().tab===6')
+    assert 'synth' in page.locator('#track-choice option:checked').inner_text()
+    # Physical EDIT has exactly the synth pages; the visual editor follows it.
+    for tab in (3,4,5,6,3,4,5,6):
+        page.locator('#buttons [data-index="6"]').tap()
+        wait(f'fm1.state().tab==={tab}')
+        assert page.locator('#synth-editor' if tab==6 else '#mod-editor').is_visible()
+        assert not page.locator('#scope-label').is_visible()
+    # Entering Sampler from a synth proposes a separate sampled instrument.
+    wave=state()['editor']['wave']
+    tap('sample-audio');wait('!document.querySelector("#sampling-editor").hidden')
+    assert page.locator('#sampler-type').input_value()=='1'
+    assert page.locator('#sampler-instrument').input_value()=='0'
+    assert page.locator('.sample-slot.filled').count()==0
+    assert state()['tracks']==1 and state()['instrumentType']==2 and state()['editor']['wave']==wave
+    tap('open-synthesis');wait('fm1.state().tab===6')
+    tap('synth-additive');page.locator('[data-recipe="0"]').tap()
+    wait('fm1.state().editor.additive===true')
     e=state()['editor'];assert len(e['harmonics'])==48 and e['harmonics'][0]==256
     page.locator('#preview-note').hover();page.mouse.down()
     wait('fm1.state().voices>0')
@@ -122,7 +139,7 @@ try:
     }''');assert energy>.001
     # Track selector returns to the first synth with its independent parameters.
     first=state()['editor']['tracks'][0]['id'];page.locator('#track-choice').select_option(str(first))
-    wait('fm1.state().instrumentType===1')
+    wait('fm1.state().instrumentType===2')
     assert state()['editor']['amp']['stages'][0][0]==700
     tap('open-synthesis');wait('fm1.state().tab===6');tap('synth-additive')
     page.locator('[data-recipe="2"]').tap();wait('fm1.state().editor.additive===true')
@@ -141,7 +158,7 @@ try:
     page.reload();page.wait_for_function('window.fm1 && !document.body.classList.contains(\"loading\")',timeout=60000)
     assert state()['tracks']==3 and not state()['dirty']
     first=state()['editor']['tracks'][0]['id'];page.locator('#track-choice').select_option(str(first))
-    wait('fm1.state().instrumentType===1 && fm1.state().editor.additive===true')
+    wait('fm1.state().instrumentType===2 && fm1.state().editor.additive===true')
     assert state()['editor']['amp']['stages'][0][0]==700
     assert state()['editor']['filter']['stages'][0][0]==420
     assert state()['editor']['lfo']['shape']==4 and state()['editor']['lfo']['free']

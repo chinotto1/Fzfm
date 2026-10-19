@@ -472,7 +472,7 @@ static bool initialize(void)
         return false;
     fm_midi_init(&midi, &project, &engine, sequence);
     FmId track, asset, region;
-    if (fm_instrument_create(&project, FM_SAMPLE, &track) != FM_OK)
+    if (fm_instrument_create(&project, FM_SYNTH, &track) != FM_OK)
         return false;
     int16_t cycle[256];
     for (unsigned i = 0; i < 256; i++)

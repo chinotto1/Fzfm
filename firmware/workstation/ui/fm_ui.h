@@ -180,6 +180,8 @@ FmResult fm_ui_workspace_confirm(FmUi *);
 bool fm_ui_workspace_encoder(FmUi *, unsigned knob, int delta);
 FmResult fm_ui_capture_setting(FmUi *, int delta);
 void fm_ui_sync_view(FmUi *);
+bool fm_ui_edit_tab_allowed(FmUi *, unsigned tab);
+unsigned fm_ui_edit_row_count(FmUi *, unsigned tab);
 FmResult fm_ui_roll_edit(FmUi *, unsigned knob, int delta);
 FmResult fm_ui_roll_toggle(FmUi *);
 void fm_ui_roll_open(FmUi *);

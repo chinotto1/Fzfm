@@ -29,6 +29,16 @@ static FmInstrument *instrument(FmUi *u)
     FmTrack *t = track(u);
     return t ? fm_instrument(u->project, t->instrument) : NULL;
 }
+bool fm_ui_edit_tab_allowed(FmUi *u, unsigned tab)
+{
+    FmInstrument *in = instrument(u);
+    return tab < 9 && (!in || in->type != FM_SYNTH || tab == 6 || tab == 3 || tab == 4 || tab == 5);
+}
+unsigned fm_ui_edit_row_count(FmUi *u, unsigned tab)
+{
+    FmInstrument *in = instrument(u);
+    return tab >= 9 ? 0 : tab == 6 && in && in->type == FM_SYNTH ? 7 : row_counts[tab];
+}
 static FmRegion *region(FmUi *u)
 {
     FmInstrument *in = instrument(u);
@@ -234,8 +244,17 @@ static FmResult scope_value(FmUi *u, double value, bool relative, unsigned field
     }
     if (u->tab == 6 && u->rows[6] == 0)
     {
-        u->source =
-            relative ? index_delta(u->source, (int)value, 5) : (unsigned)bound((float)value, 0, 5);
+        if (in->type == FM_SYNTH)
+        {
+            if (!relative && value != 1 && value != 2 && value != 4)
+                return FM_ERR_UNSUPPORTED;
+            static const unsigned sources[] = {1, 2, 4};
+            unsigned at = u->source == 4 ? 2 : u->source == 2 ? 1 : 0;
+            u->source = relative ? sources[index_delta(at, (int)value, 2)] : (unsigned)value;
+        }
+        else
+            u->source = relative ? index_delta(u->source, (int)value, 5)
+                                 : (unsigned)bound((float)value, 0, 5);
         return FM_OK;
     }
     if (u->tab == 6 && u->rows[6] == 1 && field == 0)
@@ -535,6 +554,8 @@ FmResult fm_ui_set_parameter(FmUi *u, unsigned tab, unsigned row, unsigned field
         field > 1 || u->picker != FM_PICK_NONE)
         return FM_ERR_ARGUMENT;
     fm_ui_sync_view(u);
+    if (!fm_ui_edit_tab_allowed(u, tab) || row >= fm_ui_edit_row_count(u, tab))
+        return FM_ERR_UNSUPPORTED;
     unsigned previous_tab = u->tab, previous_row = u->rows[tab];
     u->tab = tab;
     u->rows[tab] = row;
@@ -554,6 +575,8 @@ static FmResult source_apply(FmUi *u)
     FmInstrument *in = instrument(u);
     if (!in)
         return FM_ERR_NOT_FOUND;
+    if (in->type == FM_SYNTH && u->source != 1 && u->source != 2 && u->source != 4)
+        return FM_ERR_UNSUPPORTED;
     FmId id = 0;
     FmResult r = FM_ERR_UNSUPPORTED;
     switch (u->source)
@@ -616,11 +639,11 @@ static FmResult source_apply(FmUi *u)
     }
     if (r == FM_OK)
     {
-        u->screen = u->source == 4 ? FM_SCREEN_EDIT : FM_SCREEN_HOME;
-        if (u->source == 4)
+        u->screen = u->source == 4 || in->type == FM_SYNTH ? FM_SCREEN_EDIT : FM_SCREEN_HOME;
+        if (u->source == 4 || in->type == FM_SYNTH)
         {
             u->tab = 6;
-            u->rows[6] = 4;
+            u->rows[6] = u->source == 1 ? 1 : 4;
         }
         snprintf(u->status, sizeof(u->status), "SOURCE READY - VOLATILE");
     }
@@ -1012,8 +1035,9 @@ static void confirm(FmUi *u)
     }
     else if (u->screen == FM_SCREEN_NEW)
     {
-        FmId t;
-        FmResult r = fm_instrument_create(u->project, u->source ? FM_SAMPLE : FM_MULTI_SAMPLE, &t);
+        FmId t, previous = u->project->selected_track;
+        bool synth = u->source == 2;
+        FmResult r = fm_instrument_create(u->project, (FmInstrumentType)u->source, &t);
         result(u, r);
         if (r == FM_OK)
         {
@@ -1021,6 +1045,22 @@ static void confirm(FmUi *u)
             u->screen = FM_SCREEN_SOURCE;
             u->source = 0;
             u->scope = 0;
+            if (synth)
+            {
+                u->wave_shape = FM_WAVE_SINE;
+                fm_ui_sync_view(u);
+                r = fm_ui_use_source(u, 2);
+                if (r != FM_OK)
+                {
+                    (void)fm_remove_empty_instrument(u->project, t);
+                    u->project->selected_track = previous;
+                    fm_ui_sync_view(u);
+                    u->screen = FM_SCREEN_NEW;
+                    u->source = 2;
+                }
+                u->pending_instrument = 0;
+                result(u, r);
+            }
         }
     }
     else if (u->screen == FM_SCREEN_SOURCE)
@@ -1050,6 +1090,9 @@ static void confirm(FmUi *u)
         else if (u->tab == 6 && row == 0)
         {
             u->screen = FM_SCREEN_SOURCE;
+            FmInstrument *in = instrument(u);
+            if (in && in->type == FM_SYNTH && u->source != 1 && u->source != 2 && u->source != 4)
+                u->source = 2;
         }
         else if (action_row(u))
         {
@@ -1173,7 +1216,11 @@ static void tap(FmUi *u, FmButton button, const FmButtonState *state)
             break;
         }
         if (u->screen == FM_SCREEN_EDIT)
-            u->tab = (u->tab + 1) % 9;
+        {
+            do
+                u->tab = (u->tab + 1) % 9;
+            while (!fm_ui_edit_tab_allowed(u, u->tab));
+        }
         else
             u->screen = FM_SCREEN_EDIT;
         break;
@@ -1582,7 +1629,7 @@ void fm_ui_key(FmUi *u, unsigned index, bool down, uint64_t ms)
     }
     if (!down)
         return;
-    if (u->screen == FM_SCREEN_NEW && white >= 0 && white < 2)
+    if (u->screen == FM_SCREEN_NEW && white >= 0 && white < 3)
     {
         u->source = (unsigned)white;
         confirm(u);
@@ -1806,7 +1853,8 @@ static void encoder_inner(FmUi *u, unsigned index, int delta, uint64_t ms)
     else if (u->screen == FM_SCREEN_EDIT)
     {
         if (!knob)
-            u->rows[u->tab] = index_delta(u->rows[u->tab], delta, row_counts[u->tab] - 1);
+            u->rows[u->tab] =
+                index_delta(u->rows[u->tab], delta, fm_ui_edit_row_count(u, u->tab) - 1);
         else if (!action_row(u))
         {
             unsigned field = knob - 1;
@@ -1860,15 +1908,22 @@ static void encoder_inner(FmUi *u, unsigned index, int delta, uint64_t ms)
     else if (u->screen == FM_SCREEN_NEW)
     {
         if (!knob)
-            u->source = index_delta(u->source, delta, 1);
+            u->source = index_delta(u->source, delta, 2);
     }
     else if (u->screen == FM_SCREEN_SOURCE)
     {
         if (!knob)
         {
             FmInstrument *in = instrument(u);
-            u->source = in && in->type == FM_MULTI_SAMPLE ? (delta > 0 ? 5 : 0)
-                                                          : index_delta(u->source, delta, 5);
+            if (in && in->type == FM_SYNTH)
+            {
+                static const unsigned sources[] = {1, 2, 4};
+                unsigned at = u->source == 4 ? 2 : u->source == 2 ? 1 : 0;
+                u->source = sources[index_delta(at, delta, 2)];
+            }
+            else
+                u->source = in && in->type == FM_MULTI_SAMPLE ? (delta > 0 ? 5 : 0)
+                                                              : index_delta(u->source, delta, 5);
         }
         else if (knob == 1)
             u->wave_shape = index_delta(u->wave_shape, delta, 3);

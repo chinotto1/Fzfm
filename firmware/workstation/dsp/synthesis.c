@@ -7,8 +7,8 @@ static FmResult attach(FmProject *project, FmId instrument, const int16_t *pcm, 
                        uint8_t root, FmSource source, const uint16_t *recipe, FmId *region)
 {
     FmInstrument *inst = fm_instrument(project, instrument);
-    if (!inst || inst->type != FM_SAMPLE || !pcm || !frames || frames > 65536u || root > 127 ||
-        !region)
+    if (!inst || inst->type == FM_MULTI_SAMPLE || !pcm || !frames || frames > 65536u ||
+        root > 127 || !region)
         return FM_ERR_ARGUMENT;
     FmRegion *existing = NULL;
     for (unsigned i = 0; i < FM_ANCHORS; i++)

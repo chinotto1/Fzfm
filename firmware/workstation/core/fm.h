@@ -82,7 +82,8 @@ typedef struct
 typedef enum
 {
     FM_MULTI_SAMPLE,
-    FM_SAMPLE
+    FM_SAMPLE,
+    FM_SYNTH /* Cycle oscillator, with its own creation and edit workflow. */
 } FmInstrumentType;
 typedef enum
 {

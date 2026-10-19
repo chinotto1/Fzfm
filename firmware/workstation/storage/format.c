@@ -621,8 +621,8 @@ FmResult fm_project_validate(FmProject *p)
         if (p->instruments[i])
         {
             FmInstrument *s = p->instruments[i];
-            if (!s || (unsigned)s->type > FM_SAMPLE || s->count > FM_ANCHORS ||
-                s->base_note > 127 || s->anchor_class > 11 || !memchr(s->name, 0, FM_NAME_LENGTH))
+            if (!s || (unsigned)s->type > FM_SYNTH || s->count > FM_ANCHORS || s->base_note > 127 ||
+                s->anchor_class > 11 || !memchr(s->name, 0, FM_NAME_LENGTH))
                 return FM_ERR_FORMAT;
             ID(s->id);
             for (unsigned h = 0; h < FM_HARMONICS; h++)
@@ -638,7 +638,8 @@ FmResult fm_project_validate(FmProject *p)
                 {
                     FmRegion *r = &s->regions[j];
                     ID(r->id);
-                    if (!region_valid(p, r))
+                    if (!region_valid(p, r) ||
+                        (s->type == FM_SYNTH && !fm_asset(p, r->asset)->cycle))
                         return FM_ERR_FORMAT;
                 }
         }
@@ -796,8 +797,9 @@ FmResult fm_project_decode(FmProject *p, const uint8_t *b, size_t length)
 {
     if (!p || !b)
         return FM_ERR_ARGUMENT;
-    if (length < 24 || memcmp(b, "FM1P", 4) || (b[4] != FM_FORMAT_VERSION && b[4] != 2) || b[5] ||
-        b[6] != 24 || b[7] || read32(b + 8) != length - 24 || read32(b + 20) != fm_crc32(b, 20) ||
+    if (length < 24 || memcmp(b, "FM1P", 4) ||
+        (b[4] != FM_FORMAT_VERSION && b[4] != 3 && b[4] != 2) || b[5] || b[6] != 24 || b[7] ||
+        read32(b + 8) != length - 24 || read32(b + 20) != fm_crc32(b, 20) ||
         read32(b + 12) != fm_crc32(b + 24, length - 24))
         return FM_ERR_FORMAT;
     FmBudget staging = p->budget;
@@ -823,6 +825,22 @@ FmResult fm_project_decode(FmProject *p, const uint8_t *b, size_t length)
         fm_project_destroy(&temp);
         return r;
     }
+    /* Earlier projects stored generated oscillators as pitched samples.
+     * Promote only instruments whose every region is a cycle; mixed and
+     * ordinary sampled instruments retain all their sample-editing tools. */
+    if (b[4] < 4)
+        for (unsigned i = 0; i < FM_OBJECT_LIMIT; i++)
+        {
+            FmInstrument *in = temp.instruments[i];
+            if (!in || in->type != FM_SAMPLE || !in->count)
+                continue;
+            bool cycles = true;
+            for (unsigned j = 0; j < FM_ANCHORS; j++)
+                if (in->regions[j].id && !fm_asset(&temp, in->regions[j].asset)->cycle)
+                    cycles = false;
+            if (cycles)
+                in->type = FM_SYNTH;
+        }
     for (unsigned i = 0; i < FM_MEM_COUNT; i++)
     {
         temp.budget.limit[i] = p->budget.limit[i];

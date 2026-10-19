@@ -330,7 +330,9 @@ static void home(FmUi *u, bool mixer)
                      (double)row->sends[u->mixer_send % 4]);
         else
             snprintf(detail, sizeof(detail), "%s / %u REGIONS / MIDI %u",
-                     instrument && instrument->type == FM_MULTI_SAMPLE ? "MULTI SAMPLE" : "SAMPLE",
+                     instrument && instrument->type == FM_MULTI_SAMPLE ? "MULTI SAMPLE"
+                     : instrument && instrument->type == FM_SYNTH      ? "SYNTH"
+                                                                       : "SAMPLE",
                      instrument ? instrument->count : 0, row->midi_channel + 1);
         list_row(u, i - first, name, value, detail, i == selected);
     }
@@ -725,22 +727,24 @@ static void edit_graph(FmUi *u, unsigned tab)
 }
 static void edit(FmUi *u)
 {
-    unsigned tab = u->tab % 9,
-             row = u->rows[tab] < row_count[tab] ? u->rows[tab] : row_count[tab] - 1;
+    unsigned tab = u->tab % 9, count = fm_ui_edit_row_count(u, tab),
+             row = u->rows[tab] < count ? u->rows[tab] : count - 1;
     bool graph = tab == 3 || tab == 4 || tab == 5 || tab == 6;
     unsigned shown = graph ? 3 : 5;
-    unsigned first = first_visible(row, row_count[tab], shown);
+    unsigned first = first_visible(row, count, shown);
     FmInstrument *in = selected_instrument(u);
     char line[64], value[32];
     text(u, 4, 39, in ? in->name : "NO INSTRUMENT", 24, 1);
-    if (u->scope)
+    if (in && in->type == FM_SYNTH)
+        snprintf(line, sizeof(line), "%s SYNTH", tab == 6 ? "OSC" : tabs[tab]);
+    else if (u->scope)
         snprintf(line, sizeof(line), "%s S%02u", tabs[tab], u->scope);
     else
         snprintf(line, sizeof(line), "%s ALL", tabs[tab]);
     right(u, 237, 39, line, 14, 1);
     if (graph)
         edit_graph(u, tab);
-    for (unsigned i = first; i < row_count[tab] && i < first + shown; i++)
+    for (unsigned i = first; i < count && i < first + shown; i++)
     {
         value[0] = 0;
         edit_value(u, tab, i, value, sizeof(value));
@@ -770,8 +774,10 @@ static void edit(FmUi *u)
             list_row(u, i - first, edit_rows[tab][i], value, detail, i == row);
     }
     if (!graph)
-        scroll_mark(u, first, row_count[tab], shown);
-    if (u->scope)
+        scroll_mark(u, first, count, shown);
+    if (in && in->type == FM_SYNTH)
+        snprintf(line, sizeof(line), "EDIT: OSC / AMP / FILTER / LFO");
+    else if (u->scope)
         snprintf(line, sizeof(line), "SELECT: SCOPE / SAMPLE %02u", u->scope);
     else
         snprintf(line, sizeof(line), "SELECT: SCOPE / ALL %u / FIRST VALUE", in ? in->count : 0);
@@ -943,21 +949,33 @@ static void creation(FmUi *u, bool source)
 {
     FmInstrument *in = selected_instrument(u);
     bool kit = source && in && in->type == FM_MULTI_SAMPLE;
-    unsigned count = source && !kit ? 6u : 2u, selected = kit      ? (u->source == 5)
-                                                          : source ? u->source % 6
-                                                                   : u->source % 2;
+    bool synth = source && in && in->type == FM_SYNTH;
+    static const unsigned synth_sources[] = {1, 2, 4};
+    unsigned count = !source || synth ? 3u : kit ? 2u : 6u;
+    unsigned selected = kit     ? (u->source == 5)
+                        : synth ? (u->source == 4   ? 2
+                                   : u->source == 2 ? 1
+                                                    : 0)
+                                : u->source % count;
     unsigned first = first_visible(selected, count, 5);
-    text(u, 4, 39, source ? "SAMPLE SOURCE / SAME TRACK" : "CREATES TRACK + EMPTY PATTERN", 38, 1);
+    text(u, 4, 39,
+         source ? (synth ? "OSCILLATOR / SAME SYNTH" : "SAMPLE SOURCE / SAME TRACK")
+                : "CREATES TRACK + EMPTY PATTERN",
+         38, 1);
     for (unsigned i = first; i < count && i < first + 5; i++)
     {
-        unsigned source_index = kit && i ? 5 : i;
-        const char *name = source ? sources[source_index] : i ? "SAMPLE" : "MULTI SAMPLE";
-        const char *detail = source ? (i == 0              ? "DIRECT USB AUDIO INPUT"
-                                       : source_index == 5 ? "SHARED CAPTURED OR IMPORTED AUDIO"
-                                       : i == 1            ? "48 EDITABLE HARMONICS"
-                                                           : "ON-DEVICE WAVE SOURCE")
-                             : i    ? "PITCHED / OCTAVE SOURCE ANCHORS"
-                                    : "16 LOGICAL SLOTS / CHROMATIC KEYS";
+        unsigned source_index = synth ? synth_sources[i] : kit && i ? 5 : i;
+        const char *name = source   ? sources[source_index]
+                           : i == 2 ? "SYNTH"
+                           : i      ? "SAMPLE"
+                                    : "MULTI SAMPLE";
+        const char *detail = source   ? (source_index == 0   ? "DIRECT USB AUDIO INPUT"
+                                         : source_index == 5 ? "SHARED CAPTURED OR IMPORTED AUDIO"
+                                         : source_index == 1 ? "48 EDITABLE HARMONICS"
+                                                             : "ON-DEVICE WAVE SOURCE")
+                             : i == 2 ? "READY TO PLAY / WAVES + HARMONICS"
+                             : i      ? "PITCHED / OCTAVE SOURCE ANCHORS"
+                                      : "16 LOGICAL SLOTS / CHROMATIC KEYS";
         list_row(u, i - first, name, ">", detail, i == selected);
     }
     scroll_mark(u, first, count, 5);

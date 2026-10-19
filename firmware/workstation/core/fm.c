@@ -316,7 +316,7 @@ FmResult fm_pattern_create(FmProject *p, FmId tid, uint8_t slot, FmId *out)
 }
 FmResult fm_instrument_create(FmProject *p, FmInstrumentType type, FmId *out)
 {
-    if (!p || !out || type > FM_SAMPLE || p->next_id > UINT32_MAX - 3)
+    if (!p || !out || (unsigned)type > FM_SYNTH || p->next_id > UINT32_MAX - 3)
         return FM_ERR_ARGUMENT;
     unsigned is = free_slot((void *const *)p->instruments),
              ts = free_slot((void *const *)p->tracks), ps = free_slot((void *const *)p->patterns);
@@ -431,7 +431,9 @@ FmResult fm_region_attach(FmProject *p, FmId iid, FmId aid, uint8_t root, int sl
         return FM_ERR_MEMORY;
     if (in->regions[slot].id)
         return FM_ERR_BUSY;
-    if (in->type == FM_SAMPLE)
+    if (in->type == FM_SYNTH && !a->cycle)
+        return FM_ERR_ARGUMENT;
+    if (in->type != FM_MULTI_SAMPLE)
         for (unsigned i = 0; i < FM_ANCHORS; i++)
             if (in->regions[i].id && in->regions[i].root == root)
                 return FM_ERR_RANGE;

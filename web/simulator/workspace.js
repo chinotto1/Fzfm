@@ -76,7 +76,7 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
     $(id).onclick = () => run(async () => {
       if (!getState().tracks) { openCreation(); return; }
       if (liveMic() || !discardDraft()) return;
-      if (tab === 6 && getState().instrumentType !== 1) { openCreation(); return; }
+      if (tab === 6 && getState().instrumentType === 0) { openCreation(); return; }
       sampler.close();await action(1,tab); reveal();
     });
   }
@@ -340,7 +340,7 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
     model=s.editor;
     if(liveMic()&&recordingTrack&&(s.screen!==7||model.selected!==recordingTrack))stopMic(true);
     const key=JSON.stringify([model.selected,model.tracks]);
-    if(trackKey!==key){trackKey=key;$('track-choice').replaceChildren(...model.tracks.map(track=>new Option(`${track.name} · ${track.type===0?'kit':'instrument'}`,track.id)));$('track-choice').value=model.selected;}
+    if(trackKey!==key){trackKey=key;$('track-choice').replaceChildren(...model.tracks.map(track=>new Option(`${track.name} · ${track.type===0?'kit':track.type===2?'synth':'sample'}`,track.id)));$('track-choice').value=model.selected;}
     $('track-choice').disabled=!s.tracks||liveMic();$('new-track').disabled=liveMic()||!!s.picker||!!s.playing;
     $('sample-file').disabled=liveMic()||busy;
     $('record-mic').disabled=micPending||busy;
@@ -352,12 +352,12 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
     const visible=isMod||isSynth||isCapture;
     $('visual-editor').hidden=!visible;
     $('mod-editor').hidden=!isMod;$('synth-editor').hidden=!isSynth;$('sampling-editor').hidden=!isCapture;
-    $('scope-label').hidden=isCapture||isSynth;
+    $('scope-label').hidden=isCapture||isSynth||s.instrumentType===2;
     $('preview-note').hidden=isCapture;
     $('preview-note').disabled=!!s.picker;
     const scope=JSON.stringify([model.selected,model.slots,s.scope]);
     if(scope!==scopeKey){scopeKey=scope;$('edit-scope').replaceChildren(new Option('All samples',0),...model.slots.map(slot=>new Option(`Sample ${slot}`,slot)));$('edit-scope').value=s.scope;}
-    if(isMod){$('editor-title').textContent=s.tab===3?'Amplitude envelope':s.tab===4?'Filter envelope':'Low frequency oscillator';$('editor-help').textContent=`${s.instrument} · Changes apply to the selected scope. ${s.scope?'The graph shows this sample.':'The graph shows the first sample.'} Use Hold to hear to audition.`;modEditor(s);}
+    if(isMod){$('editor-title').textContent=s.tab===3?'Amplitude envelope':s.tab===4?'Filter envelope':'Low frequency oscillator';$('editor-help').textContent=s.instrumentType===2?`${s.instrument} · Shape this synth’s sound. Use Hold to hear to audition.`:`${s.instrument} · Changes apply to the selected scope. ${s.scope?'The graph shows this sample.':'The graph shows the first sample.'} Use Hold to hear to audition.`;modEditor(s);}
     if(isSynth){$('editor-title').textContent='FZ-inspired wave synthesis';$('editor-help').textContent='48 sine harmonics, each with a level from 0 to 256. Presets and applied drawings replace this instrument’s C4 cycle; Undo restores the previous sound.';syncSynth();}
     if(isCapture){$('editor-title').textContent='Sampler';$('editor-help').textContent='Choose Simple or Multi, then select a slot and capture. Switching types selects another instrument; your existing sounds stay in the project.';}
     for(const id of ['sample-audio','open-sequencer','open-synthesis','open-envelope','open-filter-envelope','open-lfo','open-mixer','open-arp','finish-sampling'])$(id).disabled=liveMic()||!!s.picker;

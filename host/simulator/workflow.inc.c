@@ -345,7 +345,7 @@ int fm_sim_sampling(void *handle, unsigned operation, unsigned slot, unsigned va
     Simulator *s = handle;
     FmTrack *t = fm_track(&s->project, s->project.selected_track);
     FmInstrument *in = t ? fm_instrument(&s->project, t->instrument) : NULL;
-    if (!in || slot >= FM_ANCHORS || s->ui.picker)
+    if (!in || in->type == FM_SYNTH || slot >= FM_ANCHORS || s->ui.picker)
         return FM_ERR_ARGUMENT;
     FmRegion *r = &in->regions[slot];
     FmResult result = FM_OK;
