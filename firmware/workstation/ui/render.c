@@ -1362,7 +1362,7 @@ void fm_ui_render(FmUi *u)
                              : u->save_pending            ? "SAVE QUEUED"
                              : u->project->volatile_audio ? "VOLATILE AUDIO - SAVE REQUIRED"
                                                           : "";
-        if (u->screen != FM_SCREEN_HOME || (status[0] && strcmp(status, "OK")))
+        if (status[0] && strcmp(status, "OK"))
         {
             rectangle(u, 0, 199, 240, 12, FM_UI_PANEL);
             text(u, 4, 201, status, 39, u->last_result == FM_OK ? FM_UI_MUTED : FM_UI_RED);

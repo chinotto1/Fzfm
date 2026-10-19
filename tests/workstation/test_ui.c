@@ -90,13 +90,33 @@ static int test_display_style(FmUi *u)
     CHECK(pixels_with(u, 4, 132, 230, 10, FM_UI_GREEN) > 50); /* Free memory. */
     CHECK(pixels_with(u, 4, 144, 230, 10, FM_UI_AMBER) > 50); /* Time/count estimate. */
     u->capture_monitor = NULL;
-    for (unsigned screen = FM_SCREEN_HOME; screen <= FM_SCREEN_LIBRARY; screen++)
+    bool volatile_audio = u->project->volatile_audio, save_pending = u->save_pending;
+    u->project->volatile_audio = u->save_pending = false;
+    for (unsigned screen = FM_SCREEN_HOME; screen <= FM_SCREEN_ROLL; screen++)
     {
         u->screen = (FmScreen)screen;
+        u->status[0] = 0;
+        u->last_result = FM_OK;
         fm_ui_render(u);
+        uint8_t empty_status[240 * 12];
+        memcpy(empty_status, u->pixels + 199 * 240, sizeof(empty_status));
+        strcpy(u->status, "OK");
+        fm_ui_render(u);
+        CHECK(!memcmp(empty_status, u->pixels + 199 * 240, sizeof(empty_status)));
         for (size_t i = 0; i < sizeof(u->pixels); i++)
             CHECK(u->pixels[i] < FM_UI_COLOR_COUNT);
+        strcpy(u->status, "SAVED");
+        fm_ui_render(u);
+        CHECK(pixels_with(u, 4, 201, 230, 7, FM_UI_MUTED) > 0);
+        strcpy(u->status, "STORAGE FULL");
+        u->last_result = FM_ERR_STORAGE;
+        fm_ui_render(u);
+        CHECK(pixels_with(u, 4, 201, 230, 7, FM_UI_RED) > 0);
     }
+    u->project->volatile_audio = volatile_audio;
+    u->save_pending = save_pending;
+    memcpy(u->status, saved_status, sizeof(u->status));
+    u->last_result = saved_result;
     u->screen = FM_SCREEN_HOME;
     return 0;
 }
@@ -464,6 +484,7 @@ int test_ui(void)
     float volume = t->volume;
     fm_ui_encoder(&u, 4, 5, ms);
     NEAR(t->volume, volume + .05, .0001);
+    CHECK(u.last_result == FM_OK && !u.status[0]);
     tap_button(&u, FM_BUTTON_GLO, &ms);
     fm_ui_encoder(&u, 3, -2, ms);
     NEAR(t->volume, volume + .03, .0001);

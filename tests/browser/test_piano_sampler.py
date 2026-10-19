@@ -43,6 +43,8 @@ try:
   tap('sample-audio');page.wait_for_selector('#sample-slots')
   assert not page.locator('#new-track-dialog').is_visible() and state()['tracks']==0
   assert page.locator('#sample-slots button').count()==16
+  assert 'Free emulator memory' in page.locator('.sample-memory').inner_text()
+  assert 'physical FM1 capacity is unverified' in page.locator('#sample-memory-help').inner_text()
   memory=state()['editor']['sampleMemory']
   assert memory['freeBytes']==memory['limitBytes']-memory['usedBytes']
   assert memory['recordingFrames']==(memory['freeBytes']-720000)//2

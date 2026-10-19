@@ -56,7 +56,11 @@ try:
         for _ in range(abs(n)):
             page.get_by_role('slider',name=name,exact=True).press('ArrowUp' if n>0 else 'ArrowDown')
         page.wait_for_timeout(80)
-    def screen(n):assert state()['screen']==n,state()
+    def screen(n):
+        current=state()
+        assert current['screen']==n,current
+        assert current['status']!='OK',current
+        assert page.locator('#status').inner_text()!='OK'
     assert state()['bpm']==120 and state()['tracks']==0,state()
     assert page.evaluate('window.fm1.backend')=='wasm'
     assert page.locator('#buttons button').count()==14

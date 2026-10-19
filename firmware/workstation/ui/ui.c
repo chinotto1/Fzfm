@@ -55,7 +55,7 @@ static FmRegion *region(FmUi *u)
 static void result(FmUi *u, FmResult r)
 {
     u->last_result = r;
-    snprintf(u->status, sizeof(u->status), "%s", fm_result_string(r));
+    snprintf(u->status, sizeof(u->status), "%s", r == FM_OK ? "" : fm_result_string(r));
 }
 static FmFrame audio_time(uint64_t ms)
 {
