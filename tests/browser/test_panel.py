@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='fm1-browser-') as data:
             browser=pw.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
             page=browser.new_page(viewport={'width':1360,'height':1100})
             errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-            page.goto(base);page.wait_for_selector('.keyboard button')
+            page.goto(base);page.wait_for_selector('.keyboard button');page.evaluate('fm1.stopSound()')
             def state(): return page.request.get(base+'/api/state').json()
             def tap(index):
                 page.locator(f'#buttons [data-index="{index}"]').click()
@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix='fm1-browser-') as data:
             tap(8);tap(2);screen(3);rotate('KNOB 1',6);rotate('KNOB 2',1)
             tap(7);screen(2);tap(8);screen(0)
             # Browser sound presentation uses the native renderer.
-            page.locator('#audio').click();assert page.locator('#audio').inner_text()=='Sound on'
+            page.locator('#audio').click();page.wait_for_function('document.querySelector("#audio").textContent==="Sound on"')
             page.locator('[data-key="16"]').click();page.wait_for_timeout(100)
             page.locator('#audio').click();assert not errors,errors
             backup=page.request.get(base+'/api/backup').body()

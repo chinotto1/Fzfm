@@ -31,7 +31,7 @@ jobs:
           python3 - <<'PYTHON'
           import subprocess
           import sys
-          for suite in ('test_static_emulator', 'test_workspace', 'test_piano_sampler', 'test_performance'):
+          for suite in ('test_static_emulator', 'test_workspace', 'test_piano_sampler', 'test_performance', 'test_rotary_audio'):
               path = f'tests/browser/{suite}.py'
               result = subprocess.run([sys.executable, path], stdout=subprocess.PIPE,
                                       stderr=subprocess.STDOUT, text=True)

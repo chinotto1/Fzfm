@@ -99,3 +99,4 @@ web-test: web
 	python3 tests/browser/test_workspace.py
 	python3 tests/browser/test_piano_sampler.py
 	python3 tests/browser/test_performance.py
+	python3 tests/browser/test_rotary_audio.py

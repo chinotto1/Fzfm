@@ -15,7 +15,7 @@ In MULTI SAMPLE capture, separated hits fill sixteen consecutive keys. Unrecorde
 
 In the browser, **Send test hit** exercises SRC and the real capture state machine. It simulates a host source; it does not enumerate USB. **Import PCM16 WAV** creates a SAMPLE instrument; **Import single cycle** treats its point count as one period. The core uses 36 kHz, with explicit input conversion. Cycles are tuned from their length, not their file's claimed period.
 
-Note keys play on HOME/EDIT/MIXER/FX/ARP/PIANO ROLL. Pickers intercept them silently. On a phone, scroll the keyboard horizontally. Drag a rotary control vertically, use its +/− buttons where shown, use its mouse wheel, or focus it and use arrow keys. Keyboard shortcuts: Escape HOME, Enter SCL, space PLAY, E EDIT, R REC, G GLO, F FX, A arpeggiator, S SAVE; Z X C V B N M play notes.
+Note keys play on HOME/EDIT/MIXER/FX/ARP/PIANO ROLL. Pickers intercept them silently. On a phone, scroll the keyboard horizontally. Drag a rotary control up/down, scroll over it, or focus it and use arrow keys. Each rotary has a 48-pixel touch target and a moving indicator; there are no adjacent +/− buttons. Shift + arrow or Page Up/Down changes ten steps. Sound starts automatically where allowed, otherwise with the first normal tap or keyboard note. Sound on/off mutes explicitly; an explicit mute survives app switching and later control gestures. Keyboard shortcuts: Escape HOME, Enter SCL, space PLAY, E EDIT, R REC, G GLO, F FX, A arpeggiator, S SAVE; Z X C V B N M play notes.
 
 ## Arpeggiator
 

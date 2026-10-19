@@ -28,6 +28,7 @@ try:
   page=context.new_page();errors=[];requests=[]
   page.on('pageerror',lambda e:errors.append(str(e)));page.on('request',lambda r:requests.append(r.url))
   page.goto(url,wait_until='domcontentloaded');page.wait_for_function('window.fm1&&!document.body.classList.contains("loading")',timeout=60000)
+  page.evaluate('fm1.stopSound()')
   def state():return page.evaluate('async ()=>(await(await fm1.request("/api/state")).json())')
   def notes():return page.evaluate('async ()=>(await(await fm1.request("/api/notes",{body:JSON.stringify({from:0,to:1000000})})).json())')
   def wait(expr):

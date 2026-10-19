@@ -54,7 +54,7 @@ try:
         page.wait_for_timeout(70)
     def rotate(name,n):
         for _ in range(abs(n)):
-            page.get_by_role('button',name=name+(' increase' if n>0 else ' decrease'),exact=True).tap()
+            page.get_by_role('slider',name=name,exact=True).press('ArrowUp' if n>0 else 'ArrowDown')
         page.wait_for_timeout(80)
     def screen(n):assert state()['screen']==n,state()
     assert state()['bpm']==120 and state()['tracks']==0,state()
@@ -63,6 +63,7 @@ try:
     assert page.locator('#keys button').count()==27
     assert page.get_by_role('slider').count()==7
     assert state()['persistence'],state()
+    page.evaluate('fm1.stopSound()')
     # Real touch controls create/capture a kit; OCT+ preserves the octave.
     tap(3);screen(9);tap(3);screen(7)
     page.locator('#test-hit').tap();page.wait_for_timeout(150)
@@ -99,7 +100,7 @@ try:
     page.wait_for_timeout(250)
     assert page.locator('#audio').inner_text()=='Sound on'
     page.locator('#keys [data-key="7"]').tap()
-    page.locator('#audio').tap();assert page.locator('#audio').inner_text()=='Enable sound'
+    page.locator('#audio').tap();assert page.locator('#audio').inner_text()=='Sound off'
     page.screenshot(path=str(OUT/'ipad-web-emulator.png'),full_page=True)
     # IndexedDB durability: a new module instance automatically restores SAVE.
     page.reload();page.wait_for_function('window.fm1 && !document.body.classList.contains("loading")',timeout=60000)

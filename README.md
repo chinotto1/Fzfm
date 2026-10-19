@@ -1,6 +1,6 @@
 # FM1 FZ-inspired sampler
 
-**[Open the public iPad emulator](https://chinotto1.github.io/Fzfm/)** — tap **Explore demo**, then **Enable sound**. No computer or account is needed. [Browser saves and controls](docs/WEB_EMULATOR.md).
+**[Open the public iPad emulator](https://chinotto1.github.io/Fzfm/)** — tap **Explore demo** and play. Sound starts automatically, or on your first interaction where the browser requires it. No computer or account is needed. [Browser saves and controls](docs/WEB_EMULATOR.md).
 
 A 36 kHz sampling synthesizer and groovebox for the M-VAVE FM-1. The portable application now connects sampling, synthesis, editing, sequencing, arrangement, mixing and project saves. A local simulator runs that same C application with its actual 240×240 display and physical controls.
 
@@ -10,7 +10,7 @@ A 36 kHz sampling synthesizer and groovebox for the M-VAVE FM-1. The portable ap
 make serve              # open http://127.0.0.1:8765
 ```
 
-Requires GCC, make and Python 3 on Linux. No account, network, sample library or attached instrument is needed for host use. Click **Explore demo** or press SCL to create an instrument. Click **Enable sound** for audio. See the [user manual](docs/USER_MANUAL.md) for controls.
+Requires GCC, make and Python 3 on Linux. No account, network, sample library or attached instrument is needed for host use. Click **Explore demo** or press SCL to create an instrument. Sound is enabled automatically; browsers that require activation start it on the first tap or key press. Use **Sound on/off** to mute. See the [user manual](docs/USER_MANUAL.md) for controls.
 
 Implemented host workflows include sixteen-slot capture, octave sample anchors, free/retrospective MIDI recording, step probability and parameter locks, independent patterns, ordered chains, song arrangement and live arrangement recording. New instrument offers separate Synth, Sample and Multi Sample tracks. Synth starts as a playable sine oscillator, with EDIT limited to waveform/additive synthesis, amplitude envelope, filter and LFO. Sample and Multi Sample open USB capture immediately, with no source chooser. Their eight edit tabs provide ALL/ONE scope, trim, reverse, Mix Write/Cross-Mix, envelopes, loop programs, mapping and bake/unbake. The engine has a resonant per-voice filter and four shared send effects. Complete project backups include PCM, recipes, patterns, chains, song and routing; saves use a fault-tested two-generation host journal.
 

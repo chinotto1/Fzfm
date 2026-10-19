@@ -5,7 +5,7 @@ import {initSampler} from './sampler.js';
 // Touch editors display the C model. Drawing is a draft until explicitly applied.
 const $ = id => document.getElementById(id);
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
-export function initWorkspace({request, update, getState, stopSound, enableSound, showError}) {
+export function initWorkspace({request, update, getState, pauseSound, resumeSound, enableSound, showError}) {
   let model = {}, busy = false, synthMode = 'additive', drawing = null, drawingTrack = 0;
   let drawingDirty = false, gesture = null, partials = null;
   let recorder = null, micStream = null, micTimer = null, micPending = false, discardRecording = false, recordingTrack = 0;
@@ -288,7 +288,7 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
   });
   function stopMic(discard=false) {
     discardRecording=discard;clearTimeout(micTimer);
-    if(recorder&&recorder.state!=='inactive')recorder.stop();
+    if(recorder&&recorder.state!=='inactive')recorder.stop();else resumeSound('microphone');
     micStream?.getTracks().forEach(track=>track.stop());micStream=null;
     stopMicVisual();
   }
@@ -296,7 +296,7 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
     if(micPending||busy)return;
     if(recorder?.state==='recording'){stopMic();return;}
     if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){fail(new Error('Microphone recording is unavailable here. Open in Safari, or use Sample from Files.'));return;}
-    micPending=true;discardRecording=false;recordingTrack=0;stopSound();
+    micPending=true;discardRecording=false;recordingTrack=0;pauseSound('microphone');
     $('record-mic').disabled=true;$('mic-status').textContent='Allow microphone access to record a take.';
     try {
       await sampler.ensure();recordingTrack=getState().editor.selected;
@@ -308,7 +308,7 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
       recorder.onstop=()=>{
         stopMicVisual();
         micStream?.getTracks().forEach(track=>track.stop());micStream=null;
-        $('record-mic').textContent='Record microphone';
+        $('record-mic').textContent='Record microphone';resumeSound('microphone');
         if(discardRecording){$('mic-status').textContent='Recording cancelled. Tap Record microphone to try again.';return;}
         run(async()=>{
           $('mic-status').textContent='Preparing your take…';
@@ -318,7 +318,7 @@ export function initWorkspace({request, update, getState, stopSound, enableSound
       };
       recorder.start();micTimer=setTimeout(()=>stopMic(),10000);
       $('record-mic').textContent='Stop recording';$('mic-status').textContent='Recording… tap Stop recording when ready. Stops automatically after 10 seconds.';
-    } catch(error) {stopMic(true);fail(new Error(error.name==='NotAllowedError'?'Microphone access was declined. You can use Sample from Files instead.':error.message));}
+    } catch(error) {stopMic(true);resumeSound('microphone');fail(new Error(error.name==='NotAllowedError'?'Microphone access was declined. You can use Sample from Files instead.':error.message));}
     finally{micPending=false;$('record-mic').disabled=false;}
   };
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stopMic(true);});

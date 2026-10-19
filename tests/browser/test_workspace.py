@@ -39,6 +39,7 @@ try:
     page.on('request',lambda r:requests.append(r.url))
     page.goto(url,wait_until='domcontentloaded')
     page.wait_for_function('window.fm1 && !document.body.classList.contains("loading")',timeout=60000)
+    page.evaluate('fm1.stopSound()')
     def state():return page.evaluate("async ()=>(await(await fm1.request('/api/state')).json())")
     def wait(condition):
         try:page.wait_for_function(condition,timeout=20000)
@@ -129,8 +130,11 @@ try:
     wav=b'RIFF'+struct.pack('<I',36+len(pcm))+b'WAVEfmt '+struct.pack('<IHHIIHH',16,1,1,44100,88200,2,16)+b'data'+struct.pack('<I',len(pcm))+pcm
     page.locator('#sample-file').set_input_files({'name':'take.wav','mimeType':'audio/wav','buffer':wav})
     wait('fm1.state().regions===3')
+    tap('audio');wait('document.querySelector("#audio").textContent==="Sound on"')
     tap('record-mic');page.wait_for_function('document.querySelector("#record-mic").textContent==="Stop recording"',timeout=15000)
-    page.wait_for_timeout(1200);tap('record-mic');wait('fm1.state().regions===4')
+    assert page.locator('#audio').inner_text()=='Sound paused'
+    page.wait_for_timeout(1200);tap('record-mic');wait('fm1.state().regions===4 && document.querySelector("#audio").textContent==="Sound on"')
+    tap('audio');wait('document.querySelector("#audio").textContent==="Sound off"')
     tap('finish-sampling');wait('fm1.state().screen===0')
     energy=page.evaluate('''async ()=>{
       const cmd=async value=>fm1.request('/api/command',{body:JSON.stringify({type:1,index:0,value})});
