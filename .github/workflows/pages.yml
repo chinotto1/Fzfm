@@ -19,7 +19,11 @@ jobs:
         with:
           version: 3.1.69
       - name: Test the portable application
-        run: make test native-test
+        run: |
+          python3 scripts/verify_sources.py
+          make test native-test
+      - name: Test firmware package and MIDI update protocol without hardware
+        run: make installer-test
       - name: Build the browser application
         run: make web
       - name: Install browser test dependencies
@@ -31,7 +35,7 @@ jobs:
           python3 - <<'PYTHON'
           import subprocess
           import sys
-          for suite in ('test_static_emulator', 'test_workspace', 'test_piano_sampler', 'test_performance', 'test_rotary_audio'):
+          for suite in ('test_static_emulator', 'test_workspace', 'test_piano_sampler', 'test_performance', 'test_rotary_audio', 'test_installer'):
               path = f'tests/browser/{suite}.py'
               result = subprocess.run([sys.executable, path], stdout=subprocess.PIPE,
                                       stderr=subprocess.STDOUT, text=True)

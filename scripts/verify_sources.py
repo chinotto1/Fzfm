@@ -13,3 +13,8 @@ if actual!=set(expected): raise SystemExit('BSP file set does not match lock')
 for name,digest in expected.items():
     if hashlib.sha256((base/name).read_bytes()).hexdigest()!=digest:raise SystemExit('BSP hash mismatch: '+name)
 print(f'Vendored BSP: {len(expected)} exact file hashes verified')
+installer=json.loads((ROOT/'third_party/fm1-installer.lock.json').read_text())
+for name,entry in installer['files'].items():
+    if hashlib.sha256((ROOT/entry['local']).read_bytes()).hexdigest()!=entry['local_sha256']:
+        raise SystemExit('Installer source hash mismatch: '+name)
+print(f"Installer protocol: {len(installer['files'])} modified source hashes verified")

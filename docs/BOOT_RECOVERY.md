@@ -11,3 +11,9 @@ The target SAVE callback returns UNSUPPORTED; it never writes PCM, settings, cal
 The pinned BSP describes `fm1_enter_uboot` writing `usb_update_mode` into its boot mailbox and resetting, and separate rescue tools using stock firmware. Those references were inspected; no helper was run and no write path is authorized by this document. The reproduced baseline image is not yet “known-good.”
 
 Before a future specifically authorized image write: preserve calibration/user data through a demonstrated backup path, verify the exact unit identity/layout and image hash, demonstrate stock restore on that unit, confirm safe app/update ranges and tested SRAM, then obtain authorization for that concrete image. Physical recovery/power interruption tests remain in DEVICE_TESTS.md. The present implementation stops short of these actions.
+
+## Browser installer tooling
+
+The public [`/install/`](https://chinotto1.github.io/Fzfm/install/) page now implements Web MIDI package transfer and exact-loader resume for catalog-pinned Skiff 1.3.2, SLOOP 2.7.1 and official V15 files selected locally. It requires an explicit backup acknowledgement and a final device/package/hash review before sending upgrade commands. Its protocol and UI are tested against simulated devices only; no physical recovery evidence is added by those tests. ROM UBOOT is a separate path linked from the page, not a browser MIDI recovery mode.
+
+The page displays the current source revision with hardware install disabled. The board adapter explicitly sets `FELUCCA_OTA=0`; neither an update handshake nor a qualified installable package is offered for FM1 FZ. The existing scripts continue to refuse and no raw target image is exposed as installable. See [HARDWARE_INSTALLER.md](HARDWARE_INSTALLER.md) for the precise workflow, source attribution, test evidence and remaining physical gates.

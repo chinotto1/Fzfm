@@ -26,3 +26,7 @@ These commands actually compiled and linked in the cloud. They write `build/targ
 The old compiler reports aggregate `{0}` initializer warnings and one upstream USB initializer warning; host builds use modern GCC with `-Werror`. No warnings are treated as evidence of a successful device test. See MEMORY_MAP.md for the target's deliberately limited profile and resource tradeoffs.
 
 `python3 scripts/package_source.py` creates a deterministic source snapshot with a SHA-256 manifest, including modified BSP source/notices, excluding generated audio/user saves/compiler/SDK binaries. It is not an installable update. `package_firmware.sh` and `flash.sh` still refuse because flash layout, persistence and recovery qualification are incomplete. No device backup/update tool is advertised as working before those gates close.
+
+## Hardware installer page
+
+`make web` also builds `/install/` with content-addressed assets, release catalog and current source commit. Node 20+ is needed for `make installer-test`; it checks the browser update protocol with simulated MIDI ports and never accesses USB. `make web-test` includes that suite and the installer browser workflow. The page accepts only catalog-pinned user-selected firmware packages; current FM1 FZ hardware installation remains disabled. See [HARDWARE_INSTALLER.md](HARDWARE_INSTALLER.md).

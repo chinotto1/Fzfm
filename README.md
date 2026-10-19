@@ -2,6 +2,8 @@
 
 **[Open the public iPad emulator](https://chinotto1.github.io/Fzfm/)** — tap **Explore demo** and play. Sound starts automatically, or on your first interaction where the browser requires it. No computer or account is needed. [Browser saves and controls](docs/WEB_EMULATOR.md).
 
+**[Hardware installer & recovery](https://chinotto1.github.io/Fzfm/install/)** — choose published Skiff, SLOOP or official V15 recovery packages in Chrome/Edge on a computer. The page shows the current FM1 FZ source build; its hardware install remains unavailable until OTA and physical recovery are qualified. [Installer guide](docs/HARDWARE_INSTALLER.md).
+
 A 36 kHz sampling synthesizer and groovebox for the M-VAVE FM-1. The portable application now connects sampling, synthesis, editing, sequencing, arrangement, mixing and project saves. A local simulator runs that same C application with its actual 240×240 display and physical controls.
 
 ```sh

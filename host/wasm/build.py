@@ -54,6 +54,30 @@ index=(ROOT/'web/simulator/index.html').read_text().replace('data-runtime="nativ
 index=index.replace('NATIVE CORE · PANEL SIMULATOR','INSTRUMENT · WEB EMULATOR')
 index=index.replace('./app.js','./'+app_name).replace('./style.css','./'+css_name)
 (out/'index.html').write_text(index)
+# The hardware page is independent of the emulator engine. Hash its modules too
+# so a cached installer cannot mix its protocol and application revisions.
+installer=out/'install'
+if installer.exists():shutil.rmtree(installer)
+installer.mkdir()
+def install_asset(name,content):
+ digest=hashlib.sha256(content).hexdigest()[:12]
+ path=Path(name);versioned=path.stem+'.'+digest+path.suffix
+ (installer/versioned).write_bytes(content)
+ return versioned
+install_source=ROOT/'web/installer'
+pkg_name=install_asset('fm1pkg.js',(install_source/'vendor/fm1pkg.js').read_bytes())
+ota_name=install_asset('fm1ota.js',(install_source/'vendor/fm1ota.js').read_bytes())
+packages=(install_source/'packages.js').read_text().replace('./vendor/fm1pkg.js','./'+pkg_name)
+packages_name=install_asset('packages.js',packages.encode())
+install_app=(install_source/'app.js').read_text().replace('./vendor/fm1ota.js','./'+ota_name).replace('./packages.js','./'+packages_name)
+install_app_name=install_asset('app.js',install_app.encode())
+install_css_name=install_asset('style.css',(install_source/'style.css').read_bytes())
+(installer/'index.html').write_text((install_source/'index.html').read_text().replace('./app.js','./'+install_app_name).replace('./style.css','./'+install_css_name))
+catalog=json.loads((install_source/'releases.json').read_text())
+catalog['current']['commit']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+(installer/'releases.json').write_text(json.dumps(catalog,indent=2)+'\n')
+shutil.copyfile(install_source/'vendor/NOTICE.md',installer/'NOTICE.md')
+shutil.copyfile(ROOT/'LICENSE',installer/'LICENSE.txt')
 # Remove superseded outputs, including unversioned compiler intermediates.
 keep={wasm_name,core_name,worker_name,backend_name,sequencer_name,sampler_name,performance_name,workspace_name,app_name,css_name,'index.html','.nojekyll','LICENSE.txt','THIRD_PARTY_NOTICES.md','THIRD_PARTY_WEB_NOTICES.txt','USER_MANUAL.md','build-info.json'}
 for path in out.iterdir():
@@ -68,7 +92,7 @@ shutil.copyfile(ROOT/'docs/USER_MANUAL.md',out/'USER_MANUAL.md')
  'source':'https://github.com/chinotto1/Fzfm',
  'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
  'compiler':subprocess.check_output([emcc,'--version'],text=True).splitlines()[0],
- 'sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(out.iterdir()) if p.is_file() and p.name!='build-info.json'}},indent=2)+'\n')
-for path in out.iterdir():
+ 'sha256':{p.relative_to(out).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(out.rglob('*')) if p.is_file() and p.name!='build-info.json'}},indent=2)+'\n')
+for path in out.rglob('*'):
  if path.is_file():path.chmod(0o644)
 print('Static site ready:',out,flush=True)

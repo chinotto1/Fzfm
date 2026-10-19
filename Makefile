@@ -91,12 +91,16 @@ baseline:
 native-test: build/libfm1_sim.so
 	python3 tests/native/test_bridge.py
 
-.PHONY: web web-test
+.PHONY: web web-test installer-test
+installer-test:
+	node tests/installer/test_protocol.mjs
 web:
 	python3 host/wasm/build.py
 web-test: web
+	node tests/installer/test_protocol.mjs
 	python3 tests/browser/test_static_emulator.py
 	python3 tests/browser/test_workspace.py
 	python3 tests/browser/test_piano_sampler.py
 	python3 tests/browser/test_performance.py
 	python3 tests/browser/test_rotary_audio.py
+	python3 tests/browser/test_installer.py
