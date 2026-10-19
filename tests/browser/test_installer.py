@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import shutil
 import threading
+from urllib.parse import urljoin
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -187,6 +188,25 @@ try:
         assert tab.locator('#install').is_disabled()
         assert tab.evaluate('__midiRequests') == 0
         invalid.close()
+        # The download is a single document with embedded code/catalog/licences.
+        # Serve it over trusted HTTP: this managed browser forbids file:// URLs.
+        offline = browser.new_context()
+        offline.add_init_script("window.midiRequests=0;Object.defineProperty(navigator,'requestMIDIAccess',{value:async()=>{window.midiRequests++;throw new DOMException('denied','NotAllowedError')},configurable:true})")
+        local = offline.new_page(); assets = []; offline_errors = []
+        local.on('request', lambda r: assets.append((r.url, r.resource_type)))
+        local.on('pageerror', lambda error: offline_errors.append(str(error)))
+        local.goto(urljoin(url, 'FM1-FZ-Installer.html'))
+        local.wait_for_function('document.querySelector("#current-badge").textContent==="Hardware release pending"')
+        assert local.evaluate('midiRequests') == 0
+        assert local.locator('#install').is_disabled()
+        local.locator('#mode-recover').click()
+        assert local.locator('#firmware option').count() == 3
+        assert local.locator('#licences').count() == 1
+        local.locator('#connect').click()
+        local.wait_for_function('document.querySelector("#device-status").textContent.includes("permission was denied")')
+        assert not [a for a in assets if a[1] in ['script','stylesheet','fetch','xhr']], assets
+        assert not offline_errors, offline_errors
+        offline.close()
         browser.close()
         print('Installer browser PASS: no automatic MIDI access, gated current build, catalog/file/hash validation, backup and explicit confirmation, byte-level simulated install, unplug/failure and matching resume, wrong-loader rejection, disconnect during review, unsupported browsers and 320/390px layouts. No physical device accessed.')
 finally:

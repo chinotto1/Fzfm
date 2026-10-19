@@ -30,3 +30,9 @@ The old compiler reports aggregate `{0}` initializer warnings and one upstream U
 ## Hardware installer page
 
 `make web` also builds `/install/` with content-addressed assets, release catalog and current source commit. Node 20+ is needed for `make installer-test`; it checks the browser update protocol with simulated MIDI ports and never accesses USB. `make web-test` includes that suite and the installer browser workflow. The page accepts only catalog-pinned user-selected firmware packages; current FM1 FZ hardware installation remains disabled. See [HARDWARE_INSTALLER.md](HARDWARE_INSTALLER.md).
+
+`make installer-download` builds `build/FM1-FZ-Installer.html` using Python's
+standard library alone. It embeds all installer scripts, styles, catalog and GPL
+notices; no firmware or native SDK is included. `make web` also places a copy in
+the published installer folder. The browser suite verifies the single-document
+version over trusted HTTP without additional asset or catalog requests.

@@ -78,6 +78,8 @@ catalog['current']['commit']=subprocess.check_output(['git','rev-parse','HEAD'],
 (installer/'releases.json').write_text(json.dumps(catalog,indent=2)+'\n')
 shutil.copyfile(install_source/'vendor/NOTICE.md',installer/'NOTICE.md')
 shutil.copyfile(ROOT/'LICENSE',installer/'LICENSE.txt')
+subprocess.run(['python3',str(ROOT/'scripts/build_installer_download.py'),
+                '--out',str(installer/'FM1-FZ-Installer.html')],cwd=ROOT,check=True)
 # Remove superseded outputs, including unversioned compiler intermediates.
 keep={wasm_name,core_name,worker_name,backend_name,sequencer_name,sampler_name,performance_name,workspace_name,app_name,css_name,'index.html','.nojekyll','LICENSE.txt','THIRD_PARTY_NOTICES.md','THIRD_PARTY_WEB_NOTICES.txt','USER_MANUAL.md','build-info.json'}
 for path in out.iterdir():

@@ -91,7 +91,9 @@ baseline:
 native-test: build/libfm1_sim.so
 	python3 tests/native/test_bridge.py
 
-.PHONY: web web-test installer-test
+.PHONY: web web-test installer-test installer-download
+installer-download:
+	python3 scripts/build_installer_download.py
 installer-test:
 	node tests/installer/test_protocol.mjs
 web:

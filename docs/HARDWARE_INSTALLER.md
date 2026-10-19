@@ -4,6 +4,13 @@ Open https://chinotto1.github.io/Fzfm/install/ in Chrome or Edge on Windows,
 macOS or Linux. The emulator links to it. iPad browsers can read the page; device
 updates require Web MIDI SysEx support and HTTPS. Nothing connects automatically.
 
+The footer also offers **Download this installer page**: a self-contained HTML
+file with its catalog, scripts, styles and GPL notices embedded. It contains no
+firmware binaries and makes no extra network requests when opened. Use Chrome or
+Edge on Windows; a browser policy that blocks downloaded pages requires serving
+it from a trusted local HTTP origin or using the hosted page. Build it independently
+of Emscripten with `python3 scripts/build_installer_download.py`.
+
 The current FM1 FZ source revision is shown from the site build. Its Install
 button is disabled: the board adapter explicitly sets `FELUCCA_OTA=0`, has not
 booted on a physical unit, and has no qualified `.fwsc` or demonstrated recovery.
@@ -63,6 +70,9 @@ final identity, wrong target, disconnects, invalid read ranges/stages and cleanu
 page with injected MIDI ports, local package selection, corruption/backup/review
 gates, simulated install/unplug/resume and 320/390-pixel layouts. It never opens a
 physical device. `FM1_TEST_URL` can point to the deployed `/install/` for this test.
+The single-file download is exercised over trusted localhost HTTP with no extra
+assets/fetches. The managed cloud browser blocks `file://` navigation, so opening
+the download directly as a Windows file remains a user-side check.
 
 Physical Windows USB/MIDI transfers, interrupted-write recovery, calibration/data
 preservation and the FM1 FZ firmware's own OTA/recovery path remain unverified.
