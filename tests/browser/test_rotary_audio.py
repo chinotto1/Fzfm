@@ -31,9 +31,9 @@ if not url:
 # Some automation drivers activate the page during evaluate(). Gate only resume
 # until a trusted input to exercise Safari's pending-promise path deterministically.
 PROBE = '''
-window.audioProbe={contexts:[],peak:0,started:0,blocked:false,gesture:false,pending:[]};
-for(const type of ['pointerdown','keydown'])document.addEventListener(type,event=>{
- if(event.isTrusted)audioProbe.gesture=true;
+window.audioProbe={contexts:[],peak:0,started:0,blocked:false,gesture:false,unlockOnRelease:false,pending:[]};
+for(const type of ['pointerdown','pointerup','touchend','keydown'])document.addEventListener(type,event=>{
+ if(event.isTrusted&&(!audioProbe.unlockOnRelease||type!=='pointerdown'))audioProbe.gesture=true;
 },{capture:true});
 const Original=window.AudioContext;
 window.AudioContext=class extends Original {
@@ -66,7 +66,7 @@ try:
         browser = launch('document-user-activation-required')
         context = browser.new_context(viewport={'width': 1024, 'height': 1366}, has_touch=True, is_mobile=True)
         page = context.new_page()
-        page.add_init_script(PROBE.replace("blocked:false", "blocked:true"))
+        page.add_init_script(PROBE.replace("blocked:false", "blocked:true").replace("unlockOnRelease:false", "unlockOnRelease:true"))
         errors = []
         page.on('pageerror', lambda e: errors.append(str(e)))
         def wait(expr):
@@ -81,6 +81,7 @@ try:
         page.goto(url, wait_until='domcontentloaded')
         wait('window.fm1&&!document.body.classList.contains("loading")')
         # Simulate a pending autoplay resume even on headless browsers that permit it.
+        # Require touch release, matching browsers that do not activate on touch-down.
         # Scheduling and gesture activation still use the real AudioContext.
         assert page.locator('#audio').inner_text() == 'Sound ready', (page.locator('#audio').inner_text(), page.evaluate('audioProbe.contexts.map(c=>c.state)'), errors)
         page.locator('#new-track').tap()

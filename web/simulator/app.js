@@ -144,8 +144,8 @@ function autoSound(event){
  if(!soundWanted||sound||audioPauses.size||event.target.closest?.('#audio,#record-mic'))return;
  enableSound().catch(()=>{});
 }
-document.addEventListener('pointerdown',autoSound,{capture:true});
-document.addEventListener('keydown',autoSound,{capture:true});
+for(const type of ['pointerdown','pointerup','touchend','keydown'])
+ document.addEventListener(type,autoSound,{capture:true,passive:type==='touchend'});
 audioButton();enableSound().catch(()=>{});
 let previewHeld=false,previewKey=7;
 async function previewDown(){
