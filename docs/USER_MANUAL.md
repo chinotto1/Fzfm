@@ -61,6 +61,10 @@ SAVE is queued during playback and commits on stop in the host simulator. Local 
 
 On-device project persistence and device transfer are not qualified. The target SAVE callback returns UNSUPPORTED and retains VOLATILE status; it never pretends RAM survived power loss. See REQUIREMENTS_STATUS.md for remaining device/release work.
 
+## Audio interface
+
+A separate host firmware in `firmware/interface/` routes stereo audio through a peak limiter and plays an eight-track step sequencer and arpeggiator. Its retrospective capture keeps the Melodee nightly free-take tempo: 16, 32, or 64 steps, the nearest BPM from 40 to 240, and the current BPM when the candidate is within 3%. That clock belongs to the interface. Sampler free takes and REC-hold history on this instrument stay on the rules above. The interface has no equalizer page, no USB device, and no Bluetooth, and it is not installed by the hardware page. [Interface notes](INTERFACE.md).
+
 ## Hardware installation and recovery
 
 Open the emulator header’s **Hardware installer & recovery** link in Chrome or Edge on Windows/macOS/Linux. The separate page identifies one connected FM1, offers Skiff 1.3.2 / SLOOP 2.7.1 / official V15 recovery targets, verifies a local `.fwsc` by exact size/identity/SHA-256, and requires a backup acknowledgement plus final review before a hardware update. Matching interrupted MIDI updates can resume; ROM UBOOT is a separate documented recovery route. Our current firmware is listed with installation disabled while its own OTA and physical recovery are unqualified. [Full workflow and limitations](HARDWARE_INSTALLER.md).

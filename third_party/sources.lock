@@ -18,6 +18,22 @@ date: 2026-10-17T12:04:52Z
 license: GPL-3.0
 role: UAC1 44.1 kHz playback into the FM-1, duplex descriptor, panel map
 
+# Nightly tip inspected for the audio-interface capture/BPM function. GPL; not copied.
+name: melodee-nightly
+url: https://github.com/keremimo/melodee
+commit: 3fe570d285d1d8da5438d93963c6048734e9e4d2
+date: 2026-11-03T18:38:00Z
+license: GPL-3.0
+role: retrospective MIDI capture and 16/32/64 BPM function (branch nightly, firmware next-3fe570d). Behavior reference only
+
+# Stereo USB router reference. MPL-2.0; not copied. Equalizer omitted.
+name: fm1-audio-router
+url: https://github.com/maxravedj/fm1-audio-router
+commit: d029a18dd1da660f2200b21a46711e6fe6f4da85
+date: 2026-11-12T20:12:36Z
+license: MPL-2.0
+role: v0.4.0 mixer, meters, and peak limiter. Five-band equalizer and its delay are not used. Flash map is not ours
+
 # Application references. Not selected as the firmware base.
 name: Felucca
 url: https://github.com/hugelton/Felucca

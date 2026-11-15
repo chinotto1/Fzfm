@@ -1404,7 +1404,7 @@ Inspect actual receive code, descriptors, resource allocation, source layout, bu
 
 `https://github.com/keremimo/melodee/blob/main/README.md`
 
-Reference for USB host playback into the FM-1, MIDI/audio integration, and available source. Paths and features have changed across versions; locate the actual implementation through the repository tree rather than assuming an old file path.
+Reference for USB host playback into the FM-1, MIDI/audio integration, and available source. Paths and features have changed across versions; locate the actual implementation through the repository tree rather than assuming an old file path. The sampler's USB notes stay on the 2026-10-17 pin in `third_party/sources.lock`. Audio-interface capture and BPM follow the nightly pin recorded beside it. [27]
 
 ## [S4] SLOOP
 
@@ -1486,6 +1486,12 @@ Candidate DSP/reference for shared effects, static buffer costs, channel layouts
 
 Reference for capability/permission/secure-context requirements. Feature-detect and device-test browser transfer rather than hardcoding a universal support claim.
 
+## [S14] FM-1 Audio Router
+
+`https://github.com/maxravedj/fm1-audio-router`
+
+MPL-2.0 stereo USB router: mixer, five-band equalizer, peak limiter, meters, and a MIDI controller. v0.4.0 is the behavior reference for the interface router. The equalizer and its delay are omitted. The tree is not vendored, and its flash map is not this firmware's map. [27]
+
 ---
 
 # 26. Final instruction to the coding agent
@@ -1495,3 +1501,55 @@ Build this as a real small instrument, not a collection of names copied from oth
 Your first response should identify the chosen investigation/build path and begin M0/M1 work. Your first implementation should establish the 36 kHz core and direct USB capture path, not a mandatory browser editor. Keep the user informed of measured constraints, but do not repeatedly reopen settled design decisions.
 
 Above all: do not fabricate resources or test results, do not flash without authorization, and do not silently simplify away the sampler, additive synthesis, retrospective recording, arranger, four sends, or deep editing that define this project.
+
+# 27. Audio interface
+
+`firmware/interface/` is a separate host-tested firmware core: a stereo router, a step sequencer, an arpeggiator, and retrospective MIDI capture. It stays out of the workstation simulator and out of the PI32 sampler image. Sections 14.3–14.5 still govern sampler takes, including the rule that a sampler take is not forced into 1, 2, or 4 bars. This section records a second product with its own clock and its own proof.
+
+## 27.1 Router
+
+- The processing rate is 36 kHz.
+- Interleaved stereo frames receive level, pan, and mute, then mix with one monophonic square monitor per track so sequencer and arp notes are audible on the host. The monitor is not a sampled instrument and not the workstation synth.
+- A peak limiter follows the mix. While a peak sits above the ceiling, the envelope moves one quarter of the way toward that peak; otherwise it releases by one quarter of the gap. Speaker output is the limited mix.
+- USB return follows the output mode. LOOP returns the input. LOCAL returns the monitor. MIX returns the post-limiter speaker.
+- The meters are the post-limit left and right peaks. A clip paints the red corner.
+- The five-band equalizer and its delay memory from the audio-router reference are omitted. `IF_EQ_BANDS` is 0. The pages are Mix, Seq, and Arp. The mix page draws LIMIT ON. An impulse that stays under the ceiling has a zero tail.
+- USB device enumeration, Bluetooth codecs, and flash are absent from this core. These files are not a flashing image.
+
+## 27.2 Clock, sequencer, and arpeggiator
+
+- Musical time uses 24576 units per quarter note. Divisions are 1/4, 1/8, 1/16, 1/32, eighth-note triplet, sixteenth-note triplet, 1/2, whole note, 2 bars, and 4 bars. The default step is 1/16.
+- At 120 BPM one 1/16 step is 4500 frames at 36 kHz. The remainder of the unit accumulator is kept across blocks.
+- An external clock contributes zero internal units. The grid advances only while transport is running. The arpeggiator advances on any block that produces units.
+- Eight tracks hold 64 steps, with up to four notes on a step. Starting transport sets the index to the last step and the position to the sentinel, so the first block enters step 0 and drops leftover units.
+- Arp modes are Off, Up, Down, Up/Down, Random, Order, and Repeat. Up, Down, and Up/Down sort the held notes. Order keeps press order. Repeat is the last held note and adds no octaves. Sixteen notes are held; a further note is ignored. Hold latches the current chord until the next chord. Gate length is period times gate over 128. Probability compares a 7-bit draw with the stored probability; the default probability is 127. The first note fires when the position is the sentinel `0x0FFFFFFF`. Up/Down has period `2 * count - 2` once two or more notes are held.
+
+## 27.3 Retrospective capture and BPM
+
+Free-take tempo matches Melodee nightly `3fe570d285d1d8da5438d93963c6048734e9e4d2`, the firmware the project manual calls next-3fe570d. The integer order is the contract:
+
+```text
+CAP_LOOP_BPM_MS(steps, div) = (((steps * div / 96) * 15000) / 64)
+```
+
+`div` is the current step length in musical units, not audio frames.
+
+- Candidates are 16, 32, and 64 steps. Each BPM is `(CAP_LOOP_BPM_MS(steps, div) + press / 2) / press`. The nearest value inside 40..240 wins. An equal distance keeps the shorter loop.
+- When `gap * 100 <= current * 3`, the current BPM stays. The comparison is inclusive.
+- Detection runs when every other track is empty, the phrase has more than one note, and `press - last <= press / 4 * 3`. Otherwise the tempo stays. The loop then starts at 16 steps and doubles while the candidate still reaches the last onset, stopping at 64.
+- Button-down ends the loop. Hold age is removed from the span. A span that underflows, or a span of zero, publishes nothing. A published span is clamped to 65535 ms.
+- A rest longer than 8000 ms, or a phrase longer than 65535 ms, restarts the free-take buffer. The ring holds 128 events and drops the oldest. Only the selected track is stored. Changing tracks sets the ring start to the write cursor and clears the free-take flag.
+- Armed recording, and an external clock, block free-take collection. Capture reports recording when the selected track is armed, or when any track is armed while transport is running.
+- An empty pattern publishes 16, 32, or 64 steps and sets that length, then starts playback from the top. A pattern that already has notes keeps its length, takes the last length steps of the window, and merges. Existing notes on a step stay. A step holds four notes; a repeated pitch keeps the higher velocity. A note whose onset fraction is at least one half rounds to the next step.
+- Undo and redo exchange the selected pattern's steps, recorded notes, and length. BPM stays at the value the take published. A later capture that writes the same notes does not replace the undo snapshot.
+- The message is `CAPTURED` or `FULL:`, then `N STEPS` or a bar count (`1 BAR` for 16 steps, `N BARS` when the count is a larger multiple of 16). A free take appends the BPM.
+
+## 27.4 Display
+
+The 240×240 indexed framebuffer uses the palette in `docs/DISPLAY_STYLE.md`: background `#080910`, text `#f5f5ef`, panel `#1b2030`, blue `#294f88`, green `#52cb80`, amber `#f4bf35`, muted `#b9c2d5`, red `#f27575`. The title is the shared 8×8 font at 2×. Armed recording draws REC in red. The Seq page shows the first 16 steps, green when filled, blue when empty, amber on the playhead. The arp page shows the mode, the rate, and the octave.
+
+## 27.5 Proof
+
+`make interface-test` is a prerequisite of `make test`, so `./scripts/check.sh` runs it. The suite fails if the equalizer band count leaves zero, if an under-ceiling impulse grows a tail, if the nightly BPM cases move, or if undo writes the tempo back. The sampler retrospective suites stay beside it.
+
+Pins, inspected and not vendored: Melodee nightly `3fe570d285d1d8da5438d93963c6048734e9e4d2` (2026-11-03) and FM-1 Audio Router v0.4.0 `d029a18dd1da660f2200b21a46711e6fe6f4da85` (2026-11-12). [S3] [S14]

@@ -61,6 +61,15 @@ demo: build/fm1-sim
 	./build/fm1-sim --demo build/workstation-demo
 test: workstation-test
 
+.PHONY: interface-test
+IF_SRC := firmware/interface/if_route.c firmware/interface/if_seq.c firmware/interface/if_capture.c firmware/interface/if_ui.c firmware/ui/font.c
+build/test_interface: tests/interface/test_interface.c $(IF_SRC) firmware/interface/if.h firmware/interface/if_internal.h firmware/ui/font.h
+	mkdir -p build
+	$(CC) $(CFLAGS) -I firmware -I firmware/interface $(SAN) -o $@ tests/interface/test_interface.c $(IF_SRC) $(LDFLAGS)
+interface-test: build/test_interface
+	./build/test_interface
+test: interface-test
+
 build/libfm1_sim.so: host/simulator/bridge.c host/simulator/main.c host/simulator/editor.inc.c host/simulator/workflow.inc.c $(WS_SRC) $(WS_HEADERS)
 	mkdir -p build
 	$(CC) $(CFLAGS) -I firmware/workstation -O2 -fPIC -shared -o $@ host/simulator/bridge.c $(WS_SRC) $(LDFLAGS)

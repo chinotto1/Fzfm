@@ -4,6 +4,7 @@
 
 ### Added
 
+- Host-tested audio interface in `firmware/interface/`: stereo router and peak limiter with the equalizer omitted, eight-track step sequencer, arpeggiator, and retrospective MIDI capture. Free-take tempo follows Melodee nightly `3fe570d` (16/32/64 steps, nearest BPM from 40 to 240, 3% keep, shorter loop on a tie). Undo restores notes and length and leaves BPM. The core stays out of the PI32 sampler image and the workstation simulator. USB device enumeration, Bluetooth, and flashing are absent. `make interface-test` runs inside `./scripts/check.sh`.
 - GLO channel-strip mixer on the native display and browser, live/coalesced faders, pan/sends/mute/solo and voice-peak meters. Hold HOME opens commands; ARP opens two direct settings pages.
 - Original SLOOP-inspired live arp scheduler with 15 modes including Off, eight rates, range/gate/swing/probability/latch/order, recording/history of generated notes and safe stop. Per-track settings persist in FM1P v3; existing v2 projects migrate with ARP off.
 - SEQ opens a native MIDI piano roll before steps/patterns/song, with adaptive pitch view, selection of off-grid notes, add/delete, time/pitch/gate/velocity edits and undo. The panel SEQ button also reveals the large browser roll. Added core/UI/migration/audible-browser regressions to Pages CI.
